@@ -26,8 +26,15 @@ import {
   Settings,
   Sparkles,
   Crown,
+  Facebook,
+  Twitter,
+  Linkedin,
+  Instagram,
+  Mail,
+  Phone,
+  MapPin,
 } from "lucide-react";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { AlertCircle, ExternalLink } from "lucide-react";
 import { AIChatbot, ChatbotButton } from "@/components/AIChatbot";
@@ -36,6 +43,18 @@ const Landing = () => {
   const navigate = useNavigate();
   const [showSignUpModal, setShowSignUpModal] = useState(false);
   const [showChatbot, setShowChatbot] = useState(false);
+
+  // Generate animated particles
+  const particles = useMemo(() => {
+    return Array.from({ length: 50 }, (_, i) => ({
+      id: i,
+      left: Math.random() * 100,
+      top: Math.random() * 100,
+      delay: Math.random() * 5,
+      duration: 3 + Math.random() * 4,
+      size: Math.random() * 3 + 1,
+    }));
+  }, []);
 
   const handleSignUpClick = () => {
     setShowSignUpModal(true);
@@ -50,44 +69,76 @@ const Landing = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-indigo-950 to-slate-950 text-white">
+    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-indigo-950 to-slate-950 text-white relative overflow-hidden">
+      {/* Animated Background Effects */}
+      <div className="fixed inset-0 overflow-hidden pointer-events-none">
+        {/* Animated gradient orbs */}
+        <div className="absolute top-0 left-1/4 w-96 h-96 bg-yellow-500/20 rounded-full blur-3xl animate-pulse"></div>
+        <div className="absolute top-1/4 right-1/4 w-96 h-96 bg-indigo-500/20 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1s' }}></div>
+        <div className="absolute bottom-1/4 left-1/3 w-96 h-96 bg-purple-500/20 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '2s' }}></div>
+        
+        {/* Star particles */}
+        <div className="absolute inset-0">
+          {particles.map((particle) => (
+            <div
+              key={particle.id}
+              className="absolute rounded-full bg-yellow-400/30 animate-pulse"
+              style={{
+                left: `${particle.left}%`,
+                top: `${particle.top}%`,
+                width: `${particle.size}px`,
+                height: `${particle.size}px`,
+                animationDelay: `${particle.delay}s`,
+                animationDuration: `${particle.duration}s`
+              }}
+            />
+          ))}
+        </div>
+
+        {/* Grid pattern overlay */}
+        <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.02)_1px,transparent_1px)] bg-[size:50px_50px]"></div>
+      </div>
+
       {/* Header */}
-      <header className="container mx-auto px-6 py-6 flex items-center justify-between">
+      <header className="container mx-auto px-6 py-6 flex items-center justify-between relative z-50 backdrop-blur-sm bg-slate-950/30 border-b border-slate-800/50">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-gradient-to-br from-yellow-400 via-yellow-500 to-yellow-600 rounded-lg flex items-center justify-center shadow-lg shadow-yellow-500/50">
+          <div className="w-10 h-10 bg-gradient-to-br from-yellow-400 via-yellow-500 to-yellow-600 rounded-lg flex items-center justify-center shadow-lg shadow-yellow-500/50 animate-pulse">
             <Gem className="h-6 w-6 text-white" />
           </div>
           <div>
             <h1 className="text-xl font-bold bg-gradient-to-r from-yellow-300 to-yellow-100 bg-clip-text text-transparent">
               Gold Crafts Manager
             </h1>
-            <p className="text-xs text-gray-400">Luxury Jewelry Business Management</p>
+            <p className="text-xs text-gray-200">Luxury Jewelry Business Management</p>
           </div>
         </div>
         <nav className="hidden md:flex items-center gap-8">
-          <a href="#features" className="text-gray-300 hover:text-yellow-300 transition-colors">
+          <a href="#features" className="text-gray-200 hover:text-yellow-300 transition-all duration-300 relative group">
             Features
+            <span className="absolute bottom-0 left-0 w-0 h-0.5 bg-yellow-400 group-hover:w-full transition-all duration-300"></span>
           </a>
-          <a href="#how-it-works" className="text-gray-300 hover:text-yellow-300 transition-colors">
+          <a href="#how-it-works" className="text-gray-200 hover:text-yellow-300 transition-all duration-300 relative group">
             How It Works
+            <span className="absolute bottom-0 left-0 w-0 h-0.5 bg-yellow-400 group-hover:w-full transition-all duration-300"></span>
           </a>
           <button
             onClick={handleSupportClick}
-            className="text-gray-300 hover:text-yellow-300 transition-colors"
+            className="text-gray-200 hover:text-yellow-300 transition-all duration-300 relative group"
           >
             Support
+            <span className="absolute bottom-0 left-0 w-0 h-0.5 bg-yellow-400 group-hover:w-full transition-all duration-300"></span>
           </button>
         </nav>
         <div className="flex items-center gap-4">
           <button
             onClick={handleSignInClick}
-            className="text-gray-300 hover:text-yellow-300 transition-colors"
+            className="text-gray-200 hover:text-yellow-300 transition-colors font-medium"
           >
             Login
           </button>
           <Button
             onClick={handleSignUpClick}
-            className="bg-gradient-to-r from-yellow-500 via-yellow-500 to-yellow-600 hover:from-yellow-400 hover:via-yellow-400 hover:to-yellow-500 text-white shadow-lg shadow-yellow-500/30"
+            className="bg-gradient-to-r from-yellow-500 via-yellow-500 to-yellow-600 hover:from-yellow-400 hover:via-yellow-400 hover:to-yellow-500 text-white shadow-lg shadow-yellow-500/30 hover:shadow-yellow-500/50 transition-all duration-300 hover:scale-105"
           >
             Get Started
           </Button>
@@ -95,56 +146,56 @@ const Landing = () => {
       </header>
 
       {/* Hero Section */}
-      <section className="container mx-auto px-6 py-16">
+      <section className="container mx-auto px-6 py-16 relative z-10">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
           {/* Left Content */}
-          <div className="space-y-8">
-            <Badge className="bg-yellow-500/20 text-yellow-300 border-yellow-500/50">
-              <Crown className="h-3 w-3 mr-1" />
+          <div className="space-y-8 animate-fade-in">
+            <Badge className="bg-yellow-500/20 text-yellow-300 border-yellow-500/50 px-4 py-1.5 backdrop-blur-sm">
+              <Crown className="h-3 w-3 mr-1 animate-pulse" />
               Complete Jewelry Business Solution
             </Badge>
             <div>
               <h2 className="text-5xl lg:text-6xl font-bold mb-4 leading-tight">
                 Transform Your
                 <br />
-                <span className="text-6xl lg:text-7xl bg-gradient-to-r from-yellow-300 via-yellow-200 to-yellow-300 bg-clip-text text-transparent">
+                <span className="text-6xl lg:text-7xl bg-gradient-to-r from-yellow-300 via-yellow-200 to-yellow-300 bg-clip-text text-transparent animate-gradient">
                   Gold Crafts
                 </span>
                 <br />
                 Business
               </h2>
-              <p className="text-lg text-gray-300 mt-6 max-w-xl">
+              <p className="text-lg text-gray-100 mt-6 max-w-xl leading-relaxed">
                 Comprehensive business management system designed specifically for jewelry and gold crafts businesses. Manage inventory, track craftsmen, process sales, and grow your luxury jewelry enterprise with ease.
               </p>
             </div>
 
             {/* Feature Cards */}
             <div className="grid grid-cols-3 gap-4">
-              <Card className="bg-slate-800/50 border-slate-700/50 hover:border-yellow-500/50 transition-colors">
+              <Card className="bg-slate-800/60 border-slate-700/50 hover:border-yellow-500/50 transition-all duration-300 hover:scale-105 hover:shadow-lg hover:shadow-yellow-500/20 backdrop-blur-sm group cursor-pointer">
                 <CardContent className="p-4 text-center">
-                  <div className="w-12 h-12 bg-yellow-500/20 rounded-lg flex items-center justify-center mx-auto mb-3">
+                  <div className="w-12 h-12 bg-yellow-500/20 rounded-lg flex items-center justify-center mx-auto mb-3 group-hover:bg-yellow-500/30 group-hover:scale-110 transition-all duration-300">
                     <Gem className="h-6 w-6 text-yellow-400" />
                   </div>
-                  <h3 className="font-bold text-sm mb-1">Gold Collection</h3>
-                  <p className="text-xs text-gray-400">Management</p>
+                  <h3 className="font-bold text-sm mb-1 text-white">Gold Collection</h3>
+                  <p className="text-xs text-gray-200">Management</p>
                 </CardContent>
               </Card>
-              <Card className="bg-slate-800/50 border-slate-700/50 hover:border-yellow-500/50 transition-colors">
+              <Card className="bg-slate-800/60 border-slate-700/50 hover:border-purple-500/50 transition-all duration-300 hover:scale-105 hover:shadow-lg hover:shadow-purple-500/20 backdrop-blur-sm group cursor-pointer">
                 <CardContent className="p-4 text-center">
-                  <div className="w-12 h-12 bg-purple-500/20 rounded-lg flex items-center justify-center mx-auto mb-3">
+                  <div className="w-12 h-12 bg-purple-500/20 rounded-lg flex items-center justify-center mx-auto mb-3 group-hover:bg-purple-500/30 group-hover:scale-110 transition-all duration-300">
                     <Sparkles className="h-6 w-6 text-purple-400" />
                   </div>
-                  <h3 className="font-bold text-sm mb-1">Precious Stones</h3>
-                  <p className="text-xs text-gray-400">Catalog</p>
+                  <h3 className="font-bold text-sm mb-1 text-white">Precious Stones</h3>
+                  <p className="text-xs text-gray-200">Catalog</p>
                 </CardContent>
               </Card>
-              <Card className="bg-slate-800/50 border-slate-700/50 hover:border-yellow-500/50 transition-colors">
+              <Card className="bg-slate-800/60 border-slate-700/50 hover:border-blue-500/50 transition-all duration-300 hover:scale-105 hover:shadow-lg hover:shadow-blue-500/20 backdrop-blur-sm group cursor-pointer">
                 <CardContent className="p-4 text-center">
-                  <div className="w-12 h-12 bg-blue-500/20 rounded-lg flex items-center justify-center mx-auto mb-3">
+                  <div className="w-12 h-12 bg-blue-500/20 rounded-lg flex items-center justify-center mx-auto mb-3 group-hover:bg-blue-500/30 group-hover:scale-110 transition-all duration-300">
                     <BarChart3 className="h-6 w-6 text-blue-400" />
                   </div>
-                  <h3 className="font-bold text-sm mb-1">Real-time</h3>
-                  <p className="text-xs text-gray-400">Analytics</p>
+                  <h3 className="font-bold text-sm mb-1 text-white">Real-time</h3>
+                  <p className="text-xs text-gray-200">Analytics</p>
                 </CardContent>
               </Card>
             </div>
@@ -153,14 +204,14 @@ const Landing = () => {
             <div className="flex gap-4">
               <Button
                 onClick={handleSignUpClick}
-                className="bg-gradient-to-r from-yellow-500 via-yellow-500 to-yellow-600 hover:from-yellow-400 hover:via-yellow-400 hover:to-yellow-500 text-white shadow-lg shadow-yellow-500/30"
+                className="bg-gradient-to-r from-yellow-500 via-yellow-500 to-yellow-600 hover:from-yellow-400 hover:via-yellow-400 hover:to-yellow-500 text-white shadow-lg shadow-yellow-500/30 hover:shadow-yellow-500/50 transition-all duration-300 hover:scale-105"
                 size="lg"
               >
-                Start Free Trial <ArrowRight className="h-4 w-4 ml-2" />
+                Start Free Trial <ArrowRight className="h-4 w-4 ml-2 group-hover:translate-x-1 transition-transform" />
               </Button>
               <Button
                 variant="outline"
-                className="border-slate-600 bg-slate-800/50 text-white hover:bg-slate-800 hover:border-yellow-500/50 hover:text-yellow-300"
+                className="border-slate-600 bg-slate-800/50 text-white hover:bg-slate-800 hover:border-yellow-500/50 hover:text-yellow-300 backdrop-blur-sm transition-all duration-300 hover:scale-105"
                 size="lg"
               >
                 Schedule Demo
@@ -170,57 +221,57 @@ const Landing = () => {
 
           {/* Right - Dashboard Widget */}
           <div className="lg:flex justify-end">
-            <Card className="bg-slate-800/80 border-slate-700/50 backdrop-blur-sm w-full max-w-md shadow-2xl shadow-yellow-500/10">
+            <Card className="bg-slate-800/80 border-slate-700/50 backdrop-blur-sm w-full max-w-md shadow-2xl shadow-yellow-500/10 hover:shadow-yellow-500/20 transition-all duration-300">
               <CardContent className="p-6">
                 <div className="flex items-center justify-between mb-6">
                   <div className="flex items-center gap-2">
-                    <Activity className="h-4 w-4 text-yellow-400" />
-                    <h3 className="font-semibold">Business Dashboard</h3>
+                    <Activity className="h-4 w-4 text-yellow-400 animate-pulse" />
+                    <h3 className="font-semibold text-white">Business Dashboard</h3>
                   </div>
                   <div className="flex gap-1">
-                    <div className="w-2 h-2 rounded-full bg-red-500"></div>
-                    <div className="w-2 h-2 rounded-full bg-yellow-500"></div>
-                    <div className="w-2 h-2 rounded-full bg-green-500"></div>
+                    <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse"></div>
+                    <div className="w-2 h-2 rounded-full bg-yellow-500 animate-pulse" style={{ animationDelay: '0.2s' }}></div>
+                    <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" style={{ animationDelay: '0.4s' }}></div>
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-4 mb-6">
-                  <div className="bg-yellow-500/20 rounded-lg p-4 border border-yellow-500/30">
+                  <div className="bg-yellow-500/20 rounded-lg p-4 border border-yellow-500/30 hover:bg-yellow-500/30 transition-all duration-300">
                     <div className="text-3xl font-bold mb-1 bg-gradient-to-r from-yellow-300 to-yellow-100 bg-clip-text text-transparent">1,247</div>
-                    <div className="text-sm text-gray-400">Jewelry Items</div>
+                    <div className="text-sm text-gray-200">Jewelry Items</div>
                   </div>
-                  <div className="bg-orange-500/20 rounded-lg p-4 border border-orange-500/30">
-                    <div className="text-3xl font-bold mb-1">23</div>
-                    <div className="text-sm text-gray-400">Active Craftsmen</div>
+                  <div className="bg-orange-500/20 rounded-lg p-4 border border-orange-500/30 hover:bg-orange-500/30 transition-all duration-300">
+                    <div className="text-3xl font-bold mb-1 text-orange-300">23</div>
+                    <div className="text-sm text-gray-200">Active Craftsmen</div>
                   </div>
                 </div>
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <div className="w-2 h-2 rounded-full bg-green-500"></div>
-                      <span className="text-sm">System Sync</span>
+                      <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
+                      <span className="text-sm text-white">System Sync</span>
                     </div>
-                    <span className="text-sm text-green-400">Active</span>
+                    <span className="text-sm text-green-400 font-medium">Active</span>
                   </div>
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <ShoppingBag className="h-4 w-4 text-gray-400" />
-                      <span className="text-sm">Pending Orders</span>
+                      <ShoppingBag className="h-4 w-4 text-gray-300" />
+                      <span className="text-sm text-white">Pending Orders</span>
                     </div>
-                    <span className="text-sm text-orange-400">8 Orders</span>
+                    <span className="text-sm text-orange-400 font-medium">8 Orders</span>
                   </div>
                   <div className="space-y-2 pt-2">
                     <div className="flex items-center gap-2">
-                      <FileCheck className="h-4 w-4 text-gray-400" />
-                      <span className="text-sm">Recent Sales</span>
+                      <FileCheck className="h-4 w-4 text-gray-300" />
+                      <span className="text-sm text-white">Recent Sales</span>
                     </div>
                     <div className="pl-6 space-y-1">
                       <div className="flex justify-between text-sm">
-                        <span className="text-gray-400">Sale #SALE-2024-001</span>
-                        <span className="text-white">₹45,280</span>
+                        <span className="text-gray-200">Sale #SALE-2024-001</span>
+                        <span className="text-white font-medium">₹45,280</span>
                       </div>
                       <div className="flex justify-between text-sm">
-                        <span className="text-gray-400">Invoice #INV-2024-156</span>
-                        <span className="text-white">₹12,450</span>
+                        <span className="text-gray-200">Invoice #INV-2024-156</span>
+                        <span className="text-white font-medium">₹12,450</span>
                       </div>
                     </div>
                   </div>
@@ -232,9 +283,9 @@ const Landing = () => {
       </section>
 
       {/* Features Section */}
-      <section id="features" className="container mx-auto px-6 py-20">
+      <section id="features" className="container mx-auto px-6 py-20 relative z-10">
         <div className="text-center mb-12">
-          <Badge className="bg-yellow-500/20 text-yellow-300 border-yellow-500/50 mb-4">
+          <Badge className="bg-yellow-500/20 text-yellow-300 border-yellow-500/50 mb-4 backdrop-blur-sm">
             <Crown className="h-3 w-3 mr-1" />
             Premium Features
           </Badge>
@@ -244,7 +295,7 @@ const Landing = () => {
               Run Your Jewelry Business
             </span>
           </h2>
-          <p className="text-lg text-gray-300 max-w-2xl mx-auto">
+          <p className="text-lg text-gray-100 max-w-2xl mx-auto">
             Complete business management solution designed specifically for jewelry and gold crafts businesses. From inventory tracking to craftsmen management, from point of sale to customer ledgers - everything you need in one elegant platform.
           </p>
         </div>
@@ -257,6 +308,7 @@ const Landing = () => {
               description: "Track all gold items with purity, weight, pricing, and detailed specifications. Manage your precious metal inventory with precision and care.",
               iconBg: "bg-yellow-500/20",
               iconColor: "text-yellow-400",
+              hoverBorder: "hover:border-yellow-500/30",
             },
             {
               icon: Sparkles,
@@ -264,6 +316,7 @@ const Landing = () => {
               description: "Catalog and manage precious stones including diamonds, gemstones, and rare stones with detailed characteristics and valuations.",
               iconBg: "bg-purple-500/20",
               iconColor: "text-purple-400",
+              hoverBorder: "hover:border-purple-500/30",
             },
             {
               icon: ShoppingCart,
@@ -271,6 +324,7 @@ const Landing = () => {
               description: "Complete jewelry inventory management with images, descriptions, specifications, and comprehensive tracking of all your elegant pieces.",
               iconBg: "bg-blue-500/20",
               iconColor: "text-blue-400",
+              hoverBorder: "hover:border-blue-500/30",
             },
             {
               icon: Hammer,
@@ -278,6 +332,7 @@ const Landing = () => {
               description: "Manage and track your craftsmen, assign projects, monitor performance, and track specialties. Ensure quality craftsmanship across all projects.",
               iconBg: "bg-orange-500/20",
               iconColor: "text-orange-400",
+              hoverBorder: "hover:border-orange-500/30",
             },
             {
               icon: Receipt,
@@ -285,6 +340,7 @@ const Landing = () => {
               description: "Complete POS system for quick checkout, multiple payment methods, receipt generation, and seamless transaction processing.",
               iconBg: "bg-green-500/20",
               iconColor: "text-green-400",
+              hoverBorder: "hover:border-green-500/30",
             },
             {
               icon: CreditCard,
@@ -292,6 +348,7 @@ const Landing = () => {
               description: "Track customer transactions, manage credit, maintain purchase history, and handle customer relationships with comprehensive ledger management.",
               iconBg: "bg-teal-500/20",
               iconColor: "text-teal-400",
+              hoverBorder: "hover:border-teal-500/30",
             },
             {
               icon: Users,
@@ -299,6 +356,7 @@ const Landing = () => {
               description: "Complete employee management system with roles, permissions, performance tracking, and comprehensive staff administration.",
               iconBg: "bg-pink-500/20",
               iconColor: "text-pink-400",
+              hoverBorder: "hover:border-pink-500/30",
             },
             {
               icon: BarChart3,
@@ -306,6 +364,7 @@ const Landing = () => {
               description: "Advanced analytics and insights with AI-powered recommendations. Track sales trends, revenue, inventory turnover, and business performance.",
               iconBg: "bg-indigo-500/20",
               iconColor: "text-indigo-400",
+              hoverBorder: "hover:border-indigo-500/30",
             },
             {
               icon: FileText,
@@ -313,13 +372,15 @@ const Landing = () => {
               description: "Generate detailed business reports including sales reports, inventory reports, financial summaries, and custom analytics.",
               iconBg: "bg-cyan-500/20",
               iconColor: "text-cyan-400",
+              hoverBorder: "hover:border-cyan-500/30",
             },
             {
               icon: Settings,
               title: "Business Settings",
               description: "Configure company profile, payment settings, business hours, tax settings, and customize your business operations.",
               iconBg: "bg-gray-500/20",
-              iconColor: "text-gray-400",
+              iconColor: "text-gray-300",
+              hoverBorder: "hover:border-gray-500/30",
             },
             {
               icon: Shield,
@@ -327,6 +388,7 @@ const Landing = () => {
               description: "Enterprise-grade security with data encryption, regular backups, and secure cloud storage for complete peace of mind.",
               iconBg: "bg-emerald-500/20",
               iconColor: "text-emerald-400",
+              hoverBorder: "hover:border-emerald-500/30",
             },
             {
               icon: Crown,
@@ -334,15 +396,16 @@ const Landing = () => {
               description: "Maintain your luxury jewelry brand with professional inventory management, elegant presentation, and premium business tools.",
               iconBg: "bg-yellow-500/20",
               iconColor: "text-yellow-400",
+              hoverBorder: "hover:border-yellow-500/30",
             },
           ].map((feature, index) => (
-            <Card key={index} className="bg-slate-800/50 border-slate-700/50 hover:bg-slate-800/70 hover:border-yellow-500/30 transition-all duration-300 group">
+            <Card key={index} className={`bg-slate-800/60 border-slate-700/50 ${feature.hoverBorder} transition-all duration-300 group hover:scale-105 hover:shadow-xl hover:shadow-yellow-500/10 backdrop-blur-sm`}>
               <CardContent className="p-6">
                 <div className={`w-12 h-12 ${feature.iconBg} rounded-lg flex items-center justify-center mb-4 group-hover:scale-110 transition-transform duration-300`}>
                   <feature.icon className={`h-6 w-6 ${feature.iconColor}`} />
                 </div>
-                <h3 className="text-xl font-bold mb-2 group-hover:text-yellow-300 transition-colors">{feature.title}</h3>
-                <p className="text-gray-400 text-sm">{feature.description}</p>
+                <h3 className="text-xl font-bold mb-2 text-white group-hover:text-yellow-300 transition-colors">{feature.title}</h3>
+                <p className="text-gray-200 text-sm leading-relaxed">{feature.description}</p>
               </CardContent>
             </Card>
           ))}
@@ -350,7 +413,7 @@ const Landing = () => {
       </section>
 
       {/* How It Works Section */}
-      <section id="how-it-works" className="container mx-auto px-6 py-20">
+      <section id="how-it-works" className="container mx-auto px-6 py-20 relative z-10">
         <div className="text-center mb-12">
           <h2 className="text-4xl lg:text-5xl font-bold mb-4">
             Get Started in{" "}
@@ -360,7 +423,7 @@ const Landing = () => {
           </h2>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-5xl mx-auto">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-5xl mx-auto relative">
           {[
             {
               number: "01",
@@ -381,18 +444,42 @@ const Landing = () => {
               description: "Begin processing sales, tracking craftsmen, managing customers, and generating reports. Full setup support and onboarding included.",
             },
           ].map((step, index) => (
-            <div key={index} className="relative">
+            <div key={index} className="relative z-20">
+              {/* Connecting line - positioned between cards, perfectly centered with icon */}
               {index < 2 && (
-                <div className="hidden md:block absolute top-16 left-full w-8 h-0.5 bg-yellow-500/50 z-0" style={{ width: 'calc(100% + 2rem)' }}></div>
+                <div className="hidden md:block absolute top-[8.75rem] left-full z-10" style={{ 
+                  width: 'calc(100% + 2rem)', 
+                  height: '1px'
+                }}>
+                  {/* Glow effect (behind) */}
+                  <div className="absolute top-1/2 left-0 w-full h-3 bg-gradient-to-r from-transparent via-yellow-300/40 to-transparent rounded-full blur-sm transform -translate-y-1/2"></div>
+                  
+                  {/* Main gradient line */}
+                  <div className="absolute top-1/2 left-0 w-full h-1 bg-gradient-to-r from-yellow-500 via-yellow-400 to-yellow-500 rounded-full shadow-lg shadow-yellow-500/50 transform -translate-y-1/2"></div>
+                  
+                  {/* Decorative dots with border to stand out */}
+                  <div className="absolute top-1/2 left-1/4 w-3 h-3 bg-yellow-400 rounded-full transform -translate-y-1/2 shadow-lg shadow-yellow-400/70 animate-pulse border-2 border-slate-800/80"></div>
+                  <div className="absolute top-1/2 left-1/2 w-3 h-3 bg-yellow-300 rounded-full transform -translate-y-1/2 shadow-lg shadow-yellow-300/70 animate-pulse border-2 border-slate-800/80" style={{ animationDelay: '0.5s' }}></div>
+                  <div className="absolute top-1/2 left-3/4 w-3 h-3 bg-yellow-400 rounded-full transform -translate-y-1/2 shadow-lg shadow-yellow-400/70 animate-pulse border-2 border-slate-800/80" style={{ animationDelay: '1s' }}></div>
+                  
+                  {/* Arrow indicator with background circle */}
+                  <div className="absolute top-1/2 right-0 transform -translate-y-1/2 translate-x-1/2 z-20">
+                    <div className="w-7 h-7 bg-slate-800 rounded-full flex items-center justify-center shadow-xl border-2 border-yellow-400/30">
+                      <svg className="w-4 h-4 text-yellow-400" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M10.293 3.293a1 1 0 011.414 0l6 6a1 1 0 010 1.414l-6 6a1 1 0 01-1.414-1.414L14.586 11H3a1 1 0 110-2h11.586l-4.293-4.293a1 1 0 010-1.414z" clipRule="evenodd" />
+                      </svg>
+                    </div>
+                  </div>
+                </div>
               )}
-              <Card className="bg-slate-800/50 border-slate-700/50 hover:border-yellow-500/30 relative z-10 transition-all duration-300 group">
-                <CardContent className="p-8 text-center">
+              <Card className="bg-slate-800/80 border-slate-700/50 hover:border-yellow-500/30 relative z-30 transition-all duration-300 group backdrop-blur-sm hover:scale-105 hover:shadow-xl hover:shadow-yellow-500/20">
+                <CardContent className="p-8 text-center relative">
                   <div className="text-6xl font-bold text-yellow-400/30 mb-4 group-hover:text-yellow-400/50 transition-colors">{step.number}</div>
-                  <div className="w-16 h-16 bg-yellow-500/20 rounded-full flex items-center justify-center mx-auto mb-4 group-hover:bg-yellow-500/30 group-hover:scale-110 transition-all duration-300">
+                  <div className="w-16 h-16 bg-yellow-500/20 rounded-full flex items-center justify-center mx-auto mb-4 group-hover:bg-yellow-500/30 group-hover:scale-110 transition-all duration-300 relative z-10">
                     <step.icon className="h-8 w-8 text-yellow-400" />
                   </div>
-                  <h3 className="text-xl font-bold mb-3 group-hover:text-yellow-300 transition-colors">{step.title}</h3>
-                  <p className="text-gray-400 text-sm">{step.description}</p>
+                  <h3 className="text-xl font-bold mb-3 text-white group-hover:text-yellow-300 transition-colors">{step.title}</h3>
+                  <p className="text-gray-200 text-sm leading-relaxed">{step.description}</p>
                 </CardContent>
               </Card>
             </div>
@@ -401,8 +488,8 @@ const Landing = () => {
       </section>
 
       {/* Final CTA Section */}
-      <section className="container mx-auto px-6 py-20">
-        <Card className="bg-gradient-to-r from-yellow-600 via-yellow-500 to-yellow-600 border-0 shadow-2xl shadow-yellow-500/30">
+      <section className="container mx-auto px-6 py-20 relative z-10">
+        <Card className="bg-gradient-to-r from-yellow-600 via-yellow-500 to-yellow-600 border-0 shadow-2xl shadow-yellow-500/30 hover:shadow-yellow-500/50 transition-all duration-300">
           <CardContent className="p-12 text-center">
             <h2 className="text-4xl font-bold mb-4 bg-gradient-to-r from-white to-yellow-100 bg-clip-text text-transparent">
               Ready to Transform Your Jewelry Business?
@@ -413,7 +500,7 @@ const Landing = () => {
             <div className="flex gap-4 justify-center flex-wrap">
               <Button
                 onClick={handleSignUpClick}
-                className="bg-white text-yellow-600 hover:bg-gray-100 shadow-lg font-semibold"
+                className="bg-white text-yellow-600 hover:bg-gray-100 shadow-lg font-semibold hover:scale-105 transition-all duration-300"
                 size="lg"
               >
                 Get Started Today <ArrowRight className="h-4 w-4 ml-2" />
@@ -421,7 +508,7 @@ const Landing = () => {
               <Button
                 onClick={handleSignInClick}
                 variant="outline"
-                className="border-white/50 bg-white/10 text-white hover:bg-white/20 hover:border-white/70 backdrop-blur-sm font-semibold"
+                className="border-white/50 bg-white/10 text-white hover:bg-white/20 hover:border-white/70 backdrop-blur-sm font-semibold hover:scale-105 transition-all duration-300"
                 size="lg"
               >
                 Login to Dashboard
@@ -431,35 +518,94 @@ const Landing = () => {
         </Card>
       </section>
 
-      {/* Footer */}
-      <footer className="container mx-auto px-6 py-8 border-t border-slate-800">
-        <div className="flex flex-col md:flex-row items-center justify-between">
-          <div className="flex items-center gap-3 mb-4 md:mb-0">
-            <div className="w-8 h-8 bg-gradient-to-br from-yellow-400 via-yellow-500 to-yellow-600 rounded-lg flex items-center justify-center shadow-lg shadow-yellow-500/50">
-              <Gem className="h-5 w-5 text-white" />
+      {/* Footer - Similar to RetailPro */}
+      <footer className="relative z-10 border-t border-slate-800/50 bg-slate-950/80 backdrop-blur-sm">
+        <div className="container mx-auto px-6 py-12">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 mb-8">
+            {/* Company Info */}
+            <div className="space-y-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-gradient-to-br from-yellow-400 via-yellow-500 to-yellow-600 rounded-lg flex items-center justify-center shadow-lg shadow-yellow-500/50">
+                  <Gem className="h-5 w-5 text-white" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-lg">
+                    <span className="text-white">Gold Crafts</span>{" "}
+                    <span className="bg-gradient-to-r from-yellow-300 to-yellow-100 bg-clip-text text-transparent">Manager</span>
+                  </h3>
+                </div>
+              </div>
+              <p className="text-gray-300 text-sm leading-relaxed">
+                Complete jewelry business management platform with mobile POS integration, multi-location support, and real-time analytics.
+              </p>
+              <div className="flex gap-3">
+                <a href="#" className="w-9 h-9 bg-slate-800 rounded-lg flex items-center justify-center hover:bg-yellow-500/20 hover:border-yellow-500/50 border border-slate-700 transition-all duration-300 group">
+                  <Facebook className="h-4 w-4 text-gray-400 group-hover:text-yellow-400" />
+                </a>
+                <a href="#" className="w-9 h-9 bg-slate-800 rounded-lg flex items-center justify-center hover:bg-yellow-500/20 hover:border-yellow-500/50 border border-slate-700 transition-all duration-300 group">
+                  <Twitter className="h-4 w-4 text-gray-400 group-hover:text-yellow-400" />
+                </a>
+                <a href="#" className="w-9 h-9 bg-slate-800 rounded-lg flex items-center justify-center hover:bg-yellow-500/20 hover:border-yellow-500/50 border border-slate-700 transition-all duration-300 group">
+                  <Linkedin className="h-4 w-4 text-gray-400 group-hover:text-yellow-400" />
+                </a>
+                <a href="#" className="w-9 h-9 bg-slate-800 rounded-lg flex items-center justify-center hover:bg-yellow-500/20 hover:border-yellow-500/50 border border-slate-700 transition-all duration-300 group">
+                  <Instagram className="h-4 w-4 text-gray-400 group-hover:text-yellow-400" />
+                </a>
+              </div>
             </div>
+
+            {/* Quick Links */}
             <div>
-              <h3 className="font-bold bg-gradient-to-r from-yellow-300 to-yellow-100 bg-clip-text text-transparent">
-                Gold Crafts Manager
-              </h3>
-              <p className="text-xs text-gray-400">Luxury Jewelry Business Management</p>
+              <h4 className="font-bold text-white mb-4">Quick Links</h4>
+              <ul className="space-y-3">
+                <li><a href="/" className="text-gray-300 hover:text-yellow-400 transition-colors text-sm">Home</a></li>
+                <li><a href="#features" className="text-gray-300 hover:text-yellow-400 transition-colors text-sm">Features</a></li>
+                <li><a href="#how-it-works" className="text-gray-300 hover:text-yellow-400 transition-colors text-sm">How It Works</a></li>
+                <li><button onClick={handleSupportClick} className="text-gray-300 hover:text-yellow-400 transition-colors text-sm">Support</button></li>
+                <li><button onClick={handleSignInClick} className="text-gray-300 hover:text-yellow-400 transition-colors text-sm">Login</button></li>
+              </ul>
+            </div>
+
+            {/* Features */}
+            <div>
+              <h4 className="font-bold text-white mb-4">Features</h4>
+              <ul className="space-y-3">
+                <li><a href="#" className="text-gray-300 hover:text-yellow-400 transition-colors text-sm">Mobile POS Integration</a></li>
+                <li><a href="#" className="text-gray-300 hover:text-yellow-400 transition-colors text-sm">Multi-Location Management</a></li>
+                <li><a href="#" className="text-gray-300 hover:text-yellow-400 transition-colors text-sm">Real-time Analytics</a></li>
+                <li><a href="#" className="text-gray-300 hover:text-yellow-400 transition-colors text-sm">Inventory Tracking</a></li>
+                <li><a href="#" className="text-gray-300 hover:text-yellow-400 transition-colors text-sm">Transaction Processing</a></li>
+              </ul>
+            </div>
+
+            {/* Contact Us */}
+            <div>
+              <h4 className="font-bold text-white mb-4">Contact Us</h4>
+              <ul className="space-y-3">
+                <li className="flex items-center gap-3">
+                  <Mail className="h-4 w-4 text-yellow-400 flex-shrink-0" />
+                  <a href="mailto:retailmarketingpro1.0@gmail.com" className="text-gray-300 hover:text-yellow-400 transition-colors text-sm">retailmarketingpro1.0@gmail.com</a>
+                </li>
+                <li className="flex items-center gap-3">
+                  <Phone className="h-4 w-4 text-yellow-400 flex-shrink-0" />
+                  <a href="tel:+919876543210" className="text-gray-300 hover:text-yellow-400 transition-colors text-sm">+91 98765 43210</a>
+                </li>
+                <li className="flex items-center gap-3">
+                  <MapPin className="h-4 w-4 text-yellow-400 flex-shrink-0" />
+                  <span className="text-gray-300 text-sm">India</span>
+                </li>
+              </ul>
             </div>
           </div>
-          <nav className="flex gap-6 mb-4 md:mb-0">
-            <a href="#features" className="text-gray-400 hover:text-yellow-300 transition-colors">
-              Features
-            </a>
-            <a href="#how-it-works" className="text-gray-400 hover:text-yellow-300 transition-colors">
-              How It Works
-            </a>
-            <button
-              onClick={handleSupportClick}
-              className="text-gray-400 hover:text-yellow-300 transition-colors"
-            >
-              Support
-            </button>
-          </nav>
-          <p className="text-sm text-gray-400">© 2024 Gold Crafts Manager. All rights reserved.</p>
+
+          {/* Bottom Row */}
+          <div className="border-t border-slate-800 pt-8 flex flex-col md:flex-row items-center justify-between gap-4">
+            <p className="text-sm text-gray-400">© 2024 Gold Crafts Manager. All rights reserved.</p>
+            <div className="flex gap-6">
+              <a href="#" className="text-sm text-gray-400 hover:text-yellow-400 transition-colors">Privacy Policy</a>
+              <a href="#" className="text-sm text-gray-400 hover:text-yellow-400 transition-colors">Terms of Service</a>
+            </div>
+          </div>
         </div>
       </footer>
 
@@ -469,7 +615,7 @@ const Landing = () => {
 
       {/* Sign Up Modal */}
       <Dialog open={showSignUpModal} onOpenChange={setShowSignUpModal}>
-        <DialogContent className="sm:max-w-[600px] bg-gradient-to-br from-orange-900/95 via-orange-800/95 to-orange-900/95 border-orange-700/50">
+        <DialogContent className="sm:max-w-[600px] bg-gradient-to-br from-orange-900/95 via-orange-800/95 to-orange-900/95 border-orange-700/50 backdrop-blur-sm">
           <DialogHeader>
             <div className="flex items-start gap-4">
               <div className="flex-shrink-0">
@@ -493,7 +639,7 @@ const Landing = () => {
               onClick={() => {
                 window.open('https://play.google.com/store/apps/details?id=com.goldcrafts.app', '_blank');
               }}
-              className="flex-1 h-12 bg-white hover:bg-gray-100 text-gray-900 font-semibold rounded-lg shadow-lg transition-all duration-200"
+              className="flex-1 h-12 bg-white hover:bg-gray-100 text-gray-900 font-semibold rounded-lg shadow-lg transition-all duration-200 hover:scale-105"
             >
               <div className="flex items-center justify-center gap-2">
                 <svg className="h-6 w-6" viewBox="0 0 24 24" fill="currentColor">
@@ -508,7 +654,7 @@ const Landing = () => {
               onClick={() => {
                 window.open('https://apps.apple.com/app/gold-crafts-manager/id123456789', '_blank');
               }}
-              className="flex-1 h-12 bg-white hover:bg-gray-100 text-gray-900 font-semibold rounded-lg shadow-lg transition-all duration-200"
+              className="flex-1 h-12 bg-white hover:bg-gray-100 text-gray-900 font-semibold rounded-lg shadow-lg transition-all duration-200 hover:scale-105"
             >
               <div className="flex items-center justify-center gap-2">
                 <svg className="h-6 w-6" viewBox="0 0 24 24" fill="currentColor">
@@ -526,4 +672,3 @@ const Landing = () => {
 };
 
 export default Landing;
-

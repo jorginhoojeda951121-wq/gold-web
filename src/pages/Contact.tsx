@@ -101,35 +101,43 @@ const Contact = () => {
 
   return (
     <div className="min-h-screen flex items-center justify-center px-4 py-12 relative overflow-hidden">
-      {/* Dark Background with Particles */}
-      <div className="absolute inset-0 bg-gradient-to-br from-gray-950 via-slate-900 to-gray-950">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_50%,rgba(120,119,198,0.1),transparent_50%)]"></div>
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_80%_80%,rgba(251,191,36,0.08),transparent_50%)]"></div>
-        {/* Particle effects */}
-        <div className="absolute inset-0 opacity-30">
+      {/* Premium Dark Background with Enhanced Effects */}
+      <div className="absolute inset-0 bg-gradient-to-br from-slate-950 via-indigo-950 to-slate-950">
+        {/* Animated gradient orbs */}
+        <div className="absolute top-0 left-1/4 w-96 h-96 bg-cyan-500/20 rounded-full blur-3xl animate-pulse"></div>
+        <div className="absolute top-1/4 right-1/4 w-96 h-96 bg-blue-500/20 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1s' }}></div>
+        <div className="absolute bottom-1/4 left-1/3 w-96 h-96 bg-indigo-500/20 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '2s' }}></div>
+        
+        {/* Enhanced particle effects */}
+        <div className="absolute inset-0 opacity-40">
           {particles.map((particle) => (
             <div
               key={particle.id}
-              className="absolute w-1 h-1 bg-cyan-400 rounded-full animate-pulse"
+              className="absolute rounded-full bg-cyan-400/40 animate-pulse"
               style={{
                 left: `${particle.left}%`,
                 top: `${particle.top}%`,
+                width: `${Math.random() * 3 + 1}px`,
+                height: `${Math.random() * 3 + 1}px`,
                 animationDelay: `${particle.delay}s`,
                 animationDuration: `${particle.duration}s`
               }}
             />
           ))}
         </div>
+        
+        {/* Grid pattern overlay */}
+        <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.02)_1px,transparent_1px)] bg-[size:50px_50px]"></div>
       </div>
 
       {/* Contact Form Card */}
       <div className="w-full max-w-2xl relative z-10">
-        <Card className="backdrop-blur-sm bg-slate-800/80 border border-slate-700/50 shadow-2xl">
+        <Card className="backdrop-blur-md bg-slate-800/90 border border-slate-700/50 shadow-2xl shadow-cyan-500/10 hover:shadow-cyan-500/20 transition-all duration-300">
           <CardHeader className="space-y-3 pb-6">
             <CardTitle className="text-3xl font-bold bg-gradient-to-r from-cyan-400 to-blue-400 bg-clip-text text-transparent">
               Get in Touch
             </CardTitle>
-            <p className="text-white/70 text-sm">
+            <p className="text-white/70 text-sm leading-relaxed">
               Fill out the form below and our team will contact you to help set up your business account.
             </p>
           </CardHeader>
@@ -223,7 +231,7 @@ const Contact = () => {
               <Button
                 type="submit"
                 disabled={loading}
-                className="w-full h-12 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-semibold text-base rounded-lg shadow-lg shadow-cyan-500/30 hover:shadow-cyan-500/50 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full h-12 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-semibold text-base rounded-lg shadow-lg shadow-cyan-500/30 hover:shadow-cyan-500/50 hover:scale-[1.02] transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {loading ? (
                   <>

@@ -659,7 +659,7 @@ const Index = () => {
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                 {filteredItems.map(item => (
                   <JewelryCard
-                    key={item.id}
+                    key={`${item.id}-${item.image || 'no-image'}-${item.name}`}
                     item={item}
                     onEdit={handleEditItem}
                     onDelete={handleDeleteItem}

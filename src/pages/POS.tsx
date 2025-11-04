@@ -25,13 +25,16 @@ import {
   UserCheck,
   Wallet,
   Smartphone,
-  CheckCircle
+  CheckCircle,
+  Eye,
+  X
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useOfflineStorage } from "@/hooks/useOfflineStorage";
 import { generateReceiptPDF, ReceiptData } from "@/lib/pdfGenerator";
 import ItemDetailsDialog from "@/components/ItemDetailsDialog";
 import { idbGet, idbSet } from "@/lib/indexedDb";
+import { enqueueChange } from "@/lib/sync";
 
 interface CartItem {
   id: string;
@@ -293,21 +296,65 @@ const POS = () => {
     console.log('POS Debug - total items:', availableItems.length);
   }, [availableItems, itemsLoaded]);
   
-  // Update function for POS inventory updates
+  // Update function for POS inventory updates - CRITICAL: Must update inventory_items and enqueue for sync
   const updateInventoryStock = useCallback(async (updatedItems: JewelryItem[]) => {
     try {
-      // Load current data
-      const [jewelryData, goldData, stonesData] = await Promise.all([
+      // Load current data from all sources
+      const [jewelryData, goldData, stonesData, inventoryData] = await Promise.all([
         idbGet<any[]>("jewelry_items") || [],
         idbGet<any[]>("gold_items") || [],
         idbGet<any[]>("stones_items") || [],
+        idbGet<any[]>("inventory_items") || [],
       ]);
 
       const updatedJewelry = [...(jewelryData || [])];
       const updatedGold = [...(goldData || [])];
       const updatedStones = [...(stonesData || [])];
+      const updatedInventory = [...(inventoryData || [])];
 
       updatedItems.forEach(item => {
+        const now = new Date().toISOString();
+        
+        // Determine item type for inventory_items
+        const itemType = item.type === 'Gold Bar' ? 'gold' 
+                       : item.type === 'Gemstone' ? 'stone'
+                       : 'jewelry';
+
+        // Update inventory_items table (CRITICAL for sync)
+        const inventoryIndex = updatedInventory.findIndex((inv: any) => inv.id === item.id);
+        const inventoryItem = inventoryIndex >= 0 ? updatedInventory[inventoryIndex] : {};
+        
+        const inventoryUpdate = {
+          id: item.id,
+          item_type: itemType,
+          name: item.name || inventoryItem.name || '',
+          type: item.type || inventoryItem.type || '',
+          price: item.price || inventoryItem.price || 0,
+          inStock: item.inStock, // CRITICAL: Update stock quantity
+          image: item.image || inventoryItem.image || '',
+          attributes: {
+            ...inventoryItem.attributes,
+            description: item.type || inventoryItem.attributes?.description || '',
+            carat: item.carat || inventoryItem.attributes?.carat || 0,
+            purity: item.type === 'Gold Bar' ? item.metal : inventoryItem.attributes?.purity,
+            weight: inventoryItem.attributes?.weight,
+            clarity: inventoryItem.attributes?.clarity,
+            cut: inventoryItem.attributes?.cut,
+          },
+          isArtificial: item.isArtificial || inventoryItem.isArtificial || false,
+          updated_at: now, // Timestamp for conflict resolution
+        };
+
+        if (inventoryIndex >= 0) {
+          updatedInventory[inventoryIndex] = inventoryUpdate;
+        } else {
+          updatedInventory.push(inventoryUpdate);
+        }
+
+        // Enqueue change for sync (CRITICAL: This ensures server gets updated stock)
+        enqueueChange('inventory_items', 'upsert', inventoryUpdate);
+
+        // Update per-type tables for UI compatibility
         if (item.type === 'Gold Bar') {
           const index = updatedGold.findIndex((g: any) => g.id === item.id);
           if (index >= 0) {
@@ -335,6 +382,7 @@ const POS = () => {
             updatedJewelry[index] = {
               ...updatedJewelry[index],
               ...item,
+              inStock: item.inStock, // Ensure inStock is preserved
             };
           } else {
             updatedJewelry.push(item);
@@ -342,23 +390,55 @@ const POS = () => {
         }
       });
 
-      // Save back to IndexedDB
+      // Save back to IndexedDB - CRITICAL: Save inventory_items first
       await Promise.all([
+        idbSet("inventory_items", updatedInventory), // MUST be saved
         idbSet("jewelry_items", updatedJewelry),
         idbSet("gold_items", updatedGold),
         idbSet("stones_items", updatedStones),
       ]);
 
+      console.log('✅ Inventory stock updated and queued for sync:', updatedItems.map(i => ({ id: i.id, name: i.name, newStock: i.inStock })));
+
       // Reload inventory
       await loadAllInventory();
     } catch (error) {
-      console.error('Error updating inventory:', error);
+      console.error('❌ Error updating inventory:', error);
     }
   }, [loadAllInventory]);
   const [selected, setSelected] = useState<JewelryItem | null>(null);
   const [showDetails, setShowDetails] = useState(false);
   const [showUpi, setShowUpi] = useState(false);
   const [upiUrl, setUpiUrl] = useState("");
+  const [viewingInvoice, setViewingInvoice] = useState<Invoice | null>(null);
+  const [invoiceToDelete, setInvoiceToDelete] = useState<Invoice | null>(null);
+
+  // Handle invoice deletion
+  const handleDeleteInvoice = async () => {
+    if (!invoiceToDelete) return;
+    
+    try {
+      await setRecentInvoices(prev => prev.filter(inv => inv.id !== invoiceToDelete.id));
+      
+      // Also enqueue deletion for sync
+      enqueueChange('pos_invoices', 'delete', { id: invoiceToDelete.id });
+      
+      toast({
+        title: "Invoice Deleted",
+        description: `Invoice ${invoiceToDelete.id} has been removed from history.`,
+        variant: "destructive"
+      });
+      
+      setInvoiceToDelete(null);
+    } catch (error) {
+      console.error('Error deleting invoice:', error);
+      toast({
+        title: "Error",
+        description: "Failed to delete invoice.",
+        variant: "destructive"
+      });
+    }
+  };
 
   const addToCart = (item: JewelryItem) => {
     setCart(prev => {
@@ -746,18 +826,65 @@ const POS = () => {
                 ) : (
                   <div className="space-y-3">
                     {recentInvoices.map(invoice => (
-                      <div key={invoice.id} className="flex items-center justify-between p-3 bg-secondary rounded-lg">
-                        <div>
+                      <div key={invoice.id} className="flex items-center justify-between p-3 bg-secondary rounded-lg hover:bg-secondary/80 transition-colors">
+                        <div className="flex-1">
                           <p className="font-medium text-foreground">{invoice.id}</p>
-                          <p className="text-sm text-muted-foreground">{invoice.customerName}</p>
+                          <p className="text-sm text-muted-foreground">{invoice.customerName || "Walk-in Customer"}</p>
                         </div>
-                        <div className="text-right">
+                        <div className="text-right mr-4">
                           <p className="font-bold text-foreground">₹{invoice.total.toFixed(2)}</p>
                           <p className="text-xs text-muted-foreground">{invoice.paymentMethod}</p>
                         </div>
-                        <Button variant="outline" size="sm">
-                          <Printer className="h-4 w-4" />
-                        </Button>
+                        <div className="flex gap-2">
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            onClick={() => setViewingInvoice(invoice)}
+                            title="View Invoice"
+                          >
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            onClick={() => {
+                              const receiptData: ReceiptData = {
+                                invoiceId: invoice.id,
+                                businessName: businessSettings.businessName,
+                                businessAddress: businessSettings.address,
+                                businessPhone: businessSettings.phone,
+                                businessEmail: businessSettings.email,
+                                gstNumber: businessSettings.gstNumber,
+                                customerName: invoice.customerName || "Walk-in Customer",
+                                items: invoice.items.map(item => ({
+                                  name: item.name,
+                                  quantity: item.quantity,
+                                  price: item.price,
+                                  total: item.price * item.quantity
+                                })),
+                                subtotal: invoice.subtotal,
+                                tax: invoice.tax,
+                                total: invoice.total,
+                                paymentMethod: invoice.paymentMethod,
+                                date: invoice.date,
+                                upiId: paymentSettings.upiId
+                              };
+                              generateReceiptPDF(receiptData);
+                            }}
+                            title="Print Invoice"
+                          >
+                            <Printer className="h-4 w-4" />
+                          </Button>
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            onClick={() => setInvoiceToDelete(invoice)}
+                            title="Delete Invoice"
+                            className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -1074,6 +1201,161 @@ const POS = () => {
         open={showDetails}
         onClose={() => setShowDetails(false)}
       />
+
+      {/* View Invoice Dialog */}
+      <Dialog open={!!viewingInvoice} onOpenChange={(open) => !open && setViewingInvoice(null)}>
+        <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center justify-between">
+              <span>Invoice Details</span>
+              {viewingInvoice && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    const receiptData: ReceiptData = {
+                      invoiceId: viewingInvoice.id,
+                      businessName: businessSettings.businessName,
+                      businessAddress: businessSettings.address,
+                      businessPhone: businessSettings.phone,
+                      businessEmail: businessSettings.email,
+                      gstNumber: businessSettings.gstNumber,
+                      customerName: viewingInvoice.customerName || "Walk-in Customer",
+                      items: viewingInvoice.items.map(item => ({
+                        name: item.name,
+                        quantity: item.quantity,
+                        price: item.price,
+                        total: item.price * item.quantity
+                      })),
+                      subtotal: viewingInvoice.subtotal,
+                      tax: viewingInvoice.tax,
+                      total: viewingInvoice.total,
+                      paymentMethod: viewingInvoice.paymentMethod,
+                      date: viewingInvoice.date,
+                      upiId: paymentSettings.upiId
+                    };
+                    generateReceiptPDF(receiptData);
+                  }}
+                  className="gap-2"
+                >
+                  <Printer className="h-4 w-4" />
+                  Print
+                </Button>
+              )}
+            </DialogTitle>
+          </DialogHeader>
+          {viewingInvoice && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label className="text-muted-foreground">Invoice ID</Label>
+                  <p className="font-semibold">{viewingInvoice.id}</p>
+                </div>
+                <div>
+                  <Label className="text-muted-foreground">Date</Label>
+                  <p className="font-semibold">{new Date(viewingInvoice.date).toLocaleDateString('en-IN', {
+                    day: 'numeric',
+                    month: 'long',
+                    year: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                  })}</p>
+                </div>
+                <div>
+                  <Label className="text-muted-foreground">Customer</Label>
+                  <p className="font-semibold">{viewingInvoice.customerName || "Walk-in Customer"}</p>
+                </div>
+                <div>
+                  <Label className="text-muted-foreground">Payment Method</Label>
+                  <p className="font-semibold">{viewingInvoice.paymentMethod}</p>
+                </div>
+              </div>
+              
+              <Separator />
+              
+              <div>
+                <Label className="text-muted-foreground mb-2 block">Items</Label>
+                <div className="space-y-2">
+                  {viewingInvoice.items.map((item, index) => (
+                    <div key={index} className="flex justify-between items-center p-3 bg-secondary rounded-lg">
+                      <div>
+                        <p className="font-medium">{item.name}</p>
+                        <p className="text-sm text-muted-foreground">Qty: {item.quantity} × ₹{item.price.toLocaleString('en-IN')}</p>
+                      </div>
+                      <p className="font-bold">₹{(item.price * item.quantity).toLocaleString('en-IN')}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              
+              <Separator />
+              
+              <div className="space-y-2">
+                <div className="flex justify-between">
+                  <Label className="text-muted-foreground">Subtotal</Label>
+                  <p className="font-semibold">₹{viewingInvoice.subtotal.toLocaleString('en-IN')}</p>
+                </div>
+                <div className="flex justify-between">
+                  <Label className="text-muted-foreground">Tax (8%)</Label>
+                  <p className="font-semibold">₹{viewingInvoice.tax.toLocaleString('en-IN')}</p>
+                </div>
+                <Separator />
+                <div className="flex justify-between">
+                  <Label className="text-lg font-bold">Total</Label>
+                  <p className="text-lg font-bold text-primary">₹{viewingInvoice.total.toLocaleString('en-IN')}</p>
+                </div>
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setViewingInvoice(null)}>
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Invoice Confirmation Dialog */}
+      <Dialog open={!!invoiceToDelete} onOpenChange={(open) => !open && setInvoiceToDelete(null)}>
+        <DialogContent className="sm:max-w-[400px]">
+          <DialogHeader>
+            <DialogTitle>Delete Invoice</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Are you sure you want to delete invoice <span className="font-semibold text-foreground">{invoiceToDelete?.id}</span>?
+            </p>
+            {invoiceToDelete && (
+              <div className="p-3 bg-destructive/10 rounded-lg border border-destructive/20">
+                <p className="text-sm font-medium">Invoice Details:</p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Customer: {invoiceToDelete.customerName || "Walk-in Customer"}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Amount: ₹{invoiceToDelete.total.toLocaleString('en-IN')}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Payment: {invoiceToDelete.paymentMethod}
+                </p>
+              </div>
+            )}
+            <p className="text-xs text-destructive font-medium">
+              This action cannot be undone.
+            </p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setInvoiceToDelete(null)}>
+              Cancel
+            </Button>
+            <Button 
+              variant="destructive" 
+              onClick={handleDeleteInvoice}
+            >
+              Delete Invoice
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* UPI Modal */}
       <Dialog open={showUpi} onOpenChange={setShowUpi}>

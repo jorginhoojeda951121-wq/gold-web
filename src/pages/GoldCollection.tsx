@@ -288,16 +288,18 @@ const GoldCollection = () => {
         <div className={`grid gap-8 ${viewMode === 'grid' ? 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4' : 'grid-cols-1'}`}>
           {filteredItems.map(item => (
             <div 
-              key={item.id} 
+              key={`${item.id}-${item.image || 'no-image'}-${item.name}`}
               className="group relative bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden transition-all duration-300 hover:shadow-2xl hover:-translate-y-1 hover:border-amber-300"
             >
               {/* Image Section with Gradient Overlay */}
               <div className="relative h-64 overflow-hidden bg-gradient-to-br from-yellow-50 via-amber-50 to-orange-50">
                 {item.image && item.image.trim() !== '' ? (
                   <img 
-                    src={item.image} 
+                    key={`img-${item.id}-${item.image ? item.image.substring(0, 50) : 'no-image'}`}
+                    src={item.image || ''}
                     alt={item.name}
                     className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                    loading="lazy"
                     onError={(e) => {
                       // Fallback to placeholder if image fails to load
                       e.currentTarget.style.display = 'none';

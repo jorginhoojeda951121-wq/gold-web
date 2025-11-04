@@ -81,31 +81,84 @@ export async function syncAll() {
 	}));
 
 	// Inventory (single table, fan out by type into respective keys if desired)
+	// CRITICAL: Check local timestamps to prevent overwriting recent local changes
 	await run(() => syncTable('inventory_items', async (row: any) => {
 		const all = (await idbGet<any[]>('inventory_items')) ?? [];
 		const idx = all.findIndex((e) => e.id === row.id);
-		if (idx >= 0) all[idx] = row; else all.push(row);
+		
+		// Conflict resolution: Prefer local changes if they're more recent
+		if (idx >= 0) {
+			const localItem = all[idx];
+			const localUpdatedAt = localItem.updated_at ? new Date(localItem.updated_at).getTime() : 0;
+			const serverUpdatedAt = row.updated_at ? new Date(row.updated_at).getTime() : 0;
+			
+			// If local has more recent update, keep local and merge only non-critical fields
+			if (localUpdatedAt > serverUpdatedAt && localItem.inStock !== undefined) {
+				console.log(`🔄 Preserving local inventory change for ${row.id} (local: ${localItem.inStock}, server: ${row.inStock})`);
+				// Merge server data but keep local inStock
+				all[idx] = {
+					...row,
+					inStock: localItem.inStock, // Preserve local stock quantity
+					updated_at: localItem.updated_at, // Keep local timestamp
+				};
+			} else {
+				// Server data is newer or local doesn't have stock, use server data
+				all[idx] = row;
+			}
+		} else {
+			all.push(row);
+		}
 		await idbSet('inventory_items', all);
 
-		// Optional: also project into per-page keys for current UI
+		// CRITICAL: Project into per-page keys with inStock preserved
 		if (row.item_type === 'gold') {
 			const gold = (await idbGet<any[]>('gold_items')) ?? [];
 			const gi = gold.findIndex((e) => e.id === row.id);
-			const mapped = { id: row.id, name: row.name, weight: row.attributes?.weight ?? '', purity: row.attributes?.purity ?? '', price: row.price ?? 0, image: row.image ?? '' };
+			const mapped = { 
+				id: row.id, 
+				name: row.name, 
+				weight: row.attributes?.weight ?? '', 
+				purity: row.attributes?.purity ?? '', 
+				price: row.price ?? 0, 
+				image: row.image ?? '',
+				inStock: row.inStock ?? gold[gi]?.inStock ?? gold[gi]?.stock ?? 10, // Preserve stock
+				stock: row.inStock ?? gold[gi]?.inStock ?? gold[gi]?.stock ?? 10,
+			};
 			if (gi >= 0) gold[gi] = mapped; else gold.push(mapped);
 			await idbSet('gold_items', gold);
 		}
 		if (row.item_type === 'jewelry') {
 			const list = (await idbGet<any[]>('jewelry_items')) ?? [];
 			const ji = list.findIndex((e) => e.id === row.id);
-			const mapped = { id: row.id, name: row.name, description: row.attributes?.description ?? '', price: row.price ?? 0, image: row.image ?? '' };
+			const mapped = { 
+				id: row.id, 
+				name: row.name, 
+				description: row.attributes?.description ?? '', 
+				price: row.price ?? 0, 
+				image: row.image ?? '',
+				inStock: row.inStock ?? list[ji]?.inStock ?? 10, // Preserve stock
+				type: row.type || list[ji]?.type || 'Ring',
+				gemstone: row.attributes?.description || list[ji]?.gemstone || 'None',
+				carat: row.attributes?.carat || list[ji]?.carat || 0,
+				metal: row.attributes?.purity || list[ji]?.metal || 'Gold 18K',
+				isArtificial: row.isArtificial || list[ji]?.isArtificial || false,
+			};
 			if (ji >= 0) list[ji] = mapped; else list.push(mapped);
 			await idbSet('jewelry_items', list);
 		}
 		if (row.item_type === 'stone') {
 			const list = (await idbGet<any[]>('stones_items')) ?? [];
 			const si = list.findIndex((e) => e.id === row.id);
-			const mapped = { id: row.id, name: row.name, carat: row.attributes?.carat ?? '', clarity: row.attributes?.clarity ?? '', cut: row.attributes?.cut ?? '', price: row.price ?? 0, image: row.image ?? '' };
+			const mapped = { 
+				id: row.id, 
+				name: row.name, 
+				carat: row.attributes?.carat ?? '', 
+				clarity: row.attributes?.clarity ?? '', 
+				cut: row.attributes?.cut ?? '', 
+				price: row.price ?? 0, 
+				image: row.image ?? '',
+				inStock: row.inStock ?? list[si]?.inStock ?? 10, // Preserve stock
+			};
 			if (si >= 0) list[si] = mapped; else list.push(mapped);
 			await idbSet('stones_items', list);
 		}

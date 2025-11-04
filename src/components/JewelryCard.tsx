@@ -52,7 +52,8 @@ export const JewelryCard = ({ item, onEdit, onDelete, onView, onAddToCart, showA
           {item.image && item.image.trim() !== '' ? (
             <>
               <img 
-                src={item.image} 
+                key={`img-${item.id}-${item.image ? item.image.substring(0, 50) : 'no-image'}`}
+                src={item.image || ''}
                 alt={item.name}
                 className="absolute inset-0 w-full h-full object-cover object-center transition-transform duration-500 group-hover:scale-110"
                 style={{ 
@@ -62,8 +63,41 @@ export const JewelryCard = ({ item, onEdit, onDelete, onView, onAddToCart, showA
                   maxHeight: '256px',
                   height: '256px'
                 }}
+                loading="lazy"
                 onError={(e) => {
-                  e.currentTarget.style.display = 'none';
+                  const img = e.currentTarget;
+                  img.style.display = 'none';
+                  // Show placeholder if image fails
+                  const parent = img.parentElement;
+                  if (parent) {
+                    const placeholder = parent.querySelector('.image-placeholder');
+                    if (!placeholder) {
+                      const placeholderDiv = document.createElement('div');
+                      placeholderDiv.className = 'image-placeholder absolute inset-0 w-full h-full flex items-center justify-center';
+                      placeholderDiv.innerHTML = `
+                        <div class="text-center">
+                          <div class="w-20 h-20 mx-auto mb-3 rounded-full bg-gradient-to-br from-purple-400 via-pink-400 to-blue-400 flex items-center justify-center shadow-xl">
+                            <svg class="h-10 w-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                            </svg>
+                          </div>
+                          <p class="text-xs text-gray-600 font-medium">Premium Jewelry</p>
+                        </div>
+                      `;
+                      parent.appendChild(placeholderDiv);
+                    }
+                  }
+                }}
+                onLoad={(e) => {
+                  // Remove placeholder when image loads successfully
+                  const img = e.currentTarget;
+                  const parent = img.parentElement;
+                  if (parent) {
+                    const placeholder = parent.querySelector('.image-placeholder');
+                    if (placeholder) {
+                      placeholder.remove();
+                    }
+                  }
                 }}
               />
               {/* Gradient overlay on hover */}

@@ -207,13 +207,16 @@ export async function syncAll() {
 			// If local has more recent update, keep local and merge only non-critical fields
 			if (localUpdatedAt > serverUpdatedAt && localItem.inStock !== undefined) {
 				console.log(`🔄 Preserving local inventory change for ${row.id} (local: ${localItem.inStock}, server: ${row.stock})`);
-				// Merge server data but keep local inStock and timestamp
-				const mergedItem: any = {
-					...row,
-					inStock: localItem.inStock, // Preserve local stock quantity
-					stock: localItem.inStock, // Also set stock field
-					updated_at: localItem.updated_at, // Keep local timestamp
-				};
+			// Merge server data but keep local inStock and timestamp
+			const mergedItem: any = {
+				...row,
+				inStock: localItem.inStock, // Preserve local stock quantity
+				stock: localItem.inStock, // Also set stock field
+				updated_at: localItem.updated_at, // Keep local timestamp
+				// Preserve image from Supabase image_url field (prioritize image_url from Supabase, then local)
+				image: (row.image_url && row.image_url.trim()) || (localItem.image && localItem.image.trim()) || (row.image && row.image.trim()) || '',
+				image_url: (row.image_url && row.image_url.trim()) || (row.image && row.image.trim()) || (localItem.image_url && localItem.image_url.trim()) || (localItem.image && localItem.image.trim()) || '',
+			};
 				// Only include isMissing/isArtificial if they exist in local item (they may not exist in Supabase schema)
 				if (localItem.isMissing !== undefined) mergedItem.isMissing = localItem.isMissing;
 				if (localItem.isArtificial !== undefined) mergedItem.isArtificial = localItem.isArtificial;
@@ -223,6 +226,9 @@ export async function syncAll() {
 				const mergedItem: any = {
 					...row,
 					inStock: row.stock ?? row.inStock ?? all[idx].inStock ?? 0, // Map stock to inStock
+					// Preserve image from Supabase image_url field (prioritize image_url from Supabase)
+					image: (row.image_url && row.image_url.trim()) || (row.image && row.image.trim()) || (all[idx].image && all[idx].image.trim()) || '',
+					image_url: (row.image_url && row.image_url.trim()) || (row.image && row.image.trim()) || (all[idx].image_url && all[idx].image_url.trim()) || (all[idx].image && all[idx].image.trim()) || '',
 				};
 				// Only include isMissing/isArtificial if they exist in server data
 				if (row.isMissing !== undefined) mergedItem.isMissing = row.isMissing;
@@ -233,6 +239,9 @@ export async function syncAll() {
 			const newItem: any = {
 				...row,
 				inStock: row.stock ?? row.inStock ?? 0, // Map stock to inStock
+				// Preserve image from Supabase image_url field (prioritize image_url from Supabase)
+				image: (row.image_url && row.image_url.trim()) || (row.image && row.image.trim()) || '',
+				image_url: (row.image_url && row.image_url.trim()) || (row.image && row.image.trim()) || '',
 			};
 			// Only include isMissing/isArtificial if they exist in server data
 			if (row.isMissing !== undefined) newItem.isMissing = row.isMissing;
@@ -255,7 +264,7 @@ export async function syncAll() {
 				weight: row.weight ?? row.attributes?.weight ?? '', 
 				purity: row.purity ?? row.attributes?.purity ?? '', 
 				price: row.price ?? 0, 
-				image: row.image_url ?? row.images?.[0] ?? row.image ?? '',
+				image: (row.image && row.image.trim()) || (row.image_url && row.image_url.trim()) || (row.images?.[0] && String(row.images[0]).trim()) || (gold[gi]?.image && gold[gi].image.trim()) || '',
 				inStock: row.stock ?? row.inStock ?? gold[gi]?.inStock ?? gold[gi]?.stock ?? 10, // Preserve stock
 				stock: row.stock ?? row.inStock ?? gold[gi]?.inStock ?? gold[gi]?.stock ?? 10,
 			};
@@ -270,7 +279,7 @@ export async function syncAll() {
 				name: row.name, 
 				description: row.description ?? row.attributes?.description ?? '', 
 				price: row.price ?? 0, 
-				image: row.image_url ?? row.images?.[0] ?? row.image ?? '',
+				image: (row.image && row.image.trim()) || (row.image_url && row.image_url.trim()) || (row.images?.[0] && String(row.images[0]).trim()) || (list[ji]?.image && list[ji].image.trim()) || '',
 				inStock: row.stock ?? row.inStock ?? list[ji]?.inStock ?? 10, // Preserve stock
 				type: row.subcategory ?? row.type ?? list[ji]?.type ?? 'Ring',
 				gemstone: row.description ?? row.attributes?.description ?? list[ji]?.gemstone ?? 'None',
@@ -291,7 +300,7 @@ export async function syncAll() {
 				clarity: row.clarity ?? row.attributes?.clarity ?? '', 
 				cut: row.cut ?? row.attributes?.cut ?? '', 
 				price: row.total_price ?? row.price ?? 0, 
-				image: row.image_url ?? row.images?.[0] ?? row.image ?? '',
+				image: (row.image && row.image.trim()) || (row.image_url && row.image_url.trim()) || (row.images?.[0] && String(row.images[0]).trim()) || (list[si]?.image && list[si].image.trim()) || '',
 				inStock: row.stock_quantity ?? row.stock ?? row.inStock ?? list[si]?.inStock ?? 10, // Preserve stock
 			};
 			if (si >= 0) list[si] = mapped; else list.push(mapped);
@@ -320,7 +329,7 @@ export async function syncAll() {
 			stock: row.in_stock ?? row.stock ?? 0,
 			supplier: row.supplier,
 			description: row.description,
-			image: row.image_url ?? '',
+			image: (row.image_url && row.image_url.trim()) || (row.image && row.image.trim()) || '',
 			created_at: row.created_at,
 			updated_at: row.updated_at,
 		};
@@ -356,7 +365,7 @@ export async function syncAll() {
 			isArtificial: row.is_artificial === 1 || row.is_artificial === true,
 			is_artificial: row.is_artificial === 1 || row.is_artificial === true,
 			description: row.description,
-			image: row.image_url ?? '',
+			image: (row.image_url && row.image_url.trim()) || (row.image && row.image.trim()) || '',
 			created_at: row.created_at,
 			updated_at: row.updated_at,
 		};
@@ -393,7 +402,7 @@ export async function syncAll() {
 			stock: row.stock_quantity ?? row.stock ?? 0,
 			supplier: row.supplier,
 			certificateNumber: row.certificate_number,
-			image: row.image_url ?? '',
+			image: (row.image_url && row.image_url.trim()) || (row.image && row.image.trim()) || '',
 			status: row.is_active === 1 ? 'active' : 'inactive',
 			is_active: row.is_active,
 			created_at: row.created_at,
@@ -849,12 +858,28 @@ export async function backfillAllFromIdb() {
 			// if (item.isArtificial !== undefined) {
 			// 	inventoryData.isArtificial = item.isArtificial ? 1 : 0;
 			// }
-			// Images: Do NOT sync images to Supabase - keep them local only
-			// Images are stored in IndexedDB and not synced to avoid large payloads
-			// CRITICAL: Ensure no image fields are included (double-check)
-			if (inventoryData.image) delete inventoryData.image;
-			if (inventoryData.image_url) delete inventoryData.image_url;
-			if (inventoryData.images) delete inventoryData.images;
+			// Sync image_url to Supabase if it's a valid URL (not base64 or emoji)
+			// Skip base64 data (starts with 'data:') and emojis (single Unicode character)
+			const imageValue = item.image ?? item.image_url ?? item.images?.[0] ?? '';
+			if (imageValue && typeof imageValue === 'string') {
+				const trimmedImage = imageValue.trim();
+				// Check if it's a valid URL (http/https) or a data URL that's reasonably small
+				if (trimmedImage.startsWith('http://') || trimmedImage.startsWith('https://')) {
+					// Valid HTTP/HTTPS URL - sync it
+					inventoryData.image_url = trimmedImage;
+				} else if (trimmedImage.startsWith('data:image/')) {
+					// Base64 image - check size (skip if too large, > 100KB)
+					const base64Length = trimmedImage.length;
+					const estimatedSizeKB = (base64Length * 3) / 4 / 1024; // Approximate size
+					if (estimatedSizeKB < 100) {
+						// Small base64 - allow it
+						inventoryData.image_url = trimmedImage;
+					} else {
+						console.warn(`⚠️ Skipping large base64 image for item ${inventoryData.id} (${estimatedSizeKB.toFixed(2)}KB)`);
+					}
+				}
+				// Skip emojis and invalid formats
+			}
 			
 			return inventoryData;
 		}).filter((item: any) => item !== null);
@@ -1444,11 +1469,28 @@ async function pushQueue() {
 					if (descriptionValue !== undefined && descriptionValue !== null && descriptionValue !== '') {
 						inventoryData.description = String(descriptionValue);
 					}
-					// CRITICAL: Ensure no image fields are included (already removed from item, but double-check)
-					// This prevents any accidental image data from being sent
-					if (inventoryData.image) delete inventoryData.image;
-					if (inventoryData.image_url) delete inventoryData.image_url;
-					if (inventoryData.images) delete inventoryData.images;
+					// Sync image_url to Supabase if it's a valid URL (not base64 or emoji)
+					// Skip base64 data (starts with 'data:') and emojis (single Unicode character)
+					const imageValue = item.image ?? item.image_url ?? item.images?.[0] ?? '';
+					if (imageValue && typeof imageValue === 'string') {
+						const trimmedImage = imageValue.trim();
+						// Check if it's a valid URL (http/https) or a data URL that's reasonably small
+						if (trimmedImage.startsWith('http://') || trimmedImage.startsWith('https://')) {
+							// Valid HTTP/HTTPS URL - sync it
+							inventoryData.image_url = trimmedImage;
+						} else if (trimmedImage.startsWith('data:image/')) {
+							// Base64 image - check size (skip if too large, > 100KB)
+							const base64Length = trimmedImage.length;
+							const estimatedSizeKB = (base64Length * 3) / 4 / 1024; // Approximate size
+							if (estimatedSizeKB < 100) {
+								// Small base64 - allow it
+								inventoryData.image_url = trimmedImage;
+							} else {
+								console.warn(`⚠️ Skipping large base64 image for item ${inventoryData.id} (${estimatedSizeKB.toFixed(2)}KB)`);
+							}
+						}
+						// Skip emojis and invalid formats
+					}
 					
 					// Note: isMissing and isArtificial columns may not exist in all Supabase schemas
 					// Only include them if they exist in your schema

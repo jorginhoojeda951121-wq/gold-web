@@ -420,8 +420,8 @@ const POS = () => {
     try {
       await setRecentInvoices(prev => prev.filter(inv => inv.id !== invoiceToDelete.id));
       
-      // Also enqueue deletion for sync
-      enqueueChange('pos_invoices', 'delete', { id: invoiceToDelete.id });
+      // Also enqueue deletion for sync (use pos_recentInvoices, not pos_invoices)
+      enqueueChange('pos_recentInvoices', 'delete', { id: invoiceToDelete.id });
       
       toast({
         title: "Invoice Deleted",

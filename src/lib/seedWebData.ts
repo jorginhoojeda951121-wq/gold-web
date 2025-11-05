@@ -108,16 +108,24 @@ export async function seedWebData() {
       },
     ];
 
-    // Seed craftsmen
+    // Seed craftsmen - format matches CraftsmenTracking component expectations
     const craftsmen = [
       {
         id: 'craftsman-1',
         name: 'Alessandro Romano',
-        specialization: 'Gold Smithing',
-        experience_years: 15,
-        phone: '+1-555-0201',
+        specialty: 'Gold Smithing',
+        specialization: 'Gold Smithing', // Keep both for compatibility
+        experience: 15,
+        experience_years: 15, // Keep both for compatibility
+        contact: '+1-555-0201',
+        phone: '+1-555-0201', // Keep both for compatibility
         email: 'alessandro.romano@jewelry.com',
+        address: '',
         hourly_rate: 85,
+        status: 'available',
+        rating: 4.5,
+        currentProjects: 0,
+        assignedMaterials: [],
         is_active: 1,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
@@ -125,11 +133,39 @@ export async function seedWebData() {
       {
         id: 'craftsman-2',
         name: 'Priya Sharma',
-        specialization: 'Diamond Setting',
-        experience_years: 12,
-        phone: '+1-555-0202',
+        specialty: 'Diamond Setting',
+        specialization: 'Diamond Setting', // Keep both for compatibility
+        experience: 12,
+        experience_years: 12, // Keep both for compatibility
+        contact: '+1-555-0202',
+        phone: '+1-555-0202', // Keep both for compatibility
         email: 'priya.sharma@jewelry.com',
+        address: '',
         hourly_rate: 95,
+        status: 'available',
+        rating: 4.8,
+        currentProjects: 0,
+        assignedMaterials: [],
+        is_active: 1,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      },
+      {
+        id: 'craftsman-3',
+        name: 'Rajesh Kumar',
+        specialty: 'Gold Jewelry',
+        specialization: 'Gold Jewelry',
+        experience: 15,
+        experience_years: 15,
+        contact: '+91 9876543210',
+        phone: '+91 9876543210',
+        email: 'rajesh.kumar@jewelry.com',
+        address: '',
+        hourly_rate: 80,
+        status: 'active',
+        rating: 4.7,
+        currentProjects: 0,
+        assignedMaterials: [],
         is_active: 1,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
@@ -249,19 +285,60 @@ if (typeof window !== 'undefined') {
       ];
       
       let needsSeeding = false;
+      const missingCollections: string[] = [];
       
       for (const collection of requiredCollections) {
         const data = await idbGet(collection);
         if (!data || (Array.isArray(data) && data.length === 0)) {
           console.log(`⚠️ Missing or empty collection: ${collection}`);
+          missingCollections.push(collection);
           needsSeeding = true;
-          break;
         }
       }
       
       if (needsSeeding) {
-        console.log('🌱 Starting automatic data seeding...');
+        console.log(`🌱 Starting automatic data seeding for: ${missingCollections.join(', ')}...`);
         await seedWebData();
+        // Verify seeds were created
+        for (const collection of missingCollections) {
+          const verifyData = await idbGet(collection);
+          if (verifyData && Array.isArray(verifyData) && verifyData.length > 0) {
+            console.log(`✅ Seeded ${collection}: ${verifyData.length} items`);
+          } else {
+            console.warn(`⚠️ Failed to seed ${collection} - will retry on next load`);
+            // If craftsmen specifically failed, ensure it gets created
+            if (collection === 'craftsmen') {
+              const craftsmenSeed = [
+                {
+                  id: 'craftsman-1',
+                  name: 'Alessandro Romano',
+                  specialty: 'Gold Smithing',
+                  experience: 15,
+                  contact: '+1-555-0201',
+                  email: 'alessandro.romano@jewelry.com',
+                  status: 'available',
+                  rating: 4.5,
+                  currentProjects: 0,
+                  assignedMaterials: [],
+                },
+                {
+                  id: 'craftsman-2',
+                  name: 'Priya Sharma',
+                  specialty: 'Diamond Setting',
+                  experience: 12,
+                  contact: '+1-555-0202',
+                  email: 'priya.sharma@jewelry.com',
+                  status: 'available',
+                  rating: 4.8,
+                  currentProjects: 0,
+                  assignedMaterials: [],
+                },
+              ];
+              await idbSet('craftsmen', craftsmenSeed);
+              console.log(`✅ Manually seeded craftsmen with ${craftsmenSeed.length} items`);
+            }
+          }
+        }
       } else {
         console.log('✅ All IndexedDB collections already populated');
       }

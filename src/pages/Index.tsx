@@ -47,11 +47,9 @@ interface Transaction {
 }
 
 const Index = () => {
-  console.log("Index component rendering...");
   const { toast } = useToast();
   const businessName = useBusinessName();
   const [activeTab, setActiveTab] = useState("inventory");
-  console.log("Active tab:", activeTab);
   const [searchQuery, setSearchQuery] = useState("");
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
@@ -228,10 +226,10 @@ const Index = () => {
     }
   }, []);
 
-  // Load inventory on mount and when sync completes
+  // Load inventory on mount only
   useEffect(() => {
     loadAllInventory();
-  }, [loadAllInventory]);
+  }, []); // Empty dependency array - only run on mount
 
   // Reload inventory when window gains focus or becomes visible (in case sync happened)
   useEffect(() => {
@@ -251,7 +249,7 @@ const Index = () => {
       window.removeEventListener('focus', handleFocus);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, [loadAllInventory]);
+  }, []); // Empty dependency array - only set up event listeners once
 
   const filteredItems = items.filter(item => {
     const name = (item?.name || '').toLowerCase();
@@ -526,14 +524,49 @@ const Index = () => {
       id: Date.now().toString()
     };
     setCraftsmen([...craftsmen, craftsman]);
+    // Queue for sync to Supabase - use local structure, sync will transform
+    enqueueChange('craftsmen', 'upsert', {
+      id: craftsman.id,
+      name: craftsman.name,
+      specialty: craftsman.specialty,
+      experience: craftsman.experience, // Keep as-is (can be string or number), sync will parse
+      phone: craftsman.contact || '', // Local uses 'contact', sync will map to 'phone'
+      contact: craftsman.contact || '', // Keep both for compatibility
+      email: craftsman.email || '',
+      address: craftsman.address || '',
+      status: craftsman.status || 'available', // Sync will map to Supabase status values
+      rating: craftsman.rating || 0.0,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    });
   };
 
   const handleUpdateCraftsman = (id: string, updates: Partial<Craftsman>) => {
-    setCraftsmen(craftsmen.map(c => c.id === id ? { ...c, ...updates } : c));
+    const updatedCraftsmen = craftsmen.map(c => c.id === id ? { ...c, ...updates } : c);
+    setCraftsmen(updatedCraftsmen);
+    // Queue for sync to Supabase - use local structure, sync will transform
+    const updatedCraftsman = updatedCraftsmen.find(c => c.id === id);
+    if (updatedCraftsman) {
+      enqueueChange('craftsmen', 'upsert', {
+        id: updatedCraftsman.id,
+        name: updatedCraftsman.name,
+        specialty: updatedCraftsman.specialty,
+        experience: updatedCraftsman.experience, // Keep as-is, sync will parse
+        phone: updatedCraftsman.contact || '', // Local uses 'contact'
+        contact: updatedCraftsman.contact || '', // Keep both for compatibility
+        email: updatedCraftsman.email || '',
+        address: updatedCraftsman.address || '',
+        status: updatedCraftsman.status || 'available', // Sync will map to Supabase status
+        rating: updatedCraftsman.rating || 0.0,
+        updated_at: new Date().toISOString(),
+      });
+    }
   };
 
   const handleDeleteCraftsman = (id: string) => {
     setCraftsmen(craftsmen.filter(c => c.id !== id));
+    // Queue for sync to Supabase
+    enqueueChange('craftsmen', 'delete', { id });
   };
 
   return (

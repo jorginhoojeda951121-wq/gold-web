@@ -256,7 +256,7 @@ export const CraftsmenManagement = ({
         </Card>
         <Card className="text-center p-4">
           <div className="text-2xl font-bold text-blue-600">
-            {craftsmen.reduce((sum, c) => sum + c.completedProjects, 0)}
+            {craftsmen.reduce((sum, c) => sum + (c.completedProjects || 0), 0)}
           </div>
           <div className="text-sm text-muted-foreground">Projects Completed</div>
         </Card>
@@ -317,17 +317,17 @@ export const CraftsmenManagement = ({
                       {craftsman.status}
                     </Badge>
                   </TableCell>
-                  <TableCell>{craftsman.experience} years</TableCell>
+                  <TableCell>{(craftsman.experience ?? 0) || 0} years</TableCell>
                   <TableCell>
                     <div className="flex items-center space-x-1">
                       <Star className="h-4 w-4 text-yellow-500 fill-current" />
-                      <span>{craftsman.rating}</span>
+                      <span>{(craftsman.rating ?? 0) || 0}</span>
                     </div>
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center space-x-1">
                       <Package className="h-4 w-4 text-muted-foreground" />
-                      <span>{craftsman.materialsAssigned}</span>
+                      <span>{(craftsman.materialsAssigned ?? 0) || 0}</span>
                     </div>
                   </TableCell>
                   <TableCell className="text-sm">
@@ -571,18 +571,18 @@ export const CraftsmenManagement = ({
                   <div className="space-y-2">
                     <div className="flex justify-between">
                       <span>Experience:</span>
-                      <span>{selectedCraftsman.experience} years</span>
+                      <span>{(selectedCraftsman.experience ?? 0) || 0} years</span>
                     </div>
                     <div className="flex justify-between">
                       <span>Rating:</span>
                       <div className="flex items-center">
                         <Star className="h-4 w-4 text-yellow-500 fill-current mr-1" />
-                        <span>{selectedCraftsman.rating}</span>
+                        <span>{(selectedCraftsman.rating ?? 0) || 0}</span>
                       </div>
                     </div>
                     <div className="flex justify-between">
                       <span>Completed Projects:</span>
-                      <span>{selectedCraftsman.completedProjects}</span>
+                      <span>{(selectedCraftsman.completedProjects ?? 0) || 0}</span>
                     </div>
                   </div>
                 </div>

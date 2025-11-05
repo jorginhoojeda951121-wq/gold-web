@@ -136,19 +136,18 @@ export const CustomerLedger = () => {
 
     setCustomers(prev => [...prev, newCustomer]);
 
-    // Push to Supabase
+    // Push to Supabase - use camelCase format, sync will transform
     enqueueChange('customers', 'upsert', {
       id: newCustomer.id,
       name: newCustomer.name,
       email: newCustomer.email,
       phone: newCustomer.phone,
       address: newCustomer.address,
-      credit_limit: newCustomer.creditLimit,
-      current_balance: newCustomer.currentBalance,
-      total_purchases: newCustomer.totalPurchases,
-      last_purchase_date: newCustomer.lastPurchaseDate || null,
+      currentBalance: newCustomer.currentBalance, // camelCase
+      totalPurchases: newCustomer.totalPurchases, // camelCase
+      lastPurchaseDate: newCustomer.lastPurchaseDate || null, // camelCase
       status: newCustomer.status,
-      updated_at: new Date().toISOString(),
+      creditLimit: newCustomer.creditLimit, // camelCase
     });
 
     setFormData({ name: "", phone: "", email: "", address: "", creditLimit: "" });
@@ -183,21 +182,22 @@ export const CustomerLedger = () => {
 
     setTransactions(prev => [...prev, newTransaction]);
 
-    // Push transaction
+    // Push transaction - use camelCase to match pushQueue expectations
     enqueueChange('customer_transactions', 'upsert', {
       id: newTransaction.id,
-      customer_id: newTransaction.customerId,
+      customerId: newTransaction.customerId, // camelCase, not snake_case
       type: newTransaction.type,
       amount: newTransaction.amount,
       description: newTransaction.description,
       date: newTransaction.date,
-      invoice_id: newTransaction.invoiceId ?? null,
-      payment_method: newTransaction.paymentMethod ?? null,
-      updated_at: new Date().toISOString(),
+      invoiceId: newTransaction.invoiceId ?? null, // camelCase, not snake_case
+      paymentMethod: newTransaction.paymentMethod ?? null, // camelCase, not snake_case
+      balanceBefore: 0, // Will be calculated in pushQueue if needed
+      balanceAfter: newTransaction.amount,
     });
 
     // Update customer balance and totals, then push customer
-    setCustomers(prev => prev.map(customer => 
+    const updatedCustomers = customers.map(customer => 
       customer.id === selectedCustomer.id
         ? {
             ...customer,
@@ -210,23 +210,25 @@ export const CustomerLedger = () => {
               : (customer.lastPurchaseDate || new Date().toISOString().split('T')[0])
           }
         : customer
-    ));
+    );
+    setCustomers(updatedCustomers);
 
-    // After local update, enqueue latest customer snapshot
-    const updatedAt = new Date().toISOString();
-    enqueueChange('customers', 'upsert', {
-      id: selectedCustomer.id,
-      name: selectedCustomer.name,
-      email: selectedCustomer.email,
-      phone: selectedCustomer.phone,
-      address: selectedCustomer.address,
-      credit_limit: selectedCustomer.creditLimit,
-      current_balance: (selectedCustomer.currentBalance || 0) + newTransaction.amount,
-      total_purchases: selectedCustomer.totalPurchases + (transactionData.type === 'purchase' ? amount : 0),
-      last_purchase_date: transactionData.type === 'purchase' ? new Date().toISOString().split('T')[0] : selectedCustomer.lastPurchaseDate,
-      status: selectedCustomer.status,
-      updated_at: updatedAt,
-    });
+    // After local update, enqueue latest customer snapshot - use camelCase format
+    const updatedCustomer = updatedCustomers.find(c => c.id === selectedCustomer.id);
+    if (updatedCustomer) {
+      enqueueChange('customers', 'upsert', {
+        id: updatedCustomer.id,
+        name: updatedCustomer.name,
+        email: updatedCustomer.email,
+        phone: updatedCustomer.phone,
+        address: updatedCustomer.address,
+        creditLimit: updatedCustomer.creditLimit, // camelCase
+        currentBalance: updatedCustomer.currentBalance || 0, // camelCase
+        totalPurchases: updatedCustomer.totalPurchases || 0, // camelCase
+        lastPurchaseDate: updatedCustomer.lastPurchaseDate || null, // camelCase
+        status: updatedCustomer.status,
+      });
+    }
 
     setTransactionData({ type: 'payment', amount: "", description: "", paymentMethod: "Cash" });
     setShowTransactionDialog(false);
@@ -237,7 +239,7 @@ export const CustomerLedger = () => {
     });
   };
 
-  const totalCreditOutstanding = customers.reduce((sum, customer) => sum + customer.currentBalance, 0);
+  const totalCreditOutstanding = customers.reduce((sum, customer) => sum + (parseFloat(String(customer.currentBalance ?? customer.ledger_balance ?? 0)) || 0), 0);
   const activeCustomers = customers.filter(c => c.status === 'active').length;
   const totalCustomers = customers.length;
 
@@ -287,7 +289,7 @@ export const CustomerLedger = () => {
               <DollarSign className="h-5 w-5 text-yellow-600" />
               <div>
                 <p className="text-sm text-gray-600">Credit Outstanding</p>
-                <p className="text-2xl font-bold">₹{totalCreditOutstanding.toLocaleString()}</p>
+                <p className="text-2xl font-bold">₹{(isNaN(totalCreditOutstanding) ? 0 : totalCreditOutstanding).toLocaleString()}</p>
               </div>
             </div>
           </CardContent>

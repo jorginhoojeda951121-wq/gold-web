@@ -11,8 +11,30 @@ export function useOfflineStorage<T>(key: string, initialValue: T) {
       try {
         const valueFromDb = await idbGet<T>(key);
         if (isMounted) {
-          // Always set a value - use the one from DB if it exists, otherwise keep the initial value
-          setStoredValue(valueFromDb !== undefined ? valueFromDb : initialValue);
+          // If valueFromDb is undefined, use initialValue
+          // If valueFromDb is an empty array and initialValue is a non-empty array, use initialValue (for seed data)
+          // Otherwise use valueFromDb
+          if (valueFromDb === undefined) {
+            setStoredValue(initialValue);
+          } else if (
+            Array.isArray(valueFromDb) && 
+            Array.isArray(initialValue) && 
+            valueFromDb.length === 0 && 
+            initialValue.length > 0
+          ) {
+            // Empty array exists but we have seed data - use seed data if key is in seed list
+            const seedableKeys = ['craftsmen', 'customers', 'staff_employees', 'jewelry_items', 'gold_items', 'stones_items', 'pos_recentInvoices'];
+            if (seedableKeys.includes(key)) {
+              console.log(`⚠️ ${key} exists but is empty, using seed data`);
+              setStoredValue(initialValue);
+              // Also save seed data to IndexedDB
+              await idbSet<T>(key, initialValue);
+            } else {
+              setStoredValue(valueFromDb);
+            }
+          } else {
+            setStoredValue(valueFromDb);
+          }
         }
       } catch (error) {
         console.log(error);

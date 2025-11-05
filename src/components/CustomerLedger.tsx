@@ -191,7 +191,7 @@ export const CustomerLedger = () => {
     });
   };
 
-  const totalCreditOutstanding = customers.reduce((sum, customer) => sum + customer.currentBalance, 0);
+  const totalCreditOutstanding = customers.reduce((sum, customer) => sum + (parseFloat(String(customer.currentBalance ?? customer.ledger_balance ?? 0)) || 0), 0);
   const activeCustomers = customers.filter(c => c.status === 'active').length;
   const totalCustomers = customers.length;
 
@@ -241,7 +241,7 @@ export const CustomerLedger = () => {
               <DollarSign className="h-5 w-5 text-yellow-600" />
               <div>
                 <p className="text-sm text-gray-600">Credit Outstanding</p>
-                <p className="text-2xl font-bold">₹{totalCreditOutstanding.toLocaleString()}</p>
+                <p className="text-2xl font-bold">₹{(isNaN(totalCreditOutstanding) ? 0 : totalCreditOutstanding).toLocaleString()}</p>
               </div>
             </div>
           </CardContent>

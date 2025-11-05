@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
 import { getSupabase } from "@/lib/supabase";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -12,6 +13,7 @@ import { AIChatbot, ChatbotButton } from "@/components/AIChatbot";
 export const Auth = () => {
   const supabase = getSupabase();
   const { toast } = useToast();
+  const navigate = useNavigate();
   
   // View state: 'signin' or 'getintouch'
   const [currentView, setCurrentView] = useState<"signin" | "getintouch">("signin");
@@ -76,8 +78,8 @@ export const Auth = () => {
       if (!sessionData.session) {
         throw new Error("Authentication failed: no active session returned.");
       }
-      // Redirect to dashboard after successful login
-      window.location.href = "/dashboard";
+      // Redirect to dashboard after successful login using React Router (avoids full page reload)
+      navigate("/dashboard", { replace: true });
     } catch (err: any) {
       setError(err?.message || "Authentication failed");
       toast({ title: "Auth error", description: err?.message || "Authentication failed", variant: "destructive" });

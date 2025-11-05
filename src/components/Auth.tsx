@@ -54,24 +54,22 @@ export const Auth = () => {
       const { error: signInErr } = await supabase.auth.signInWithPassword({ email, password });
       if (signInErr) throw signInErr;
       toast({ title: "Signed in", description: "Welcome back!" });
-      // ensure profile exists (first login after confirmed signup)
-      // Note: This is optional - if the table doesn't exist, login will still work
+      // ensure profile exists in users table (first login after confirmed signup)
       try {
         const { data: userRes } = await supabase.auth.getUser();
         const userId = userRes.user?.id;
         if (userId) {
-          // Try to upsert to user_profiles if it exists, otherwise skip silently
+          // Upsert to users table (table structure: id, email, created_at)
           const { error: profileErr } = await supabase
-            .from("user_profiles")
+            .from("users")
             .upsert({ id: userId, email }, { onConflict: 'id' });
-          // Only log if there's an actual error (not just missing table)
-          if (profileErr && !profileErr.message?.includes('does not exist')) {
-            console.warn('Profile upsert failed:', profileErr.message);
+          if (profileErr) {
+            console.warn('User profile upsert failed:', profileErr.message);
           }
         }
       } catch (profileError: any) {
-        // Silently ignore profile errors - authentication is successful
-        console.warn('Profile update skipped:', profileError?.message || 'Profile table may not exist');
+        // Log error but don't block login
+        console.warn('User profile update error:', profileError?.message);
       }
       // Double-check we actually have a valid session before redirecting
       const { data: sessionData } = await supabase.auth.getSession();

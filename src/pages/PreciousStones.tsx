@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Link, useNavigate } from "react-router-dom";
 import { useOfflineStorage } from "@/hooks/useOfflineStorage";
+import { useUserStorage } from "@/hooks/useUserStorage";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
@@ -26,7 +27,8 @@ const PreciousStones = () => {
   const { data: searchQuery, updateData: setSearchQuery } = useOfflineStorage<string>("stones_search", "");
   const { data: viewMode, updateData: setViewMode } = useOfflineStorage<'grid' | 'list'>("stones_viewMode", 'grid');
   // Use stones_items key - data will be auto-populated by seedWebData
-  const { data: stones, updateData: setStones } = useOfflineStorage<StoneItem[]>("stones_items", []);
+  // CRITICAL: Use useUserStorage for user-scoped data isolation
+  const { data: stones, updateData: setStones } = useUserStorage<StoneItem[]>("stones_items", []);
   const { data: posCart, updateData: setPosCart } = useOfflineStorage<any[]>("pos_cart", []);
 
   const [showAddDialog, setShowAddDialog] = useState(false);
@@ -49,7 +51,7 @@ const PreciousStones = () => {
     item.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const handleAddItem = () => {
+  const handleAddItem = async () => {
     if (!formData.name || !formData.carat || !formData.clarity || !formData.cut || !formData.price) {
       toast({
         title: "Missing Information",
@@ -59,16 +61,31 @@ const PreciousStones = () => {
       return;
     }
 
-    const newItem: StoneItem = {
+    // Get current user ID
+    const { getCurrentUserId } = await import('@/lib/userStorage');
+    const userId = await getCurrentUserId();
+    
+    if (!userId) {
+      toast({
+        title: "Error",
+        description: "User not logged in. Please log in again.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    const newItem: StoneItem & { user_id?: string } = {
       id: Date.now().toString(),
       ...formData,
       price: parseFloat(formData.price) || 0,
-      image: formData.image || "https://images.unsplash.com/photo-1631832724508-ea8df04ad455?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3wzNzg4OTl8MHwxfHNlYXJjaHwxfHxwcmVjaW91cy1zdG9uZXN8ZW58MXwwfHx8MTc1Mzc2NjkyMHww&ixlib=rb-4.1.0&q=80&w=1080"
+      image: formData.image || "https://images.unsplash.com/photo-1631832724508-ea8df04ad455?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3wzNzg4OTl8MHwxfHNlYXJjaHwxfHxwcmVjaW91cy1zdG9uZXN8ZW58MXwwfHx8MTc1Mzc2NjkyMHww&ixlib=rb-4.1.0&q=80&w=1080",
+      user_id: userId, // CRITICAL: Include user_id for data isolation
     };
 
     setStones(prev => [...prev, newItem]);
     enqueueChange('inventory_items', 'upsert', {
       id: newItem.id,
+      user_id: userId, // CRITICAL: Include user_id for data isolation
       item_type: 'stone',
       name: newItem.name,
       attributes: { carat: newItem.carat, clarity: newItem.clarity, cut: newItem.cut },

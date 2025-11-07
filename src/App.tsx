@@ -21,6 +21,7 @@ import JewelryCollection from "./pages/JewelryCollection";
 import CraftsmenTracking from "./pages/CraftsmenTracking";
 import NotFound from "./pages/NotFound";
 import SyncApi from "./pages/SyncApi";
+import { Subscription } from "./pages/Subscription";
 
 const queryClient = new QueryClient();
 
@@ -36,10 +37,11 @@ const App = () => {
           {/* Landing page - no layout wrapper */}
           <Route path="/" element={<Landing />} />
           <Route path="/auth" element={<Auth />} />
-          <Route path="/contact" element={<Contact />} />
           
           {/* Protected routes with layout */}
           <Route element={<Layout />}>
+            {/* Subscription page - accessible when subscription check redirects here */}
+            <Route path="/subscription" element={<Subscription />} />
             <Route path="/dashboard" element={<RequireAuth><Index /></RequireAuth>} />
             <Route path="/gold-collection" element={<GoldCollection />} />
             <Route path="/precious-stones" element={<PreciousStones />} />
@@ -51,6 +53,7 @@ const App = () => {
             <Route path="/analytics" element={<Analytics />} />
             <Route path="/reports" element={<ReportingDashboard />} />
             <Route path="/ledger" element={<CustomerLedger />} />
+            <Route path="/contact" element={<Contact />} />
             <Route path="/settings" element={<BusinessSettings />} />
             <Route path="/api/sync/download" element={<SyncApi />} />
             <Route path="/api/sync/upload" element={<SyncApi />} />

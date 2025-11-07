@@ -21,7 +21,8 @@ import { useToast } from "@/hooks/use-toast";
 import { useOfflineStorage } from "@/hooks/useOfflineStorage";
 import { enqueueChange } from "@/lib/sync";
 import { useBusinessName } from "@/hooks/useBusinessName";
-import { idbGet, idbSet } from "@/lib/indexedDb";
+import { getUserData, setUserData } from "@/lib/userStorage";
+import { getSupabase } from "@/lib/supabase";
 import heroImage from "@/assets/hero-jewelry.jpg";
 
 interface CartItem {
@@ -70,12 +71,12 @@ const Index = () => {
     try {
       console.log('🔄 Loading all inventory from IndexedDB...');
       
-      // Load all inventory types directly from IndexedDB
+      // Load all inventory types directly from user-scoped IndexedDB
       const [jewelryData, goldData, stonesData, inventoryData] = await Promise.all([
-        idbGet<any[]>("jewelry_items") || Promise.resolve([]),
-        idbGet<any[]>("gold_items") || Promise.resolve([]),
-        idbGet<any[]>("stones_items") || Promise.resolve([]),
-        idbGet<any[]>("inventory_items") || Promise.resolve([]),
+        getUserData<any[]>("jewelry_items") || Promise.resolve([]),
+        getUserData<any[]>("gold_items") || Promise.resolve([]),
+        getUserData<any[]>("stones_items") || Promise.resolve([]),
+        getUserData<any[]>("inventory_items") || Promise.resolve([]),
       ]);
 
       console.log('📦 Raw data loaded:', {
@@ -226,10 +227,28 @@ const Index = () => {
     }
   }, []);
 
-  // Load inventory on mount only
+  // Load inventory on mount and when user changes
   useEffect(() => {
     loadAllInventory();
-  }, []); // Empty dependency array - only run on mount
+    
+    // Listen for auth state changes to reload data when user changes
+    const supabase = getSupabase();
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      // Reload inventory when user changes (login/logout)
+      if (session?.user?.id) {
+        console.log('🔄 User changed, reloading inventory...');
+        loadAllInventory();
+      } else {
+        // User logged out, clear items
+        setItems([]);
+        setItemsLoaded(false);
+      }
+    });
+    
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, [loadAllInventory]);
 
   // Reload inventory when window gains focus or becomes visible (in case sync happened)
   useEffect(() => {
@@ -249,7 +268,7 @@ const Index = () => {
       window.removeEventListener('focus', handleFocus);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, []); // Empty dependency array - only set up event listeners once
+  }, [loadAllInventory]);
 
   const filteredItems = items.filter(item => {
     const name = (item?.name || '').toLowerCase();
@@ -285,16 +304,30 @@ const Index = () => {
 
   const handleAddItem = async (newItem: Omit<JewelryItem, 'id'>) => {
     try {
+      // Get current user ID
+      const { getCurrentUserId } = await import('@/lib/userStorage');
+      const userId = await getCurrentUserId();
+      
+      if (!userId) {
+        toast({ 
+          title: "Error", 
+          description: "User not logged in. Please log in again.", 
+          variant: "destructive" 
+        });
+        return;
+      }
+      
       const item: JewelryItem = {
         ...newItem,
         id: Date.now().toString()
       };
       
-      // Save to appropriate IndexedDB key based on item type
+      // Save to appropriate user-scoped IndexedDB key based on item type
       if (item.type === 'Gold Bar') {
-        const goldItems = (await idbGet<any[]>('gold_items')) || [];
+        const goldItems = (await getUserData<any[]>('gold_items')) || [];
         goldItems.push({
           id: item.id,
+          user_id: userId, // CRITICAL: Include user_id for data isolation
           name: item.name,
           weight: '',
           purity: item.metal,
@@ -303,11 +336,12 @@ const Index = () => {
           stock: item.inStock,
           image: item.image || '',
         });
-        await idbSet('gold_items', goldItems);
+        await setUserData('gold_items', goldItems);
       } else if (item.type === 'Gemstone') {
-        const stonesItems = (await idbGet<any[]>('stones_items')) || [];
+        const stonesItems = (await getUserData<any[]>('stones_items')) || [];
         stonesItems.push({
           id: item.id,
+          user_id: userId, // CRITICAL: Include user_id for data isolation
           name: item.name,
           carat: item.carat.toString(),
           clarity: '',
@@ -317,20 +351,24 @@ const Index = () => {
           stock: item.inStock,
           image: item.image || '',
         });
-        await idbSet('stones_items', stonesItems);
+        await setUserData('stones_items', stonesItems);
       } else {
-        const jewelryItems = (await idbGet<any[]>('jewelry_items')) || [];
-        jewelryItems.push(item);
-        await idbSet('jewelry_items', jewelryItems);
+        const jewelryItems = (await getUserData<any[]>('jewelry_items')) || [];
+        jewelryItems.push({
+          ...item,
+          user_id: userId, // CRITICAL: Include user_id for data isolation
+        });
+        await setUserData('jewelry_items', jewelryItems);
       }
       
       // Also save to inventory_items for sync
-      const inventoryItems = (await idbGet<any[]>('inventory_items')) || [];
+      const inventoryItems = (await getUserData<any[]>('inventory_items')) || [];
       const itemType = item.type === 'Gold Bar' ? 'gold' 
                      : item.type === 'Gemstone' ? 'stone'
                      : 'jewelry';
       inventoryItems.push({
         id: item.id,
+        user_id: userId, // CRITICAL: Include user_id for data isolation
         item_type: itemType,
         name: item.name,
         type: item.type,
@@ -350,11 +388,12 @@ const Index = () => {
         isArtificial: item.isArtificial || false,
         updated_at: new Date().toISOString(),
       });
-      await idbSet('inventory_items', inventoryItems);
+      await setUserData('inventory_items', inventoryItems);
       
       // Queue for sync
       enqueueChange('inventory_items', 'upsert', {
         id: item.id,
+        user_id: userId, // CRITICAL: Include user_id for data isolation
         item_type: itemType,
         name: item.name,
         type: item.type,

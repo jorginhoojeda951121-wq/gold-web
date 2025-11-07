@@ -30,10 +30,11 @@ import {
   X
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { useOfflineStorage } from "@/hooks/useOfflineStorage";
+import { useUserStorage } from "@/hooks/useUserStorage";
+import { getUserData, setUserData } from "@/lib/userStorage";
 import { generateReceiptPDF, ReceiptData } from "@/lib/pdfGenerator";
 import ItemDetailsDialog from "@/components/ItemDetailsDialog";
-import { idbGet, idbSet } from "@/lib/indexedDb";
+// Removed idbGet, idbSet - now using getUserData, setUserData from userStorage
 import { enqueueChange } from "@/lib/sync";
 
 interface CartItem {
@@ -81,13 +82,13 @@ interface CustomerTransaction {
 
 const POS = () => {
   const { toast } = useToast();
-  const { data: cart, updateData: setCart } = useOfflineStorage<CartItem[]>("pos_cart", []);
-  const { data: customerName, updateData: setCustomerName } = useOfflineStorage<string>("pos_customerName", "");
-  const { data: recentInvoices, updateData: setRecentInvoices } = useOfflineStorage<Invoice[]>("pos_recentInvoices", []);
+  const { data: cart, updateData: setCart } = useUserStorage<CartItem[]>("pos_cart", []);
+  const { data: customerName, updateData: setCustomerName } = useUserStorage<string>("pos_customerName", "");
+  const { data: recentInvoices, updateData: setRecentInvoices } = useUserStorage<Invoice[]>("pos_recentInvoices", []);
   
   // Load customers for credit/repayment functionality
-  const { data: customers, updateData: setCustomers } = useOfflineStorage<Customer[]>('customers', []);
-  const { data: customerTransactions, updateData: setCustomerTransactions } = useOfflineStorage<CustomerTransaction[]>('customer_transactions', []);
+  const { data: customers, updateData: setCustomers } = useUserStorage<Customer[]>('customers', []);
+  const { data: customerTransactions, updateData: setCustomerTransactions } = useUserStorage<CustomerTransaction[]>('customer_transactions', []);
   
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [showRepaymentDialog, setShowRepaymentDialog] = useState(false);
@@ -98,7 +99,7 @@ const POS = () => {
   });
   const [showCustomerSearch, setShowCustomerSearch] = useState(false);
   const [customerSearchQuery, setCustomerSearchQuery] = useState("");
-  const { data: businessSettings } = useOfflineStorage('businessSettings', {
+  const { data: businessSettings } = useUserStorage('businessSettings', {
     businessName: "Golden Treasures",
     address: "123 Jewelry Street, Mumbai",
     phone: "+91 98765 43210",
@@ -107,7 +108,7 @@ const POS = () => {
     currency: "INR",
     timezone: "Asia/Kolkata"
   });
-  const { data: paymentSettings } = useOfflineStorage('paymentSettings', {
+  const { data: paymentSettings } = useUserStorage('paymentSettings', {
     upiId: "goldentreasures@paytm",
     businessName: "Golden Treasures Pvt Ltd",
     gstNumber: "27XXXXX1234X1Z5",
@@ -126,12 +127,12 @@ const POS = () => {
       setIsRefreshing(true);
       console.log('🔄 Loading all inventory from IndexedDB...');
       
-      // Load all inventory types directly from IndexedDB
+      // Load all inventory types directly from user-scoped storage
       const [jewelryData, goldData, stonesData, inventoryData] = await Promise.all([
-        idbGet<any[]>("jewelry_items") || Promise.resolve([]),
-        idbGet<any[]>("gold_items") || Promise.resolve([]),
-        idbGet<any[]>("stones_items") || Promise.resolve([]),
-        idbGet<any[]>("inventory_items") || Promise.resolve([]),
+        getUserData<any[]>("jewelry_items") || Promise.resolve([]),
+        getUserData<any[]>("gold_items") || Promise.resolve([]),
+        getUserData<any[]>("stones_items") || Promise.resolve([]),
+        getUserData<any[]>("inventory_items") || Promise.resolve([]),
       ]);
 
       console.log('📦 Raw data loaded:', {
@@ -301,10 +302,10 @@ const POS = () => {
     try {
       // Load current data from all sources
       const [jewelryData, goldData, stonesData, inventoryData] = await Promise.all([
-        idbGet<any[]>("jewelry_items") || [],
-        idbGet<any[]>("gold_items") || [],
-        idbGet<any[]>("stones_items") || [],
-        idbGet<any[]>("inventory_items") || [],
+        getUserData<any[]>("jewelry_items") || [],
+        getUserData<any[]>("gold_items") || [],
+        getUserData<any[]>("stones_items") || [],
+        getUserData<any[]>("inventory_items") || [],
       ]);
 
       const updatedJewelry = [...(jewelryData || [])];
@@ -392,10 +393,10 @@ const POS = () => {
 
       // Save back to IndexedDB - CRITICAL: Save inventory_items first
       await Promise.all([
-        idbSet("inventory_items", updatedInventory), // MUST be saved
-        idbSet("jewelry_items", updatedJewelry),
-        idbSet("gold_items", updatedGold),
-        idbSet("stones_items", updatedStones),
+        setUserData("inventory_items", updatedInventory), // MUST be saved
+        setUserData("jewelry_items", updatedJewelry),
+        setUserData("gold_items", updatedGold),
+        setUserData("stones_items", updatedStones),
       ]);
 
       console.log('✅ Inventory stock updated and queued for sync:', updatedItems.map(i => ({ id: i.id, name: i.name, newStock: i.inStock })));
@@ -531,7 +532,7 @@ const POS = () => {
     ));
 
     // Reload customers
-    const updatedCustomers = await idbGet<Customer[]>('customers') || [];
+    const updatedCustomers = await getUserData<Customer[]>('customers') || [];
     setSelectedCustomer(updatedCustomers.find(c => c.id === selectedCustomer.id) || null);
 
     toast({

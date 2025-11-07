@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Users, Plus, Search, CreditCard, DollarSign, Calendar, Phone, Mail, Eye } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,9 +9,11 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { useOfflineStorage } from "@/hooks/useOfflineStorage";
+import { useUserStorage } from "@/hooks/useUserStorage";
 import { CustomerDetailsDialog } from "@/components/CustomerDetailsDialog";
 import { enqueueChange } from "@/lib/sync";
+import { getUserData } from "@/lib/userStorage";
+import { getSupabase } from "@/lib/supabase";
 
 interface Customer {
   id: string;
@@ -45,10 +47,11 @@ export const CustomerLedger = () => {
   const [showDetailsDialog, setShowDetailsDialog] = useState(false);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
 
-  // Use customers key - data will be auto-populated by seedWebData
-  const { data: customers, updateData: setCustomers } = useOfflineStorage<Customer[]>('customers', []);
+  // CRITICAL: Use useUserStorage for user-scoped data isolation
+  const { data: customers, updateData: setCustomers } = useUserStorage<Customer[]>('customers', []);
 
-  const { data: transactions, updateData: setTransactions } = useOfflineStorage<Transaction[]>('customer_transactions', [
+  // CRITICAL: Use useUserStorage for user-scoped data isolation
+  const { data: transactions, updateData: setTransactions } = useUserStorage<Transaction[]>('customer_transactions', [
     {
       id: "1",
       customerId: "1",
@@ -101,6 +104,71 @@ export const CustomerLedger = () => {
     customer.email.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
+  // Load customers and transactions from user-scoped storage
+  const loadCustomerData = useCallback(async () => {
+    try {
+      const [customersData, transactionsData] = await Promise.all([
+        getUserData<Customer[]>('customers') || [],
+        getUserData<Transaction[]>('customer_transactions') || [],
+      ]);
+      
+      setCustomers(customersData);
+      setTransactions(transactionsData);
+    } catch (error) {
+      console.error('Error loading customer data:', error);
+    }
+  }, [setCustomers, setTransactions]);
+
+  // Load data on mount and when user changes
+  useEffect(() => {
+    loadCustomerData();
+    
+    // Listen for auth state changes to reload data when user changes
+    const supabase = getSupabase();
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      // Clear user ID cache when user changes to ensure fresh data load
+      const { clearUserIdCache } = await import('@/lib/userStorage');
+      clearUserIdCache();
+      
+      // Reload data when user changes (login/logout)
+      if (session?.user?.id) {
+        console.log('🔄 User changed, reloading customer data...');
+        // Small delay to ensure cache is cleared and new user ID is fetched
+        setTimeout(() => {
+          loadCustomerData();
+        }, 100);
+      } else {
+        // User logged out, clear data
+        setCustomers([]);
+        setTransactions([]);
+      }
+    });
+    
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, [loadCustomerData, setCustomers, setTransactions]);
+
+  // Reload data when window gains focus or becomes visible (in case sync happened)
+  useEffect(() => {
+    const handleFocus = () => {
+      loadCustomerData();
+    };
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        loadCustomerData();
+      }
+    };
+    
+    window.addEventListener('focus', handleFocus);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    
+    return () => {
+      window.removeEventListener('focus', handleFocus);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [loadCustomerData]);
+
   const getCustomerTransactions = (customerId: string) => {
     return transactions.filter(t => t.customerId === customerId);
   };
@@ -114,7 +182,7 @@ export const CustomerLedger = () => {
     }
   };
 
-  const handleAddCustomer = () => {
+  const handleAddCustomer = async () => {
     if (!formData.name || !formData.phone) {
       toast({
         title: "Missing Information",
@@ -124,31 +192,62 @@ export const CustomerLedger = () => {
       return;
     }
 
-    const newCustomer: Customer = {
-      id: Date.now().toString(),
-      ...formData,
-      creditLimit: parseFloat(formData.creditLimit) || 0,
-      currentBalance: 0,
-      totalPurchases: 0,
-      lastPurchaseDate: "",
-      status: 'active'
-    };
+    try {
+      // Get current user ID
+      const { getCurrentUserId, getUserData, setUserData } = await import('@/lib/userStorage');
+      const userId = await getCurrentUserId();
+      
+      if (!userId) {
+        toast({
+          title: "Error",
+          description: "User not logged in. Please log in again.",
+          variant: "destructive"
+        });
+        return;
+      }
 
-    setCustomers(prev => [...prev, newCustomer]);
+      const newCustomer: Customer & { user_id?: string } = {
+        id: Date.now().toString(),
+        ...formData,
+        creditLimit: parseFloat(formData.creditLimit) || 0,
+        currentBalance: 0,
+        totalPurchases: 0,
+        lastPurchaseDate: "",
+        status: 'active',
+        user_id: userId, // CRITICAL: Include user_id for data isolation
+      };
 
-    // Push to Supabase - use camelCase format, sync will transform
-    enqueueChange('customers', 'upsert', {
-      id: newCustomer.id,
-      name: newCustomer.name,
-      email: newCustomer.email,
-      phone: newCustomer.phone,
-      address: newCustomer.address,
-      currentBalance: newCustomer.currentBalance, // camelCase
-      totalPurchases: newCustomer.totalPurchases, // camelCase
-      lastPurchaseDate: newCustomer.lastPurchaseDate || null, // camelCase
-      status: newCustomer.status,
-      creditLimit: newCustomer.creditLimit, // camelCase
-    });
+      // Save to user-scoped storage
+      const customersData = (await getUserData<any[]>('customers')) || [];
+      customersData.push(newCustomer);
+      await setUserData('customers', customersData);
+      
+      // Update state
+      setCustomers(prev => [...prev, newCustomer]);
+
+      // Push to Supabase - use camelCase format, sync will transform
+      enqueueChange('customers', 'upsert', {
+        id: newCustomer.id,
+        user_id: userId, // CRITICAL: Include user_id for data isolation
+        name: newCustomer.name,
+        email: newCustomer.email,
+        phone: newCustomer.phone,
+        address: newCustomer.address,
+        currentBalance: newCustomer.currentBalance, // camelCase
+        totalPurchases: newCustomer.totalPurchases, // camelCase
+        lastPurchaseDate: newCustomer.lastPurchaseDate || null, // camelCase
+        status: newCustomer.status,
+        creditLimit: newCustomer.creditLimit, // camelCase
+      });
+    } catch (error) {
+      console.error('Error adding customer:', error);
+      toast({
+        title: "Error",
+        description: "Failed to add customer. Please try again.",
+        variant: "destructive"
+      });
+      return;
+    }
 
     setFormData({ name: "", phone: "", email: "", address: "", creditLimit: "" });
     setShowAddDialog(false);
@@ -159,7 +258,7 @@ export const CustomerLedger = () => {
     });
   };
 
-  const handleAddTransaction = () => {
+  const handleAddTransaction = async () => {
     if (!selectedCustomer || !transactionData.amount || !transactionData.description) {
       toast({
         title: "Missing Information",
@@ -169,32 +268,63 @@ export const CustomerLedger = () => {
       return;
     }
 
-    const amount = parseFloat(transactionData.amount);
-    const newTransaction: Transaction = {
-      id: Date.now().toString(),
-      customerId: selectedCustomer.id,
-      type: transactionData.type,
-      amount: transactionData.type === 'payment' ? -amount : amount,
-      description: transactionData.description,
-      date: new Date().toISOString(),
-      paymentMethod: transactionData.paymentMethod
-    };
+    try {
+      // Get current user ID
+      const { getCurrentUserId, getUserData, setUserData } = await import('@/lib/userStorage');
+      const userId = await getCurrentUserId();
+      
+      if (!userId) {
+        toast({
+          title: "Error",
+          description: "User not logged in. Please log in again.",
+          variant: "destructive"
+        });
+        return;
+      }
 
-    setTransactions(prev => [...prev, newTransaction]);
+      const amount = parseFloat(transactionData.amount);
+      const newTransaction: Transaction & { user_id?: string } = {
+        id: Date.now().toString(),
+        customerId: selectedCustomer.id,
+        type: transactionData.type,
+        amount: transactionData.type === 'payment' ? -amount : amount,
+        description: transactionData.description,
+        date: new Date().toISOString(),
+        paymentMethod: transactionData.paymentMethod,
+        user_id: userId, // CRITICAL: Include user_id for data isolation
+      };
 
-    // Push transaction - use camelCase to match pushQueue expectations
-    enqueueChange('customer_transactions', 'upsert', {
-      id: newTransaction.id,
-      customerId: newTransaction.customerId, // camelCase, not snake_case
-      type: newTransaction.type,
-      amount: newTransaction.amount,
-      description: newTransaction.description,
-      date: newTransaction.date,
-      invoiceId: newTransaction.invoiceId ?? null, // camelCase, not snake_case
-      paymentMethod: newTransaction.paymentMethod ?? null, // camelCase, not snake_case
-      balanceBefore: 0, // Will be calculated in pushQueue if needed
-      balanceAfter: newTransaction.amount,
-    });
+      // Save to user-scoped storage
+      const transactionsData = (await getUserData<any[]>('customer_transactions')) || [];
+      transactionsData.push(newTransaction);
+      await setUserData('customer_transactions', transactionsData);
+      
+      // Update state
+      setTransactions(prev => [...prev, newTransaction]);
+
+      // Push transaction - use camelCase to match pushQueue expectations
+      enqueueChange('customer_ledger', 'upsert', {
+        id: newTransaction.id,
+        user_id: userId, // CRITICAL: Include user_id for data isolation
+        customerId: newTransaction.customerId, // camelCase, not snake_case
+        type: newTransaction.type,
+        amount: newTransaction.amount,
+        description: newTransaction.description,
+        date: newTransaction.date,
+        invoiceId: newTransaction.invoiceId ?? null, // camelCase, not snake_case
+        paymentMethod: newTransaction.paymentMethod ?? null, // camelCase, not snake_case
+        balanceBefore: 0, // Will be calculated in pushQueue if needed
+        balanceAfter: newTransaction.amount,
+      });
+    } catch (error) {
+      console.error('Error adding transaction:', error);
+      toast({
+        title: "Error",
+        description: "Failed to add transaction. Please try again.",
+        variant: "destructive"
+      });
+      return;
+    }
 
     // Update customer balance and totals, then push customer
     const updatedCustomers = customers.map(customer => 

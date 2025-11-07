@@ -1,7 +1,8 @@
-import { useOfflineStorage } from "./useOfflineStorage";
+import { useUserStorage } from "./useUserStorage";
 
 export const useBusinessName = () => {
-  const { data: businessSettings } = useOfflineStorage('businessSettings', {
+  // CRITICAL: Use useUserStorage for user-scoped business settings
+  const { data: businessSettings } = useUserStorage('businessSettings', {
     businessName: "Jewellery Management System",
     address: "",
     phone: "",

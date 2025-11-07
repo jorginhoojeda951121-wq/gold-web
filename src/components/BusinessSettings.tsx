@@ -9,7 +9,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
-import { useOfflineStorage } from "@/hooks/useOfflineStorage";
+import { useUserStorage } from "@/hooks/useUserStorage";
+import { enqueueChange } from "@/lib/sync";
+import { getCurrentUserId } from "@/lib/userStorage";
 
 interface PaymentSettings {
   upiId: string;
@@ -31,7 +33,7 @@ export const BusinessSettings = () => {
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState("general");
 
-  const { data: businessSettings, updateData: setBusinessSettings } = useOfflineStorage('businessSettings', {
+  const { data: businessSettings, updateData: setBusinessSettings } = useUserStorage('businessSettings', {
     businessName: "Golden Treasures",
     address: "123 Jewelry Street, Mumbai",
     phone: "+91 98765 43210",
@@ -41,7 +43,7 @@ export const BusinessSettings = () => {
     timezone: "Asia/Kolkata"
   });
 
-  const { data: paymentSettings, updateData: setPaymentSettings } = useOfflineStorage<PaymentSettings>('paymentSettings', {
+  const { data: paymentSettings, updateData: setPaymentSettings } = useUserStorage<PaymentSettings>('paymentSettings', {
     upiId: "goldentreasures@paytm",
     businessName: "Golden Treasures Pvt Ltd",
     gstNumber: "27XXXXX1234X1Z5",
@@ -49,7 +51,7 @@ export const BusinessSettings = () => {
     ifscCode: "HDFC0001234"
   });
 
-  const { data: notificationSettings, updateData: setNotificationSettings } = useOfflineStorage<NotificationSettings>('notificationSettings', {
+  const { data: notificationSettings, updateData: setNotificationSettings } = useUserStorage<NotificationSettings>('notificationSettings', {
     lowStock: true,
     newOrders: true,
     payments: true,
@@ -57,27 +59,65 @@ export const BusinessSettings = () => {
     subscriptionExpiry: true
   });
 
-  const handleSaveBusinessSettings = () => {
-    setBusinessSettings(businessSettings);
+  const handleSaveBusinessSettings = async () => {
+    await setBusinessSettings(businessSettings);
+    
+    // Sync to Supabase - convert to key-value format
+    const userId = await getCurrentUserId();
+    if (userId) {
+      Object.entries(businessSettings).forEach(([key, value]) => {
+        enqueueChange('settings', 'upsert', {
+          key: `business_${key}`,
+          value: typeof value === 'string' ? value : JSON.stringify(value),
+          user_id: userId,
+        });
+      });
+    }
+    
     toast({
       title: "Settings Saved",
       description: "Business settings have been updated successfully."
     });
   };
 
-  const handleSavePaymentSettings = () => {
-    setPaymentSettings(paymentSettings);
+  const handleSavePaymentSettings = async () => {
+    await setPaymentSettings(paymentSettings);
+    
+    // Sync to Supabase - convert to key-value format
+    const userId = await getCurrentUserId();
+    if (userId) {
+      Object.entries(paymentSettings).forEach(([key, value]) => {
+        enqueueChange('settings', 'upsert', {
+          key: `payment_${key}`,
+          value: typeof value === 'string' ? value : JSON.stringify(value),
+          user_id: userId,
+        });
+      });
+    }
+    
     toast({
       title: "Payment Settings Updated",
       description: "UPI and payment details have been saved."
     });
   };
 
-  const handleToggleNotification = (key: keyof NotificationSettings) => {
-    setNotificationSettings({
+  const handleToggleNotification = async (key: keyof NotificationSettings) => {
+    const updated = {
       ...notificationSettings,
       [key]: !notificationSettings[key]
-    });
+    };
+    await setNotificationSettings(updated);
+    
+    // Sync to Supabase
+    const userId = await getCurrentUserId();
+    if (userId) {
+      enqueueChange('settings', 'upsert', {
+        key: `notification_${key}`,
+        value: JSON.stringify(updated[key]),
+        user_id: userId,
+      });
+    }
+    
     toast({
       title: "Notification Updated",
       description: `${key} notifications ${notificationSettings[key] ? 'disabled' : 'enabled'}.`

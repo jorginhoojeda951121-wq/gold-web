@@ -1,13 +1,13 @@
-import { useState, useMemo } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { User, Mail, Phone, Building2, Send, Loader2 } from "lucide-react";
+import { User, Mail, Phone, Building2, Send, Loader2, MapPin, Globe, Clock } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { getSupabase } from "@/lib/supabase";
+import { useOfflineStorage } from "@/hooks/useOfflineStorage";
 
 const Contact = () => {
   const navigate = useNavigate();
@@ -21,17 +21,51 @@ const Contact = () => {
     message: ""
   });
   const [loading, setLoading] = useState(false);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
 
-  // Generate fixed particle positions
-  const particles = useMemo(() => {
-    return Array.from({ length: 20 }, (_, i) => ({
-      id: i,
-      left: Math.random() * 100,
-      top: Math.random() * 100,
-      delay: Math.random() * 3,
-      duration: 2 + Math.random() * 2
-    }));
-  }, []);
+  // Load business settings for contact information
+  const { data: businessSettings } = useOfflineStorage('businessSettings', {
+    businessName: "Golden Treasures",
+    address: "123 Jewelry Street, Mumbai",
+    phone: "+91 98765 43210",
+    email: "info@goldentreasures.com",
+    gstNumber: "27XXXXX1234X1Z5",
+    currency: "INR",
+    timezone: "Asia/Kolkata"
+  });
+
+  // Check if user is logged in
+  useEffect(() => {
+    const checkAuth = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      setIsLoggedIn(!!session);
+      
+      // If logged in, pre-fill email from session
+      if (session?.user?.email) {
+        setFormData(prev => ({
+          ...prev,
+          email: session.user.email || prev.email
+        }));
+      }
+    };
+    checkAuth();
+
+    // Listen for auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setIsLoggedIn(!!session);
+      if (session?.user?.email) {
+        setFormData(prev => ({
+          ...prev,
+          email: session.user.email || prev.email
+        }));
+      }
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, [supabase]);
+
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -58,8 +92,8 @@ const Contact = () => {
         },
         body: JSON.stringify({
           access_key: import.meta.env.VITE_WEB3FORMS_ACCESS_KEY || "YOUR_ACCESS_KEY_HERE",
-          subject: "New Contact Form Submission - InventoryPath",
-          from_name: "InventoryPath Contact Form",
+          subject: "New Contact Form Submission - Gold Crafts Manager",
+          from_name: "Gold Crafts Manager Contact Form",
           name: formData.fullName,
           email: formData.email,
           phone: formData.mobileNumber,
@@ -100,165 +134,287 @@ const Contact = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center px-4 py-12 relative overflow-hidden">
-      {/* Premium Dark Background with Enhanced Effects */}
-      <div className="absolute inset-0 bg-gradient-to-br from-slate-950 via-indigo-950 to-slate-950">
-        {/* Animated gradient orbs */}
-        <div className="absolute top-0 left-1/4 w-96 h-96 bg-cyan-500/20 rounded-full blur-3xl animate-pulse"></div>
-        <div className="absolute top-1/4 right-1/4 w-96 h-96 bg-blue-500/20 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1s' }}></div>
-        <div className="absolute bottom-1/4 left-1/3 w-96 h-96 bg-indigo-500/20 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '2s' }}></div>
-        
-        {/* Enhanced particle effects */}
-        <div className="absolute inset-0 opacity-40">
-          {particles.map((particle) => (
-            <div
-              key={particle.id}
-              className="absolute rounded-full bg-cyan-400/40 animate-pulse"
-              style={{
-                left: `${particle.left}%`,
-                top: `${particle.top}%`,
-                width: `${Math.random() * 3 + 1}px`,
-                height: `${Math.random() * 3 + 1}px`,
-                animationDelay: `${particle.delay}s`,
-                animationDuration: `${particle.duration}s`
-              }}
-            />
-          ))}
-        </div>
-        
-        {/* Grid pattern overlay */}
-        <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.02)_1px,transparent_1px)] bg-[size:50px_50px]"></div>
-      </div>
-
-      {/* Contact Form Card */}
-      <div className="w-full max-w-2xl relative z-10">
-        <Card className="backdrop-blur-md bg-slate-800/90 border border-slate-700/50 shadow-2xl shadow-cyan-500/10 hover:shadow-cyan-500/20 transition-all duration-300">
-          <CardHeader className="space-y-3 pb-6">
-            <CardTitle className="text-3xl font-bold bg-gradient-to-r from-cyan-400 to-blue-400 bg-clip-text text-transparent">
-              Get in Touch
-            </CardTitle>
-            <p className="text-white/70 text-sm leading-relaxed">
-              Fill out the form below and our team will contact you to help set up your business account.
-            </p>
-          </CardHeader>
+    <div className="min-h-[calc(100vh-200px)] py-8 bg-gray-50 -m-4 lg:-m-8">
+      {/* Content Container */}
+      <div className="container mx-auto px-4">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 max-w-7xl mx-auto">
           
-          <CardContent>
-            <form onSubmit={handleSubmit} className="space-y-4">
-              {/* Honeypot field for spam protection */}
-              <input
-                type="checkbox"
-                name="botcheck"
-                className="hidden"
-                style={{ display: "none" }}
-                tabIndex={-1}
-                autoComplete="off"
-              />
+          {/* Business Contact Information Card */}
+          <div className="w-full">
+            <Card className="bg-white border border-gray-200 shadow-lg">
+              <CardHeader>
+                <CardTitle className="text-2xl font-bold text-gray-800">
+                  Contact Information
+                </CardTitle>
+                <p className="text-gray-600 text-sm mt-2">
+                  Our business contact details and location
+                </p>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                {/* Business Name */}
+                <div className="flex items-start gap-4">
+                  <div className="p-2 bg-green-100 rounded-lg">
+                    <Building2 className="h-5 w-5 text-green-600" />
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-sm text-gray-500 mb-1">Business Name</p>
+                    <p className="text-gray-800 font-semibold text-lg">
+                      {businessSettings?.businessName || "Not set"}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Address */}
+                <div className="flex items-start gap-4">
+                  <div className="p-2 bg-green-100 rounded-lg">
+                    <MapPin className="h-5 w-5 text-green-600" />
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-sm text-gray-500 mb-1">Address</p>
+                    <p className="text-gray-800">
+                      {businessSettings?.address || "Not set"}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Phone */}
+                <div className="flex items-start gap-4">
+                  <div className="p-2 bg-green-100 rounded-lg">
+                    <Phone className="h-5 w-5 text-green-600" />
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-sm text-gray-500 mb-1">Phone</p>
+                    {businessSettings?.phone ? (
+                      <a 
+                        href={`tel:${businessSettings.phone}`}
+                        className="text-green-600 hover:text-green-700 transition-colors"
+                      >
+                        {businessSettings.phone}
+                      </a>
+                    ) : (
+                      <p className="text-gray-800">Not set</p>
+                    )}
+                  </div>
+                </div>
+
+                {/* Email */}
+                <div className="flex items-start gap-4">
+                  <div className="p-2 bg-green-100 rounded-lg">
+                    <Mail className="h-5 w-5 text-green-600" />
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-sm text-gray-500 mb-1">Email</p>
+                    {businessSettings?.email ? (
+                      <a 
+                        href={`mailto:${businessSettings.email}`}
+                        className="text-green-600 hover:text-green-700 transition-colors"
+                      >
+                        {businessSettings.email}
+                      </a>
+                    ) : (
+                      <p className="text-gray-800">Not set</p>
+                    )}
+                  </div>
+                </div>
+
+                {/* GST Number */}
+                <div className="flex items-start gap-4">
+                  <div className="p-2 bg-green-100 rounded-lg">
+                    <Globe className="h-5 w-5 text-green-600" />
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-sm text-gray-500 mb-1">GST Number</p>
+                    <p className="text-gray-800">
+                      {businessSettings?.gstNumber || "Not set"}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Currency */}
+                <div className="flex items-start gap-4">
+                  <div className="p-2 bg-green-100 rounded-lg">
+                    <Globe className="h-5 w-5 text-green-600" />
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-sm text-gray-500 mb-1">Currency</p>
+                    <p className="text-gray-800">
+                      {businessSettings?.currency || "Not set"}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Timezone */}
+                <div className="flex items-start gap-4">
+                  <div className="p-2 bg-green-100 rounded-lg">
+                    <Clock className="h-5 w-5 text-green-600" />
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-sm text-gray-500 mb-1">Timezone</p>
+                    <p className="text-gray-800">
+                      {businessSettings?.timezone || "Not set"}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Edit Settings Link */}
+                <div className="pt-4 border-t border-gray-200">
+                  <Button
+                    variant="outline"
+                    onClick={() => navigate("/settings")}
+                    className="w-full border-green-600 text-green-600 hover:bg-green-50"
+                  >
+                    Edit Contact Information
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Contact Form Card */}
+          <div className="w-full">
+            <Card className="bg-white border border-gray-200 shadow-lg hover:shadow-xl transition-all duration-300">
+              <CardHeader className="space-y-3 pb-6">
+                <CardTitle className="text-3xl font-bold text-gray-800">
+                  Get in Touch
+                </CardTitle>
+                <p className="text-gray-600 text-sm leading-relaxed">
+                  Fill out the form below and our team will contact you to help set up your business account.
+                </p>
+                <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                  <p className="text-yellow-800 text-xs leading-relaxed">
+                    <strong>Important:</strong> Each signup supports <strong>1 business only</strong>. 
+                    For additional locations, please create a separate account with a new signup.
+                  </p>
+                </div>
+              </CardHeader>
               
-              <div className="group space-y-2">
-                <label className="block text-sm font-medium text-slate-200">
-                  Full Name <span className="text-red-400">*</span>
-                </label>
-                <div className="relative">
-                  <User className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400 group-focus-within:text-cyan-400 transition-colors" />
-                  <Input
-                    value={formData.fullName}
-                    onChange={(e) => setFormData({ ...formData, fullName: e.target.value })}
-                    placeholder="Enter your full name"
-                    required
-                    className="pl-10 h-12 bg-slate-900/50 border-slate-600 text-white placeholder:text-slate-500 focus:border-cyan-500/50 focus:ring-cyan-500/20 focus:bg-slate-900/70 transition-all duration-200"
+              <CardContent>
+                <form onSubmit={handleSubmit} className="space-y-4">
+                  {/* Honeypot field for spam protection */}
+                  <input
+                    type="checkbox"
+                    name="botcheck"
+                    className="hidden"
+                    style={{ display: "none" }}
+                    tabIndex={-1}
+                    autoComplete="off"
                   />
-                </div>
-              </div>
+                  
+                  <div className="group space-y-2">
+                    <label className="block text-sm font-medium text-gray-700">
+                      Full Name <span className="text-red-500">*</span>
+                    </label>
+                    <div className="relative">
+                      <User className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400 group-focus-within:text-green-600 transition-colors" />
+                      <Input
+                        value={formData.fullName}
+                        onChange={(e) => setFormData({ ...formData, fullName: e.target.value })}
+                        placeholder="Enter your full name"
+                        required
+                        className="pl-10 h-12 bg-white border-gray-300 text-gray-800 placeholder:text-gray-400 focus:border-green-500 focus:ring-green-500/20 transition-all duration-200"
+                      />
+                    </div>
+                  </div>
 
-              <div className="group space-y-2">
-                <label className="block text-sm font-medium text-slate-200">
-                  Email Address <span className="text-red-400">*</span>
-                </label>
-                <div className="relative">
-                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400 group-focus-within:text-cyan-400 transition-colors" />
-                  <Input
-                    type="email"
-                    value={formData.email}
-                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                    placeholder="your@email.com"
-                    required
-                    className="pl-10 h-12 bg-slate-900/50 border-slate-600 text-white placeholder:text-slate-500 focus:border-cyan-500/50 focus:ring-cyan-500/20 focus:bg-slate-900/70 transition-all duration-200"
-                  />
-                </div>
-              </div>
+                  <div className="group space-y-2">
+                    <label className="block text-sm font-medium text-gray-700">
+                      Email Address <span className="text-red-500">*</span>
+                    </label>
+                    <div className="relative">
+                      <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400 group-focus-within:text-green-600 transition-colors" />
+                      <Input
+                        type="email"
+                        value={formData.email}
+                        onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                        placeholder="your@email.com"
+                        required
+                        className="pl-10 h-12 bg-white border-gray-300 text-gray-800 placeholder:text-gray-400 focus:border-green-500 focus:ring-green-500/20 transition-all duration-200"
+                      />
+                    </div>
+                  </div>
 
-              <div className="group space-y-2">
-                <label className="block text-sm font-medium text-slate-200">Mobile Number</label>
-                <div className="relative">
-                  <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400 group-focus-within:text-cyan-400 transition-colors" />
-                  <Input
-                    type="tel"
-                    value={formData.mobileNumber}
-                    onChange={(e) => setFormData({ ...formData, mobileNumber: e.target.value })}
-                    placeholder="Enter your mobile number"
-                    className="pl-10 h-12 bg-slate-900/50 border-slate-600 text-white placeholder:text-slate-500 focus:border-cyan-500/50 focus:ring-cyan-500/20 focus:bg-slate-900/70 transition-all duration-200"
-                  />
-                </div>
-              </div>
+                  <div className="group space-y-2">
+                    <label className="block text-sm font-medium text-gray-700">Mobile Number</label>
+                    <div className="relative">
+                      <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400 group-focus-within:text-green-600 transition-colors" />
+                      <Input
+                        type="tel"
+                        value={formData.mobileNumber}
+                        onChange={(e) => setFormData({ ...formData, mobileNumber: e.target.value })}
+                        placeholder="Enter your mobile number"
+                        className="pl-10 h-12 bg-white border-gray-300 text-gray-800 placeholder:text-gray-400 focus:border-green-500 focus:ring-green-500/20 transition-all duration-200"
+                      />
+                    </div>
+                  </div>
 
-              <div className="group space-y-2">
-                <label className="block text-sm font-medium text-slate-200">Business Type (Optional)</label>
-                <div className="relative">
-                  <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400 group-focus-within:text-cyan-400 transition-colors" />
-                  <Input
-                    value={formData.businessType}
-                    onChange={(e) => setFormData({ ...formData, businessType: e.target.value })}
-                    placeholder="e.g., Retail, Restaurant, Healthcare"
-                    className="pl-10 h-12 bg-slate-900/50 border-slate-600 text-white placeholder:text-slate-500 focus:border-cyan-500/50 focus:ring-cyan-500/20 focus:bg-slate-900/70 transition-all duration-200"
-                  />
-                </div>
-              </div>
+                  <div className="group space-y-2">
+                    <label className="block text-sm font-medium text-gray-700">
+                      Business Type <span className="text-gray-500 text-xs">(1 Business per Account)</span>
+                    </label>
+                    <div className="relative">
+                      <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400 group-focus-within:text-green-600 transition-colors" />
+                      <Input
+                        value={formData.businessType}
+                        onChange={(e) => setFormData({ ...formData, businessType: e.target.value })}
+                        placeholder="Enter your business name or type (e.g., Gold Jewelry Store)"
+                        className="pl-10 h-12 bg-white border-gray-300 text-gray-800 placeholder:text-gray-400 focus:border-green-500 focus:ring-green-500/20 transition-all duration-200"
+                      />
+                    </div>
+                    <p className="text-xs text-gray-500 mt-1">
+                      Note: Each account supports one business. Additional locations require separate signups.
+                    </p>
+                  </div>
 
-              <div className="group space-y-2">
-                <label className="block text-sm font-medium text-slate-200">
-                  Message <span className="text-red-400">*</span>
-                </label>
-                <Textarea
-                  value={formData.message}
-                  onChange={(e) => setFormData({ ...formData, message: e.target.value })}
-                  placeholder="Tell us about your business and setup requirements..."
-                  rows={4}
-                  required
-                  className="bg-slate-900/50 border-slate-600 text-white placeholder:text-slate-500 focus:border-cyan-500/50 focus:ring-cyan-500/20 focus:bg-slate-900/70 transition-all duration-200 resize-none"
-                />
-              </div>
+                  <div className="group space-y-2">
+                    <label className="block text-sm font-medium text-gray-700">
+                      Message <span className="text-red-500">*</span>
+                    </label>
+                    <Textarea
+                      value={formData.message}
+                      onChange={(e) => setFormData({ ...formData, message: e.target.value })}
+                      placeholder="Tell us about your business and setup requirements. Remember: 1 business = 1 account. For multiple locations, create separate accounts."
+                      rows={4}
+                      required
+                      className="bg-white border-gray-300 text-gray-800 placeholder:text-gray-400 focus:border-green-500 focus:ring-green-500/20 transition-all duration-200 resize-none"
+                    />
+                  </div>
 
-              <Button
-                type="submit"
-                disabled={loading}
-                className="w-full h-12 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-semibold text-base rounded-lg shadow-lg shadow-cyan-500/30 hover:shadow-cyan-500/50 hover:scale-[1.02] transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {loading ? (
-                  <>
-                    <Loader2 className="h-5 w-5 animate-spin mr-2" />
-                    Sending...
-                  </>
-                ) : (
-                  <>
-                    <Send className="h-5 w-5 mr-2" />
-                    Send Message
-                  </>
-                )}
-              </Button>
+                  <Button
+                    type="submit"
+                    disabled={loading}
+                    className="w-full h-12 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white font-semibold text-base rounded-lg shadow-lg hover:shadow-xl hover:scale-[1.02] transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {loading ? (
+                      <>
+                        <Loader2 className="h-5 w-5 animate-spin mr-2" />
+                        Sending...
+                      </>
+                    ) : (
+                      <>
+                        <Send className="h-5 w-5 mr-2" />
+                        Send Message
+                      </>
+                    )}
+                  </Button>
 
-              <p className="text-center text-slate-400 text-xs mt-4">
-                Already have an account?{" "}
-                <button
-                  type="button"
-                  onClick={() => navigate("/auth")}
-                  className="text-cyan-400 hover:text-cyan-300 font-medium underline underline-offset-2 transition-colors"
-                >
-                  Login here
-                </button>
-              </p>
-            </form>
-          </CardContent>
-        </Card>
+                  {/* Only show login link if user is not logged in */}
+                  {!isLoggedIn && (
+                    <p className="text-center text-gray-500 text-xs mt-4">
+                      Already have an account?{" "}
+                      <button
+                        type="button"
+                        onClick={() => navigate("/auth")}
+                        className="text-green-600 hover:text-green-700 font-medium underline underline-offset-2 transition-colors"
+                      >
+                        Login here
+                      </button>
+                    </p>
+                  )}
+                </form>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
       </div>
     </div>
   );

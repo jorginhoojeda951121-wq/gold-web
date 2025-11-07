@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { enqueueChange } from "@/lib/sync";
-import { idbGet, idbSet } from "@/lib/indexedDb";
+import { getUserData, setUserData } from "@/lib/userStorage";
 
 interface JewelryItem {
   id: string;
@@ -50,10 +50,10 @@ const JewelryCollection = () => {
       
       // Load all inventory types directly from IndexedDB
       const [jewelryData, goldData, stonesData, inventoryData] = await Promise.all([
-        idbGet<any[]>("jewelry_items") || Promise.resolve([]),
-        idbGet<any[]>("gold_items") || Promise.resolve([]),
-        idbGet<any[]>("stones_items") || Promise.resolve([]),
-        idbGet<any[]>("inventory_items") || Promise.resolve([]),
+        getUserData<any[]>("jewelry_items") || Promise.resolve([]),
+        getUserData<any[]>("gold_items") || Promise.resolve([]),
+        getUserData<any[]>("stones_items") || Promise.resolve([]),
+        getUserData<any[]>("inventory_items") || Promise.resolve([]),
       ]);
 
       console.log('📦 Raw data loaded:', {
@@ -175,6 +175,19 @@ const JewelryCollection = () => {
     }
 
     try {
+      // Get current user ID
+      const { getCurrentUserId } = await import('@/lib/userStorage');
+      const userId = await getCurrentUserId();
+      
+      if (!userId) {
+        toast({
+          title: "Error",
+          description: "User not logged in. Please log in again.",
+          variant: "destructive"
+        });
+        return;
+      }
+      
       const newItem: JewelryItem = {
         id: Date.now().toString(),
         ...formData,
@@ -182,15 +195,19 @@ const JewelryCollection = () => {
         image: formData.image || "https://images.unsplash.com/photo-1543294001-f7cd5d7fb516?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3wzNzg4OTl8MHwxfHNlYXJjaHwxfHxqZXdlbHJ5fGVufDF8MHx8fDE3NTM3NTkzMjh8MA&ixlib=rb-4.1.0&q=80&w=1080"
       };
 
-      // Save to IndexedDB
-      const jewelryData = (await idbGet<any[]>('jewelry_items')) || [];
-      jewelryData.push(newItem);
-      await idbSet('jewelry_items', jewelryData);
+      // Save to IndexedDB with user_id
+      const jewelryData = (await getUserData<any[]>('jewelry_items')) || [];
+      jewelryData.push({
+        ...newItem,
+        user_id: userId, // CRITICAL: Include user_id for data isolation
+      });
+      await setUserData('jewelry_items', jewelryData);
       
       // Also save to inventory_items for sync
-      const inventoryItems = (await idbGet<any[]>('inventory_items')) || [];
+      const inventoryItems = (await getUserData<any[]>('inventory_items')) || [];
       inventoryItems.push({
         id: newItem.id,
+        user_id: userId, // CRITICAL: Include user_id for data isolation
         item_type: 'jewelry',
         name: newItem.name,
         type: 'Ring', // Default type
@@ -199,7 +216,7 @@ const JewelryCollection = () => {
         image: newItem.image,
         updated_at: new Date().toISOString(),
       });
-      await idbSet('inventory_items', inventoryItems);
+      await setUserData('inventory_items', inventoryItems);
       
       // Queue for sync
       enqueueChange('inventory_items', 'upsert', {
@@ -261,17 +278,17 @@ const JewelryCollection = () => {
       };
 
       // Save to IndexedDB
-      const jewelryData = (await idbGet<any[]>('jewelry_items')) || [];
+      const jewelryData = (await getUserData<any[]>('jewelry_items')) || [];
       const jewelryIndex = jewelryData.findIndex((item: any) => item.id === updatedItem.id);
       if (jewelryIndex >= 0) {
         jewelryData[jewelryIndex] = updatedItem;
       } else {
         jewelryData.push(updatedItem);
       }
-      await idbSet('jewelry_items', jewelryData);
+      await setUserData('jewelry_items', jewelryData);
       
       // Also update inventory_items for sync
-      const inventoryItems = (await idbGet<any[]>('inventory_items')) || [];
+      const inventoryItems = (await getUserData<any[]>('inventory_items')) || [];
       const inventoryIndex = inventoryItems.findIndex((item: any) => item.id === updatedItem.id);
       const inventoryUpdate = {
         id: updatedItem.id,
@@ -288,7 +305,7 @@ const JewelryCollection = () => {
       } else {
         inventoryItems.push(inventoryUpdate);
       }
-      await idbSet('inventory_items', inventoryItems);
+      await setUserData('inventory_items', inventoryItems);
       
       // Queue for sync
       enqueueChange('inventory_items', 'upsert', inventoryUpdate);
@@ -325,11 +342,11 @@ const JewelryCollection = () => {
         const item = jewelryItems.find(i => i.id === id);
         
         // Remove from IndexedDB
-        const jewelryData = (await idbGet<any[]>('jewelry_items')) || [];
-        await idbSet('jewelry_items', jewelryData.filter((item: any) => item.id !== id));
+        const jewelryData = (await getUserData<any[]>('jewelry_items')) || [];
+        await setUserData('jewelry_items', jewelryData.filter((item: any) => item.id !== id));
         
-        const inventoryItems = (await idbGet<any[]>('inventory_items')) || [];
-        await idbSet('inventory_items', inventoryItems.filter((item: any) => item.id !== id));
+        const inventoryItems = (await getUserData<any[]>('inventory_items')) || [];
+        await setUserData('inventory_items', inventoryItems.filter((item: any) => item.id !== id));
         
         // Queue for sync
         enqueueChange('inventory_items', 'delete', { id });

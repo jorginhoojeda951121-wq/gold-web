@@ -17,6 +17,7 @@ import {
   ChevronRight,
   Menu,
   X,
+  Crown,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -94,6 +95,12 @@ const navigationItems = [
     href: "/contact", 
     icon: Phone,
     description: "Get in touch"
+  },
+  { 
+    name: "Subscription", 
+    href: "/subscription", 
+    icon: Crown,
+    description: "Manage subscription & payment"
   },
   { 
     name: "Settings", 
@@ -205,7 +212,7 @@ export const Sidebar = ({ isCollapsed, onToggle }: SidebarProps) => {
               <p className="text-xs text-gray-500">Version 1.0.0</p>
             </div>
             <div className="text-xs text-gray-400">
-              © 2024 Golden Treasures
+              © 2024 {businessName}
             </div>
           </div>
         ) : (
@@ -223,6 +230,7 @@ export const Sidebar = ({ isCollapsed, onToggle }: SidebarProps) => {
 // Mobile Sidebar Component
 export const MobileSidebar = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) => {
   const location = useLocation();
+  const businessName = useBusinessName();
 
   if (!isOpen) return null;
 

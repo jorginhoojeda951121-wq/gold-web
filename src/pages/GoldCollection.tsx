@@ -1,14 +1,16 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { Search, Grid, List, ArrowLeft, Plus, Edit, Trash2, Upload, X, ShoppingCart, AlertTriangle } from "lucide-react";
 import { Navigation } from "@/components/Navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Link, useNavigate } from "react-router-dom";
 import { useOfflineStorage } from "@/hooks/useOfflineStorage";
+import { useUserStorage } from "@/hooks/useUserStorage";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { enqueueChange } from "@/lib/sync";
+import { getUserData } from "@/lib/userStorage";
 
 interface GoldItem {
   id: string;
@@ -25,7 +27,8 @@ const GoldCollection = () => {
   const { data: searchQuery, updateData: setSearchQuery } = useOfflineStorage<string>("gold_search", "");
   const { data: viewMode, updateData: setViewMode } = useOfflineStorage<'grid' | 'list'>("gold_viewMode", 'grid');
   // Use gold_items key - data will be auto-populated by seedWebData
-  const { data: goldItems, updateData: setGoldItems } = useOfflineStorage<GoldItem[]>("gold_items", []);
+  // CRITICAL: Use useUserStorage for user-scoped data isolation
+  const { data: goldItems, updateData: setGoldItems } = useUserStorage<GoldItem[]>("gold_items", []);
   const { data: posCart, updateData: setPosCart } = useOfflineStorage<any[]>("pos_cart", []);
 
   const [showAddDialog, setShowAddDialog] = useState(false);
@@ -43,11 +46,87 @@ const GoldCollection = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const editFileInputRef = useRef<HTMLInputElement>(null);
 
+  // Load gold items from both gold_items and inventory_items (for items added from Home page)
+  const loadGoldItems = useCallback(async () => {
+    try {
+      const [goldData, inventoryData] = await Promise.all([
+        getUserData<any[]>('gold_items') || [],
+        getUserData<any[]>('inventory_items') || [],
+      ]);
+
+      const allGoldItems: GoldItem[] = [];
+      const processedIds = new Set<string>();
+
+      // Add items from gold_items
+      if (goldData && Array.isArray(goldData)) {
+        goldData.forEach((item: any) => {
+          if (!item || !item.id || processedIds.has(item.id)) return;
+          processedIds.add(item.id);
+          allGoldItems.push({
+            id: item.id,
+            name: item.name || 'Unknown Gold',
+            weight: item.weight || '',
+            purity: item.purity || item.metal || 'Gold 18K',
+            price: item.price || item.totalPrice || 0,
+            image: item.image || '',
+          });
+        });
+      }
+
+      // Add items from inventory_items that are gold type
+      if (inventoryData && Array.isArray(inventoryData)) {
+        inventoryData.forEach((item: any) => {
+          if (!item || !item.id || processedIds.has(item.id)) return;
+          if (item.item_type === 'gold' || item.category === 'gold' || item.type === 'Gold Bar') {
+            processedIds.add(item.id);
+            allGoldItems.push({
+              id: item.id,
+              name: item.name || 'Unknown Gold',
+              weight: item.attributes?.weight || item.weight || '',
+              purity: item.attributes?.purity || item.purity || item.metal || 'Gold 18K',
+              price: item.price || 0,
+              image: item.image || item.image_url || '',
+            });
+          }
+        });
+      }
+
+      // Always update state to ensure latest data is shown
+      setGoldItems(allGoldItems);
+    } catch (error) {
+      console.error('Error loading gold items:', error);
+    }
+  }, [setGoldItems]);
+
+  // Load gold items on mount and when window gains focus
+  useEffect(() => {
+    loadGoldItems();
+  }, [loadGoldItems]);
+
+  useEffect(() => {
+    const handleFocus = () => {
+      loadGoldItems();
+    };
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        loadGoldItems();
+      }
+    };
+    
+    window.addEventListener('focus', handleFocus);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    
+    return () => {
+      window.removeEventListener('focus', handleFocus);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [loadGoldItems]);
+
   const filteredItems = goldItems.filter(item =>
     item.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const handleAddItem = () => {
+  const handleAddItem = async () => {
     if (!formData.name || !formData.weight || !formData.purity || !formData.price) {
       toast({
         title: "Missing Information",
@@ -57,29 +136,77 @@ const GoldCollection = () => {
       return;
     }
 
-    const newItem: GoldItem = {
-      id: Date.now().toString(),
-      ...formData,
-      price: parseFloat(formData.price) || 0,
-      image: formData.image || "https://images.unsplash.com/photo-1545873509-33e944ca7655?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3wzNzg4OTl8MHwxfHNlYXJjaHwxfHxnb2xkfGVufDF8MHx8fDE3NTM3NjY5MjB8MA&ixlib=rb-4.1.0&q=80&w=1080"
-    };
+    try {
+      // Get current user ID
+      const { getCurrentUserId, getUserData, setUserData } = await import('@/lib/userStorage');
+      const userId = await getCurrentUserId();
+      
+      if (!userId) {
+        toast({
+          title: "Error",
+          description: "User not logged in. Please log in again.",
+          variant: "destructive"
+        });
+        return;
+      }
 
-    setGoldItems(prev => [...prev, newItem]);
-    enqueueChange('inventory_items', 'upsert', {
-      id: newItem.id,
-      item_type: 'gold',
-      name: newItem.name,
-      attributes: { weight: newItem.weight, purity: newItem.purity },
-      price: newItem.price,
-      image: newItem.image,
-      updated_at: new Date().toISOString(),
-    });
-    setFormData({ name: "", weight: "", purity: "", price: "", image: "" });
-    setShowAddDialog(false);
-    toast({
-      title: "Item Added",
-      description: `${newItem.name} has been added to the collection.`
-    });
+      const newItem: GoldItem & { user_id?: string } = {
+        id: Date.now().toString(),
+        ...formData,
+        price: parseFloat(formData.price) || 0,
+        image: formData.image || "https://images.unsplash.com/photo-1545873509-33e944ca7655?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3wzNzg4OTl8MHwxfHNlYXJjaHwxfHxnb2xkfGVufDF8MHx8fDE3NTM3NjY5MjB8MA&ixlib=rb-4.1.0&q=80&w=1080",
+        user_id: userId, // CRITICAL: Include user_id for data isolation
+      };
+
+      // Save to gold_items with user_id
+      const goldData = (await getUserData<any[]>('gold_items')) || [];
+      goldData.push(newItem);
+      await setUserData('gold_items', goldData);
+      
+      // Also save to inventory_items for sync
+      const inventoryItems = (await getUserData<any[]>('inventory_items')) || [];
+      inventoryItems.push({
+        id: newItem.id,
+        user_id: userId, // CRITICAL: Include user_id for data isolation
+        item_type: 'gold',
+        category: 'gold',
+        name: newItem.name,
+        attributes: { weight: newItem.weight, purity: newItem.purity },
+        price: newItem.price,
+        image: newItem.image,
+        updated_at: new Date().toISOString(),
+      });
+      await setUserData('inventory_items', inventoryItems);
+      
+      // Queue for sync
+      enqueueChange('inventory_items', 'upsert', {
+        id: newItem.id,
+        user_id: userId, // CRITICAL: Include user_id for data isolation
+        item_type: 'gold',
+        name: newItem.name,
+        attributes: { weight: newItem.weight, purity: newItem.purity },
+        price: newItem.price,
+        image: newItem.image,
+        updated_at: new Date().toISOString(),
+      });
+      
+      // Reload gold items to show the new item
+      await loadGoldItems();
+      
+      setFormData({ name: "", weight: "", purity: "", price: "", image: "" });
+      setShowAddDialog(false);
+      toast({
+        title: "Item Added",
+        description: `${newItem.name} has been added to the collection.`
+      });
+    } catch (error) {
+      console.error('Error adding gold item:', error);
+      toast({
+        title: "Error",
+        description: "Failed to add item. Please try again.",
+        variant: "destructive"
+      });
+    }
   };
 
   const handleEditItem = (item: GoldItem) => {
@@ -94,7 +221,7 @@ const GoldCollection = () => {
     setShowEditDialog(true);
   };
 
-  const handleUpdateItem = () => {
+  const handleUpdateItem = async () => {
     if (!selectedItem || !formData.name || !formData.weight || !formData.purity || !formData.price) {
       toast({
         title: "Missing Information",
@@ -104,29 +231,82 @@ const GoldCollection = () => {
       return;
     }
 
-    const updatedItem: GoldItem = {
-      ...selectedItem,
-      ...formData,
-      price: parseFloat(formData.price) || 0
-    };
+    try {
+      // Get current user ID
+      const { getCurrentUserId, getUserData, setUserData } = await import('@/lib/userStorage');
+      const userId = await getCurrentUserId();
+      
+      if (!userId) {
+        toast({
+          title: "Error",
+          description: "User not logged in. Please log in again.",
+          variant: "destructive"
+        });
+        return;
+      }
 
-    setGoldItems(prev => prev.map(item => item.id === selectedItem.id ? updatedItem : item));
-    enqueueChange('inventory_items', 'upsert', {
-      id: updatedItem.id,
-      item_type: 'gold',
-      name: updatedItem.name,
-      attributes: { weight: updatedItem.weight, purity: updatedItem.purity },
-      price: updatedItem.price,
-      image: updatedItem.image,
-      updated_at: new Date().toISOString(),
-    });
-    setFormData({ name: "", weight: "", purity: "", price: "", image: "" });
-    setSelectedItem(null);
-    setShowEditDialog(false);
-    toast({
-      title: "Item Updated",
-      description: `${updatedItem.name} has been updated.`
-    });
+      const updatedItem: GoldItem = {
+        ...selectedItem,
+        ...formData,
+        price: parseFloat(formData.price) || 0
+      };
+
+      // Update gold_items
+      const goldData = (await getUserData<any[]>('gold_items')) || [];
+      const goldIndex = goldData.findIndex((item: any) => item.id === selectedItem.id);
+      if (goldIndex >= 0) {
+        goldData[goldIndex] = { ...updatedItem, user_id: userId };
+        await setUserData('gold_items', goldData);
+      }
+      
+      // Update inventory_items
+      const inventoryItems = (await getUserData<any[]>('inventory_items')) || [];
+      const invIndex = inventoryItems.findIndex((item: any) => item.id === selectedItem.id);
+      if (invIndex >= 0) {
+        inventoryItems[invIndex] = {
+          ...inventoryItems[invIndex],
+          user_id: userId,
+          item_type: 'gold',
+          category: 'gold',
+          name: updatedItem.name,
+          attributes: { weight: updatedItem.weight, purity: updatedItem.purity },
+          price: updatedItem.price,
+          image: updatedItem.image,
+          updated_at: new Date().toISOString(),
+        };
+        await setUserData('inventory_items', inventoryItems);
+      }
+      
+      // Queue for sync
+      enqueueChange('inventory_items', 'upsert', {
+        id: updatedItem.id,
+        user_id: userId,
+        item_type: 'gold',
+        name: updatedItem.name,
+        attributes: { weight: updatedItem.weight, purity: updatedItem.purity },
+        price: updatedItem.price,
+        image: updatedItem.image,
+        updated_at: new Date().toISOString(),
+      });
+      
+      // Reload gold items to show the updated item
+      await loadGoldItems();
+      
+      setFormData({ name: "", weight: "", purity: "", price: "", image: "" });
+      setSelectedItem(null);
+      setShowEditDialog(false);
+      toast({
+        title: "Item Updated",
+        description: `${updatedItem.name} has been updated.`
+      });
+    } catch (error) {
+      console.error('Error updating gold item:', error);
+      toast({
+        title: "Error",
+        description: "Failed to update item. Please try again.",
+        variant: "destructive"
+      });
+    }
   };
 
   const handleDeleteClick = (item: GoldItem) => {
@@ -134,19 +314,56 @@ const GoldCollection = () => {
     setShowDeleteConfirm(true);
   };
 
-  const handleConfirmDelete = () => {
+  const handleConfirmDelete = async () => {
     if (itemToDelete) {
-      const id = itemToDelete.id;
-      const item = goldItems.find(i => i.id === id);
-      setGoldItems(prev => prev.filter(item => item.id !== id));
-      enqueueChange('inventory_items', 'delete', { id });
-      toast({
-        title: "Item Removed",
-        description: item ? `${item.name} has been removed from the collection.` : "Item has been removed.",
-        variant: "destructive"
-      });
-      setShowDeleteConfirm(false);
-      setItemToDelete(null);
+      try {
+        const id = itemToDelete.id;
+        const item = goldItems.find(i => i.id === id);
+        
+        // Get current user ID
+        const { getCurrentUserId, getUserData, setUserData } = await import('@/lib/userStorage');
+        const userId = await getCurrentUserId();
+        
+        if (!userId) {
+          toast({
+            title: "Error",
+            description: "User not logged in. Please log in again.",
+            variant: "destructive"
+          });
+          return;
+        }
+        
+        // Remove from gold_items
+        const goldData = (await getUserData<any[]>('gold_items')) || [];
+        const updatedGold = goldData.filter((item: any) => item.id !== id);
+        await setUserData('gold_items', updatedGold);
+        
+        // Remove from inventory_items
+        const inventoryItems = (await getUserData<any[]>('inventory_items')) || [];
+        const updatedInventory = inventoryItems.filter((item: any) => item.id !== id);
+        await setUserData('inventory_items', updatedInventory);
+        
+        // Queue for sync
+        enqueueChange('inventory_items', 'delete', { id });
+        
+        // Reload gold items to reflect the deletion
+        await loadGoldItems();
+        
+        toast({
+          title: "Item Removed",
+          description: item ? `${item.name} has been removed from the collection.` : "Item has been removed.",
+          variant: "destructive"
+        });
+        setShowDeleteConfirm(false);
+        setItemToDelete(null);
+      } catch (error) {
+        console.error('Error deleting gold item:', error);
+        toast({
+          title: "Error",
+          description: "Failed to delete item. Please try again.",
+          variant: "destructive"
+        });
+      }
     }
   };
 

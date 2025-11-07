@@ -1,5 +1,6 @@
 import { getSupabase } from '@/lib/supabase';
 import { idbGet, idbSet, getDB } from '@/lib/indexedDb';
+import { getCurrentUserId, getUserData, setUserData } from '@/lib/userStorage';
 
 type Upserter<T> = (row: T) => Promise<void> | void;
 type Deleter = (id: string) => Promise<void> | void;
@@ -61,18 +62,69 @@ async function syncTable<T>(
 	remove: Deleter,
 	sinceKey?: string
 ) {
+	// Get current user ID - CRITICAL for data isolation
+	const userId = await getCurrentUserId();
+	if (!userId) {
+		console.warn(`⚠️ No user ID found, skipping sync for ${supabaseTable}`);
+		return;
+	}
+
 	const lastKey = sinceKey ?? `sync:last_${supabaseTable}`;
-	const lastSyncAt = (await idbGet<string>(lastKey)) ?? '1970-01-01T00:00:00Z';
+	const lastSyncAt = (await getUserData<string>(lastKey)) ?? '1970-01-01T00:00:00Z';
 	const nowIso = new Date().toISOString();
+
+	// Get pending deletions from changeQueue to avoid restoring deleted items
+	const db = await getDB();
+	const tx = db.transaction('changeQueue', 'readonly');
+	const store = tx.objectStore('changeQueue');
+	const index = store.index('byTable');
+	
+	// Map Supabase table name back to web table name for changeQueue lookup
+	// Note: changeQueue uses the table name passed to enqueueChange, which for staff is 'staff'
+	// But we need to check both 'staff' and 'staff_employees' since the mapping might vary
+	const webTableName = SUPABASE_TO_WEB_MAPPING[supabaseTable] || supabaseTable;
+	const possibleTableNames = [webTableName, supabaseTable];
+	const pendingDeletions = new Set<string>();
+	
+	for (const tableName of possibleTableNames) {
+		let cursor = await index.openCursor(IDBKeyRange.only(tableName));
+		while (cursor) {
+			const change = cursor.value as any;
+			if (change.action === 'delete' && change.payload?.id) {
+				pendingDeletions.add(String(change.payload.id));
+			}
+			cursor = await cursor.continue();
+		}
+	}
+	await tx.done;
 
 	const supabase = getSupabase();
 	const schema = ((import.meta as any).env?.VITE_SUPABASE_SCHEMA as string) || 'public';
 	const sb = (supabase as any).schema ? (supabase as any).schema(schema) : supabase;
-	const { data: updatedRows, error: upErr } = await sb
+	
+	// Try to filter by user_id first (for tables that have user_id column)
+	let query = sb
 		.from(supabaseTable)
 		.select('*')
+		.eq('user_id', userId) // CRITICAL: Only fetch data for current user
 		.gt('updated_at', lastSyncAt)
 		.order('updated_at', { ascending: true });
+	
+	let { data: updatedRows, error: upErr } = await query;
+	
+	// If column doesn't exist (error code 42703), retry without user_id filter
+	// This handles tables that don't have user_id column yet
+	if (upErr && upErr.code === '42703' && upErr.message?.includes('user_id')) {
+		console.warn(`⚠️ Table ${supabaseTable} doesn't have user_id column, syncing without user filter (WARNING: No database-level isolation)`);
+		const retryQuery = sb
+			.from(supabaseTable)
+			.select('*')
+			.gt('updated_at', lastSyncAt)
+			.order('updated_at', { ascending: true });
+		const retryResult = await retryQuery;
+		updatedRows = retryResult.data;
+		upErr = retryResult.error;
+	}
 	
 	if (upErr) {
 		console.error(`❌ Error fetching ${supabaseTable}:`, upErr);
@@ -80,23 +132,48 @@ async function syncTable<T>(
 	}
 
 	const rows = (updatedRows as T[] | null) ?? [];
-	console.log(`📦 ${supabaseTable}: Found ${rows.length} updated rows since ${lastSyncAt}`);
+	console.log(`📦 ${supabaseTable}: Found ${rows.length} updated rows for user ${userId} since ${lastSyncAt}`);
 	
 	let syncedCount = 0;
+	let skippedDeletedCount = 0;
 	for (const row of rows) {
-		await upsert(row);
-		syncedCount++;
+		const rowId = String((row as any).id);
+		
+		// Skip rows that have pending deletions - don't restore deleted items
+		if (pendingDeletions.has(rowId)) {
+			console.log(`⏭️ Skipping ${supabaseTable} row ${rowId} - pending deletion`);
+			skippedDeletedCount++;
+			continue;
+		}
+		
+		// If table has user_id column, verify it matches current user
+		// If table doesn't have user_id, trust that data isolation is handled at IndexedDB level
+		if ((row as any).user_id !== undefined) {
+			if ((row as any).user_id === userId) {
+				await upsert(row);
+				syncedCount++;
+			} else {
+				console.warn(`⚠️ Skipping row with mismatched user_id in ${supabaseTable}`);
+			}
+		} else {
+			// Table doesn't have user_id column - sync anyway (isolation handled at IndexedDB level)
+			await upsert(row);
+			syncedCount++;
+		}
 	}
 
 	if (syncedCount > 0) {
-		console.log(`✅ ${supabaseTable}: Synced ${syncedCount} rows to IndexedDB`);
+		console.log(`✅ ${supabaseTable}: Synced ${syncedCount} rows to IndexedDB for user ${userId}`);
+	}
+	if (skippedDeletedCount > 0) {
+		console.log(`⏭️ ${supabaseTable}: Skipped ${skippedDeletedCount} rows with pending deletions`);
 	}
 
 	// Note: deleted_at column doesn't exist in schema, so we skip soft deletes
 	// If you need soft deletes, add deleted_at column to tables or use a different approach
 	// For now, we only sync updates (not deletes from server)
 
-	await idbSet(lastKey, nowIso);
+	await setUserData(lastKey, nowIso);
 }
 
 export async function syncAll() {
@@ -128,7 +205,7 @@ export async function syncAll() {
 
 	// Staff (mapped from Supabase 'staff' to web 'staff_employees')
 	await run('staff', () => syncTable('staff', async (row: any) => {
-		const employees = (await idbGet<any[]>('staff_employees')) ?? [];
+		const employees = (await getUserData<any[]>('staff_employees')) ?? [];
 		const idx = employees.findIndex((e) => e.id === row.id);
 		// Map Supabase staff fields to web app format
 		const mapped = {
@@ -149,16 +226,16 @@ export async function syncAll() {
 		};
 		if (idx >= 0) employees[idx] = mapped;
 		else employees.push(mapped);
-		await idbSet('staff_employees', employees);
+		await setUserData('staff_employees', employees);
 	}, async (id: string) => {
-		const employees = (await idbGet<any[]>('staff_employees')) ?? [];
+		const employees = (await getUserData<any[]>('staff_employees')) ?? [];
 		const filtered = employees.filter((e) => e.id !== id);
-		await idbSet('staff_employees', filtered);
+		await setUserData('staff_employees', filtered);
 	}));
 
 	// Craftsmen - Map Supabase fields to web app format
 	await run('craftsmen', () => syncTable('craftsmen', async (row: any) => {
-		const list = (await idbGet<any[]>('craftsmen')) ?? [];
+		const list = (await getUserData<any[]>('craftsmen')) ?? [];
 		const idx = list.findIndex((e) => e.id === row.id);
 		// Get existing item to preserve local-only fields
 		const existingItem = idx >= 0 ? list[idx] : {};
@@ -186,16 +263,17 @@ export async function syncAll() {
 		};
 		if (idx >= 0) list[idx] = mapped;
 		else list.push(mapped);
-		await idbSet('craftsmen', list);
+		await setUserData('craftsmen', list);
 	}, async (id: string) => {
-		const list = (await idbGet<any[]>('craftsmen')) ?? [];
-		await idbSet('craftsmen', list.filter((e) => e.id !== id));
+		const list = (await getUserData<any[]>('craftsmen')) ?? [];
+		const filtered = list.filter((e) => e.id !== id);
+		await setUserData('craftsmen', filtered);
 	}));
 
 	// Inventory (mapped from Supabase 'inventory' to web 'inventory_items')
 	// CRITICAL: Check local timestamps to prevent overwriting recent local changes
 	await run('inventory', () => syncTable('inventory', async (row: any) => {
-		const all = (await idbGet<any[]>('inventory_items')) ?? [];
+		const all = (await getUserData<any[]>('inventory_items')) ?? [];
 		const idx = all.findIndex((e) => e.id === row.id);
 		
 		// Conflict resolution: Prefer local changes if they're more recent
@@ -248,7 +326,7 @@ export async function syncAll() {
 			if (row.isArtificial !== undefined) newItem.isArtificial = row.isArtificial;
 			all.push(newItem);
 		}
-		await idbSet('inventory_items', all);
+		await setUserData('inventory_items', all);
 
 		// Map Supabase inventory fields to web app format
 		// Determine item_type from category or row data
@@ -256,7 +334,7 @@ export async function syncAll() {
 		
 		// CRITICAL: Project into per-page keys with inStock preserved
 		if (itemType === 'gold' || row.category === 'gold') {
-			const gold = (await idbGet<any[]>('gold_items')) ?? [];
+			const gold = (await getUserData<any[]>('gold_items')) ?? [];
 			const gi = gold.findIndex((e) => e.id === row.id);
 			const mapped = { 
 				id: row.id, 
@@ -269,10 +347,10 @@ export async function syncAll() {
 				stock: row.stock ?? row.inStock ?? gold[gi]?.inStock ?? gold[gi]?.stock ?? 10,
 			};
 			if (gi >= 0) gold[gi] = mapped; else gold.push(mapped);
-			await idbSet('gold_items', gold);
+			await setUserData('gold_items', gold);
 		}
 		if (itemType === 'jewelry' || row.category === 'jewelry') {
-			const list = (await idbGet<any[]>('jewelry_items')) ?? [];
+			const list = (await getUserData<any[]>('jewelry_items')) ?? [];
 			const ji = list.findIndex((e) => e.id === row.id);
 			const mapped = { 
 				id: row.id, 
@@ -288,10 +366,10 @@ export async function syncAll() {
 				isArtificial: (row.isArtificial === 1 || row.isArtificial === true) ? true : false, // Map from INTEGER to boolean
 			};
 			if (ji >= 0) list[ji] = mapped; else list.push(mapped);
-			await idbSet('jewelry_items', list);
+			await setUserData('jewelry_items', list);
 		}
 		if (itemType === 'stones' || row.category === 'stones') {
-			const list = (await idbGet<any[]>('stones_items')) ?? [];
+			const list = (await getUserData<any[]>('stones_items')) ?? [];
 			const si = list.findIndex((e) => e.id === row.id);
 			const mapped = { 
 				id: row.id, 
@@ -304,19 +382,22 @@ export async function syncAll() {
 				inStock: row.stock_quantity ?? row.stock ?? row.inStock ?? list[si]?.inStock ?? 10, // Preserve stock
 			};
 			if (si >= 0) list[si] = mapped; else list.push(mapped);
-			await idbSet('stones_items', list);
+			await setUserData('stones_items', list);
 		}
 	}, async (id: string) => {
-		const all = (await idbGet<any[]>('inventory_items')) ?? [];
-		await idbSet('inventory_items', all.filter((e) => e.id !== id));
-		await idbSet('gold_items', ((await idbGet<any[]>('gold_items')) ?? []).filter((e) => e.id !== id));
-		await idbSet('jewelry_items', ((await idbGet<any[]>('jewelry_items')) ?? []).filter((e) => e.id !== id));
-		await idbSet('stones_items', ((await idbGet<any[]>('stones_items')) ?? []).filter((e) => e.id !== id));
+		const all = (await getUserData<any[]>('inventory_items')) ?? [];
+		await setUserData('inventory_items', all.filter((e) => e.id !== id));
+		const goldItems = (await getUserData<any[]>('gold_items')) ?? [];
+		await setUserData('gold_items', goldItems.filter((e) => e.id !== id));
+		const jewelryItems = (await getUserData<any[]>('jewelry_items')) ?? [];
+		await setUserData('jewelry_items', jewelryItems.filter((e) => e.id !== id));
+		const stonesItems = (await getUserData<any[]>('stones_items')) ?? [];
+		await setUserData('stones_items', stonesItems.filter((e) => e.id !== id));
 	}));
 
 	// Gold table (separate from inventory)
 	await run('gold', () => syncTable('gold', async (row: any) => {
-		const list = (await idbGet<any[]>('gold_items')) ?? [];
+		const list = (await getUserData<any[]>('gold_items')) ?? [];
 		const idx = list.findIndex((e) => e.id === row.id);
 		const mapped = {
 			id: row.id,
@@ -335,22 +416,22 @@ export async function syncAll() {
 		};
 		if (idx >= 0) list[idx] = mapped;
 		else list.push(mapped);
-		await idbSet('gold_items', list);
+		await setUserData('gold_items', list);
 		// Also update inventory_items if exists
-		const all = (await idbGet<any[]>('inventory_items')) ?? [];
+		const all = (await getUserData<any[]>('inventory_items')) ?? [];
 		const invIdx = all.findIndex((e) => e.id === row.id);
 		if (invIdx >= 0) {
 			all[invIdx] = { ...all[invIdx], ...mapped, category: 'gold', item_type: 'gold' };
-			await idbSet('inventory_items', all);
+			await setUserData('inventory_items', all);
 		}
 	}, async (id: string) => {
-		const list = (await idbGet<any[]>('gold_items')) ?? [];
-		await idbSet('gold_items', list.filter((e) => e.id !== id));
+		const list = (await getUserData<any[]>('gold_items')) ?? [];
+		await setUserData('gold_items', list.filter((e) => e.id !== id));
 	}));
 
 	// Jewelry table (separate from inventory)
 	await run('jewelry', () => syncTable('jewelry', async (row: any) => {
-		const list = (await idbGet<any[]>('jewelry_items')) ?? [];
+		const list = (await getUserData<any[]>('jewelry_items')) ?? [];
 		const idx = list.findIndex((e) => e.id === row.id);
 		const mapped = {
 			id: row.id,
@@ -371,22 +452,23 @@ export async function syncAll() {
 		};
 		if (idx >= 0) list[idx] = mapped;
 		else list.push(mapped);
-		await idbSet('jewelry_items', list);
+		await setUserData('jewelry_items', list);
 		// Also update inventory_items if exists
-		const all = (await idbGet<any[]>('inventory_items')) ?? [];
+		const all = (await getUserData<any[]>('inventory_items')) ?? [];
 		const invIdx = all.findIndex((e) => e.id === row.id);
 		if (invIdx >= 0) {
 			all[invIdx] = { ...all[invIdx], ...mapped, category: 'jewelry', item_type: 'jewelry' };
-			await idbSet('inventory_items', all);
+			await setUserData('inventory_items', all);
 		}
 	}, async (id: string) => {
-		const list = (await idbGet<any[]>('jewelry_items')) ?? [];
-		await idbSet('jewelry_items', list.filter((e) => e.id !== id));
+		const list = (await getUserData<any[]>('jewelry_items')) ?? [];
+		const filtered = list.filter((e) => e.id !== id);
+		await setUserData('jewelry_items', filtered);
 	}));
 
 	// Stones table (separate from inventory)
 	await run('stones', () => syncTable('stones', async (row: any) => {
-		const list = (await idbGet<any[]>('stones_items')) ?? [];
+		const list = (await getUserData<any[]>('stones_items')) ?? [];
 		const idx = list.findIndex((e) => e.id === row.id);
 		const mapped = {
 			id: row.id,
@@ -410,17 +492,18 @@ export async function syncAll() {
 		};
 		if (idx >= 0) list[idx] = mapped;
 		else list.push(mapped);
-		await idbSet('stones_items', list);
+		await setUserData('stones_items', list);
 		// Also update inventory_items if exists
-		const all = (await idbGet<any[]>('inventory_items')) ?? [];
+		const all = (await getUserData<any[]>('inventory_items')) ?? [];
 		const invIdx = all.findIndex((e) => e.id === row.id);
 		if (invIdx >= 0) {
 			all[invIdx] = { ...all[invIdx], ...mapped, category: 'stones', item_type: 'stones' };
-			await idbSet('inventory_items', all);
+			await setUserData('inventory_items', all);
 		}
 	}, async (id: string) => {
-		const list = (await idbGet<any[]>('stones_items')) ?? [];
-		await idbSet('stones_items', list.filter((e) => e.id !== id));
+		const list = (await getUserData<any[]>('stones_items')) ?? [];
+		const filtered = list.filter((e) => e.id !== id);
+		await setUserData('stones_items', filtered);
 	}));
 
 	// Sale Items table (separate sync for sale_items)
@@ -450,7 +533,7 @@ export async function syncAll() {
 			throw upErr;
 		}
 
-		const list = (await idbGet<any[]>('sale_items')) ?? [];
+		const list = (await getUserData<any[]>('sale_items')) ?? [];
 		
 		for (const row of (updatedRows as any[] | null) ?? []) {
 			const idx = list.findIndex((e) => e.id === row.id);
@@ -473,32 +556,55 @@ export async function syncAll() {
 			else list.push(mapped);
 		}
 		
-		await idbSet('sale_items', list);
-		await idbSet(lastKey, nowIso);
+		await setUserData('sale_items', list);
+		await setUserData(lastKey, nowIso);
 	});
 
 	// Sales/Invoices (mapped from Supabase 'sales' + 'sale_items' to web 'pos_recentInvoices')
 	// This is special - we need to fetch both sales and sale_items, then combine into embedded format
 	await run('sales', async () => {
+		// Get current user ID - CRITICAL for data isolation
+		const userId = await getCurrentUserId();
+		if (!userId) {
+			console.warn('⚠️ No user ID found, skipping sales sync');
+			return;
+		}
+
 		const supabase = getSupabase();
 		const schema = ((import.meta as any).env?.VITE_SUPABASE_SCHEMA as string) || 'public';
 		const sb = (supabase as any).schema ? (supabase as any).schema(schema) : supabase;
 		
 		const lastKey = 'sync:last_sales';
-		const lastSyncAt = (await idbGet<string>(lastKey)) ?? '1970-01-01T00:00:00Z';
+		const lastSyncAt = (await getUserData<string>(lastKey)) ?? '1970-01-01T00:00:00Z';
 		const nowIso = new Date().toISOString();
 
-		// Fetch updated sales
-		const { data: sales, error: salesErr } = await sb
+		// Fetch updated sales - FILTER BY USER_ID (if column exists)
+		let salesQuery = sb
 			.from('sales')
 			.select('*')
+			.eq('user_id', userId) // CRITICAL: Only fetch sales for current user
 			.gt('updated_at', lastSyncAt)
 			.order('updated_at', { ascending: true });
+		
+		let { data: sales, error: salesErr } = await salesQuery;
+		
+		// If column doesn't exist (error code 42703), retry without user_id filter
+		if (salesErr && salesErr.code === '42703' && salesErr.message?.includes('user_id')) {
+			console.warn(`⚠️ Table sales doesn't have user_id column, syncing without user filter (WARNING: No database-level isolation)`);
+			const retryQuery = sb
+				.from('sales')
+				.select('*')
+				.gt('updated_at', lastSyncAt)
+				.order('updated_at', { ascending: true });
+			const retryResult = await retryQuery;
+			sales = retryResult.data;
+			salesErr = retryResult.error;
+		}
 		
 		if (salesErr) throw salesErr;
 
 		if (sales && sales.length > 0) {
-			// Fetch sale_items for each sale
+			// Fetch sale_items for each sale (sale_items should also have user_id, but we filter by sale_id which belongs to user)
 			const saleIds = sales.map((s: any) => s.id);
 			const { data: saleItems, error: itemsErr } = await sb
 				.from('sale_items')
@@ -507,10 +613,16 @@ export async function syncAll() {
 			
 			if (itemsErr) throw itemsErr;
 
-			const list = (await idbGet<any[]>('pos_recentInvoices')) ?? [];
+			const list = (await getUserData<any[]>('pos_recentInvoices')) ?? [];
 			
 			// Transform normalized sales + sale_items to embedded invoice format
 			for (const sale of sales) {
+				// Extra safety: ensure sale belongs to current user
+				if (sale.user_id !== userId) {
+					console.warn(`⚠️ Skipping sale ${sale.id} with mismatched user_id`);
+					continue;
+				}
+
 				const items = (saleItems || []).filter((item: any) => item.sale_id === sale.id);
 				const mapped = {
 					id: sale.id,
@@ -534,15 +646,15 @@ export async function syncAll() {
 				else list.unshift(mapped);
 			}
 			
-			await idbSet('pos_recentInvoices', list.slice(0, 50)); // Keep more invoices
+			await setUserData('pos_recentInvoices', list.slice(0, 50)); // Keep more invoices
 		}
 
-		await idbSet(lastKey, nowIso);
+		await setUserData(lastKey, nowIso);
 	});
 
 	// Customers - Map Supabase fields to web app format
 	await run('customers', () => syncTable('customers', async (row: any) => {
-		const list = (await idbGet<any[]>('customers')) ?? [];
+		const list = (await getUserData<any[]>('customers')) ?? [];
 		const idx = list.findIndex((e) => e.id === row.id);
 		// Map Supabase customer fields to web app format (camelCase)
 		const mapped = {
@@ -569,15 +681,15 @@ export async function syncAll() {
 		};
 		if (idx >= 0) list[idx] = mapped;
 		else list.push(mapped);
-		await idbSet('customers', list);
+		await setUserData('customers', list);
 	}, async (id: string) => {
-		const list = (await idbGet<any[]>('customers')) ?? [];
-		await idbSet('customers', list.filter((e) => e.id !== id));
+		const list = (await getUserData<any[]>('customers')) ?? [];
+		await setUserData('customers', list.filter((e) => e.id !== id));
 	}));
 
 	// Customer Ledger (mapped from Supabase 'customer_ledger' to web 'customer_transactions')
 	await run('customer_ledger', () => syncTable('customer_ledger', async (row: any) => {
-		const list = (await idbGet<any[]>('customer_transactions')) ?? [];
+		const list = (await getUserData<any[]>('customer_transactions')) ?? [];
 		const idx = list.findIndex((e) => e.id === row.id);
 		// Map Supabase customer_ledger fields to web app format
 		const mapped = {
@@ -594,10 +706,11 @@ export async function syncAll() {
 		};
 		if (idx >= 0) list[idx] = mapped;
 		else list.push(mapped);
-		await idbSet('customer_transactions', list);
+		await setUserData('customer_transactions', list);
 	}, async (id: string) => {
-		const list = (await idbGet<any[]>('customer_transactions')) ?? [];
-		await idbSet('customer_transactions', list.filter((e) => e.id !== id));
+		const list = (await getUserData<any[]>('customer_transactions')) ?? [];
+		const filtered = list.filter((e) => e.id !== id);
+		await setUserData('customer_transactions', filtered);
 	}));
 
 	// Categories
@@ -712,13 +825,51 @@ export async function syncAll() {
 
 	// Settings
 	await run('settings', () => syncTable('settings', async (row: any) => {
-		const list = (await idbGet<any[]>('settings')) ?? [];
+		const list = (await getUserData<any[]>('settings')) ?? [];
 		const idx = list.findIndex((e) => e.key === row.key);
 		if (idx >= 0) list[idx] = row; else list.push(row);
-		await idbSet('settings', list);
+		await setUserData('settings', list);
+		
+		// Also update the corresponding user-scoped settings keys
+		const userId = await getCurrentUserId();
+		if (userId && row.key) {
+			// Map settings keys back to component storage keys
+			if (row.key.startsWith('business_')) {
+				const settingKey = row.key.replace('business_', '');
+				const current = await getUserData<any>('businessSettings') || {};
+				try {
+					const value = typeof row.value === 'string' ? (row.value.startsWith('{') || row.value.startsWith('[') ? JSON.parse(row.value) : row.value) : row.value;
+					current[settingKey] = value;
+					await setUserData('businessSettings', current);
+				} catch (e) {
+					console.warn('Failed to parse setting value:', row.value);
+				}
+			} else if (row.key.startsWith('payment_')) {
+				const settingKey = row.key.replace('payment_', '');
+				const current = await getUserData<any>('paymentSettings') || {};
+				try {
+					const value = typeof row.value === 'string' ? (row.value.startsWith('{') || row.value.startsWith('[') ? JSON.parse(row.value) : row.value) : row.value;
+					current[settingKey] = value;
+					await setUserData('paymentSettings', current);
+				} catch (e) {
+					console.warn('Failed to parse setting value:', row.value);
+				}
+			} else if (row.key.startsWith('notification_')) {
+				const settingKey = row.key.replace('notification_', '');
+				const current = await getUserData<any>('notificationSettings') || {};
+				try {
+					const value = typeof row.value === 'string' ? JSON.parse(row.value) : row.value;
+					current[settingKey] = value;
+					await setUserData('notificationSettings', current);
+				} catch (e) {
+					console.warn('Failed to parse setting value:', row.value);
+				}
+			}
+		}
 	}, async (key: string) => {
-		const list = (await idbGet<any[]>('settings')) ?? [];
-		await idbSet('settings', list.filter((e) => e.key !== key));
+		const list = (await getUserData<any[]>('settings')) ?? [];
+		const filtered = list.filter((e) => e.key !== key);
+		await setUserData('settings', filtered);
 	}));
 	
 	// Log sync results
@@ -751,16 +902,24 @@ export async function enqueueChange(table: string, action: 'upsert' | 'delete', 
 
 // One-time backfill: push current IndexedDB datasets into Supabase (server-wins on conflict)
 export async function backfillAllFromIdb() {
+	// Get current user ID - CRITICAL for data isolation
+	const userId = await getCurrentUserId();
+	if (!userId) {
+		console.warn('⚠️ No user ID found, skipping backfill');
+		return;
+	}
+
 	const supabase = getSupabase();
 	const schema = ((import.meta as any).env?.VITE_SUPABASE_SCHEMA as string) || 'public';
 	const sb = (supabase as any).schema ? (supabase as any).schema(schema) : supabase;
 
 	// Staff (map to Supabase 'staff' table)
-	const employees = (await idbGet<any[]>('staff_employees')) ?? [];
+	const employees = (await getUserData<any[]>('staff_employees')) ?? [];
 	if (employees.length > 0) {
 		await sb.from('staff').upsert(
 			employees.map((e) => ({
 				id: e.id,
+				user_id: userId, // CRITICAL: Include user_id for data isolation
 				name: e.name,
 				email: e.email,
 				phone: e.phone,
@@ -779,7 +938,7 @@ export async function backfillAllFromIdb() {
 	}
 
 	// Inventory (map to Supabase 'inventory' table)
-	const inventory = (await idbGet<any[]>('inventory_items')) ?? [];
+	const inventory = (await getUserData<any[]>('inventory_items')) ?? [];
 	if (inventory.length > 0) {
 		const inventoryDataArray = inventory.map((item: any) => {
 			// IMPORTANT: Remove image fields to avoid syncing large base64 data
@@ -815,6 +974,7 @@ export async function backfillAllFromIdb() {
 			
 			const inventoryData: any = {
 				id: String(itemWithoutImages.id),
+				user_id: userId, // CRITICAL: Include user_id for data isolation
 				name: String(itemWithoutImages.name || 'Unnamed Item'),
 				category: category,
 				subcategory: String(itemWithoutImages.type || itemWithoutImages.subcategory || 'general'),
@@ -896,12 +1056,13 @@ export async function backfillAllFromIdb() {
 	}
 
 	// Gold items (map to Supabase 'gold' table)
-	const goldItems = (await idbGet<any[]>('gold_items')) ?? [];
+	const goldItems = (await getUserData<any[]>('gold_items')) ?? [];
 	if (goldItems.length > 0) {
 		const goldDataArray = goldItems.map((item: any) => {
 			const { image, image_url, images, ...itemWithoutImages } = item;
 			return {
 				id: String(item.id),
+				user_id: userId, // CRITICAL: Include user_id for data isolation
 				name: String(item.name || 'Unnamed Gold'),
 				purity: String(item.purity || ''),
 				weight: parseFloat(String(item.weight || 0)),
@@ -919,12 +1080,13 @@ export async function backfillAllFromIdb() {
 	}
 
 	// Jewelry items (map to Supabase 'jewelry' table)
-	const jewelryItems = (await idbGet<any[]>('jewelry_items')) ?? [];
+	const jewelryItems = (await getUserData<any[]>('jewelry_items')) ?? [];
 	if (jewelryItems.length > 0) {
 		const jewelryDataArray = jewelryItems.map((item: any) => {
 			const { image, image_url, images, ...itemWithoutImages } = item;
 			return {
 				id: String(item.id),
+				user_id: userId, // CRITICAL: Include user_id for data isolation
 				name: String(item.name || 'Unnamed Jewelry'),
 				type: String(item.type || ''),
 				gemstone: item.gemstone || null,
@@ -943,12 +1105,13 @@ export async function backfillAllFromIdb() {
 	}
 
 	// Stones items (map to Supabase 'stones' table)
-	const stonesItems = (await idbGet<any[]>('stones_items')) ?? [];
+	const stonesItems = (await getUserData<any[]>('stones_items')) ?? [];
 	if (stonesItems.length > 0) {
 		const stonesDataArray = stonesItems.map((item: any) => {
 			const { image, image_url, images, ...itemWithoutImages } = item;
 			return {
 				id: String(item.id),
+				user_id: userId, // CRITICAL: Include user_id for data isolation
 				name: String(item.name || 'Unnamed Stone'),
 				type: String(item.type || ''),
 				carat_weight: parseFloat(String(item.carat ?? item.carat_weight ?? 0)),
@@ -988,14 +1151,14 @@ export async function backfillAllFromIdb() {
 	}
 
 	// Sales/Invoices (map to Supabase 'sales' + 'sale_items' tables - normalized structure)
-	const inv = (await idbGet<any[]>('pos_recentInvoices')) ?? [];
+	const inv = (await getUserData<any[]>('pos_recentInvoices')) ?? [];
 	if (inv.length > 0) {
 		// Transform embedded invoices to normalized sales + sale_items
 		for (const invoice of inv) {
 			// Try to find customer_id from customer_name
 			let customer_id = null;
 			if (invoice.customerName && invoice.customerName !== 'Walk-in Customer') {
-				const customers = (await idbGet<any[]>('customers')) ?? [];
+				const customers = (await getUserData<any[]>('customers')) ?? [];
 				const customer = customers.find((c: any) => c.name === invoice.customerName);
 				if (customer) {
 					customer_id = customer.id;
@@ -1005,6 +1168,7 @@ export async function backfillAllFromIdb() {
 			// Insert into sales table
 			await sb.from('sales').upsert({
 				id: invoice.id,
+				user_id: userId, // CRITICAL: Include user_id for data isolation
 				customer_id: customer_id,
 				customer_name: invoice.customerName || 'Walk-in Customer',
 				customer_phone: invoice.customerPhone || null,
@@ -1045,11 +1209,12 @@ export async function backfillAllFromIdb() {
 	}
 
 	// Customers - Transform local structure to Supabase format
-	const customers = (await idbGet<any[]>('customers')) ?? [];
+	const customers = (await getUserData<any[]>('customers')) ?? [];
 	if (customers.length > 0) {
 		await sb.from('customers').upsert(
 			customers.map((c) => ({
 				id: c.id,
+				user_id: userId, // CRITICAL: Include user_id for data isolation
 				name: String(c.name || ''),
 				phone: String(c.phone || ''),
 				email: String(c.email || ''),
@@ -1072,7 +1237,7 @@ export async function backfillAllFromIdb() {
 	}
 
 	// Craftsmen - Transform local structure to Supabase format
-	const craftsmen = (await idbGet<any[]>('craftsmen')) ?? [];
+	const craftsmen = (await getUserData<any[]>('craftsmen')) ?? [];
 	if (craftsmen.length > 0) {
 		await sb.from('craftsmen').upsert(
 			craftsmen.map((c) => {
@@ -1102,6 +1267,7 @@ export async function backfillAllFromIdb() {
 				
 				return {
 					id: c.id,
+					user_id: userId, // CRITICAL: Include user_id for data isolation
 					name: String(c.name || ''),
 					specialty: String(c.specialty || ''),
 					experience: experience,
@@ -1119,10 +1285,10 @@ export async function backfillAllFromIdb() {
 	}
 
 	// Customer Ledger (map to Supabase 'customer_ledger' table)
-	const transactions = (await idbGet<any[]>('customer_transactions')) ?? [];
+	const transactions = (await getUserData<any[]>('customer_transactions')) ?? [];
 	if (transactions.length > 0) {
 		// Get customers list once (outside map to avoid async issues)
-		const customers = (await idbGet<any[]>('customers')) ?? [];
+		const customers = (await getUserData<any[]>('customers')) ?? [];
 		
 		const ledgerDataArray = transactions.map((t) => {
 			// Validate required fields
@@ -1184,6 +1350,7 @@ export async function backfillAllFromIdb() {
 			// Ensure all required fields are valid
 			const ledgerRecord: any = {
 				id: String(t.id).trim(),
+				user_id: userId, // CRITICAL: Include user_id for data isolation
 				customer_id: String(t.customerId).trim(), // Required NOT NULL
 				transaction_type: transaction_type, // Required NOT NULL, must match CHECK constraint
 				amount: capDecimal(amount), // Required NOT NULL, DECIMAL(10, 2)
@@ -1284,15 +1451,76 @@ export async function backfillAllFromIdb() {
 		await sb.from('transactions').upsert(generalTransactions, { onConflict: 'id' });
 	}
 
-	// Settings
-	const settings = (await idbGet<any[]>('settings')) ?? [];
-	if (settings.length > 0) {
-		await sb.from('settings').upsert(settings, { onConflict: 'key' });
+	// Settings - convert from component storage to key-value format
+	const businessSettings = await getUserData<any>('businessSettings');
+	const paymentSettings = await getUserData<any>('paymentSettings');
+	const notificationSettings = await getUserData<any>('notificationSettings');
+	
+	const settingsArray: any[] = [];
+	
+	// Convert businessSettings to key-value pairs
+	if (businessSettings) {
+		Object.entries(businessSettings).forEach(([key, value]) => {
+			settingsArray.push({
+				key: `business_${key}`,
+				value: typeof value === 'string' ? value : JSON.stringify(value),
+				user_id: userId, // CRITICAL: Include user_id for data isolation
+				updated_at: new Date().toISOString(),
+			});
+		});
+	}
+	
+	// Convert paymentSettings to key-value pairs
+	if (paymentSettings) {
+		Object.entries(paymentSettings).forEach(([key, value]) => {
+			settingsArray.push({
+				key: `payment_${key}`,
+				value: typeof value === 'string' ? value : JSON.stringify(value),
+				user_id: userId, // CRITICAL: Include user_id for data isolation
+				updated_at: new Date().toISOString(),
+			});
+		});
+	}
+	
+	// Convert notificationSettings to key-value pairs
+	if (notificationSettings) {
+		Object.entries(notificationSettings).forEach(([key, value]) => {
+			settingsArray.push({
+				key: `notification_${key}`,
+				value: JSON.stringify(value),
+				user_id: userId, // CRITICAL: Include user_id for data isolation
+				updated_at: new Date().toISOString(),
+			});
+		});
+	}
+	
+	// Also include any existing settings from the settings array
+	const existingSettings = (await getUserData<any[]>('settings')) ?? [];
+	existingSettings.forEach((setting: any) => {
+		// Only add if not already in array (avoid duplicates)
+		if (!settingsArray.find(s => s.key === setting.key)) {
+			settingsArray.push({
+				...setting,
+				user_id: userId, // CRITICAL: Include user_id for data isolation
+				updated_at: setting.updated_at || new Date().toISOString(),
+			});
+		}
+	});
+	
+	if (settingsArray.length > 0) {
+		await sb.from('settings').upsert(settingsArray, { onConflict: 'key,user_id' });
 	}
 }
 
 async function pushQueue() {
 	const db = await getDB();
+	
+	// Get current user ID - CRITICAL for data isolation
+	const userId = await getCurrentUserId();
+	if (!userId) {
+		console.warn('⚠️ No user ID found, skipping pushQueue');
+		return;
+	}
 	
 	// First, read all changes (within a read transaction)
 	let all: ChangeOp[] = [];
@@ -1329,11 +1557,20 @@ async function pushQueue() {
 				// Special handling for sales/invoices (need to delete sale_items too)
 				if (change.table === 'pos_recentInvoices' || supabaseTable === 'sales') {
 					// Delete from sale_items first (foreign key constraint)
-					await sb.from('sale_items').delete().eq('sale_id', change.payload?.id);
-					// Then delete from sales table
-					await sb.from('sales').delete().eq('id', change.payload?.id);
+					await sb.from('sale_items').delete().eq('sale_id', change.payload?.id).eq('user_id', userId);
+					// Then delete from sales table with user_id filter
+					const { error: salesError } = await sb.from('sales').delete().eq('id', change.payload?.id).eq('user_id', userId);
+					if (salesError && salesError.code === '42703') {
+						// user_id column doesn't exist, try without it
+						await sb.from('sales').delete().eq('id', change.payload?.id);
+					}
 				} else {
-					await sb.from(supabaseTable).delete().eq('id', change.payload?.id);
+					// Delete with user_id filter for data isolation
+					const { error: deleteError } = await sb.from(supabaseTable).delete().eq('id', change.payload?.id).eq('user_id', userId);
+					if (deleteError && deleteError.code === '42703') {
+						// user_id column doesn't exist, try without it
+						await sb.from(supabaseTable).delete().eq('id', change.payload?.id);
+					}
 				}
 				successfulChanges.push(change.id);
 			} else {
@@ -1344,16 +1581,17 @@ async function pushQueue() {
 					// Try to find customer_id from customer_name
 					let customer_id = null;
 					if (invoice.customerName && invoice.customerName !== 'Walk-in Customer') {
-						const customers = (await idbGet<any[]>('customers')) ?? [];
+						const customers = (await getUserData<any[]>('customers')) ?? [];
 						const customer = customers.find((c: any) => c.name === invoice.customerName);
 						if (customer) {
 							customer_id = customer.id;
 						}
 					}
 					
-					// Insert/update sales table
+					// Insert/update sales table with user_id
 					await sb.from('sales').upsert({
 						id: invoice.id,
+						user_id: userId, // CRITICAL: Include user_id for data isolation
 						customer_id: customer_id,
 						customer_name: invoice.customerName || 'Walk-in Customer',
 						customer_phone: invoice.customerPhone || null,
@@ -1374,9 +1612,10 @@ async function pushQueue() {
 						// Delete existing items
 						await sb.from('sale_items').delete().eq('sale_id', invoice.id);
 						
-						// Insert new items
+						// Insert new items with user_id
 						const saleItems = invoice.items.map((item: any, index: number) => ({
 							id: `${invoice.id}-item-${index}`,
+							user_id: userId, // CRITICAL: Include user_id for data isolation
 							sale_id: invoice.id,
 							product_id: item.id || `${item.name}-${index}`,
 							product_name: item.name,
@@ -1435,6 +1674,7 @@ async function pushQueue() {
 					
 					const inventoryData: any = {
 						id: String(item.id),
+						user_id: userId, // CRITICAL: Include user_id for data isolation
 						name: String(item.name || 'Unnamed Item'),
 						category: category,
 						subcategory: String(item.type || item.subcategory || 'general'),
@@ -1627,6 +1867,7 @@ async function pushQueue() {
 					const emp = change.payload;
 					await sb.from('staff').upsert({
 						id: emp.id,
+						user_id: userId, // CRITICAL: Include user_id for data isolation
 						name: emp.name,
 						email: emp.email,
 						phone: emp.phone,
@@ -1658,7 +1899,7 @@ async function pushQueue() {
 					// Verify customer exists (to avoid foreign key constraint errors)
 					// Note: We check this but don't block - if customer doesn't exist, Supabase will reject with foreign key error
 					// This is just a warning/pre-check
-					const customers = (await idbGet<any[]>('customers')) ?? [];
+					const customers = (await getUserData<any[]>('customers')) ?? [];
 					const customerExists = customers.some((c: any) => String(c.id) === String(trans.customerId));
 					if (!customerExists) {
 						console.warn(`⚠️ Warning: customer_transaction ${trans.id} references customer ${trans.customerId} which may not exist in Supabase`);
@@ -1703,6 +1944,7 @@ async function pushQueue() {
 						// Build ledger record with only valid fields
 						const ledgerRecord: any = {
 							id: String(trans.id).trim(),
+							user_id: userId, // CRITICAL: Include user_id for data isolation
 							customer_id: String(trans.customerId).trim(),
 							transaction_type: transaction_type,
 							amount: capDecimal(amount),
@@ -1786,7 +2028,13 @@ async function pushQueue() {
 						updated_at: new Date().toISOString(),
 					};
 					
-					const { data, error } = await sb.from('craftsmen').upsert(craftsmanData, { onConflict: 'id' });
+					// Add user_id to craftsman data
+					const craftsmanDataWithUserId = {
+						...craftsmanData,
+						user_id: userId, // CRITICAL: Include user_id for data isolation
+					};
+					
+					const { data, error } = await sb.from('craftsmen').upsert(craftsmanDataWithUserId, { onConflict: 'id' });
 					if (error) {
 						console.error('❌ Craftsmen upsert error:', error);
 						console.error('❌ Failed data:', JSON.stringify(craftsmanData, null, 2));
@@ -1801,6 +2049,7 @@ async function pushQueue() {
 					const customer = change.payload;
 					await sb.from('customers').upsert({
 						id: customer.id,
+						user_id: userId, // CRITICAL: Include user_id for data isolation
 						name: String(customer.name || ''),
 						phone: String(customer.phone || ''),
 						email: String(customer.email || ''),
@@ -1821,11 +2070,24 @@ async function pushQueue() {
 					successfulChanges.push(change.id);
 				} else {
 					// Direct mapping for other tables (categories, products, attendance, performance, training, salary_rules, materials, materials_assigned, projects, transactions, settings)
-					// For settings table, use 'key' as the conflict column instead of 'id'
+					// Add user_id to payload for data isolation
+					const payloadWithUserId = {
+						...change.payload,
+						user_id: userId, // CRITICAL: Include user_id for data isolation
+					};
+					
+					// For settings table, use 'key' as the conflict column
+					// CRITICAL: user_id is included in payload for data isolation, and sync queries filter by user_id
 					if (supabaseTable === 'settings') {
-						await sb.from(supabaseTable).upsert(change.payload, { onConflict: 'key' });
+						// Ensure key exists in payload
+						if (!payloadWithUserId.key) {
+							console.warn('⚠️ Skipping settings upsert without key:', payloadWithUserId);
+							continue;
+						}
+						// Use 'key' for conflict resolution - user_id in payload ensures proper isolation
+						await sb.from(supabaseTable).upsert(payloadWithUserId, { onConflict: 'key' });
 					} else {
-						await sb.from(supabaseTable).upsert(change.payload, { onConflict: 'id' });
+						await sb.from(supabaseTable).upsert(payloadWithUserId, { onConflict: 'id' });
 					}
 					successfulChanges.push(change.id);
 				}

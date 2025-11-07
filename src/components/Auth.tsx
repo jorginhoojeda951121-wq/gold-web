@@ -68,6 +68,15 @@ export const Auth = () => {
           if (profileErr) {
             console.warn('User profile upsert failed:', profileErr.message);
           }
+          
+          // Initialize subscription for user
+          try {
+            const { initializeSubscription } = await import('@/lib/subscription');
+            await initializeSubscription(userId, email);
+          } catch (subError: any) {
+            console.warn('Subscription initialization error:', subError?.message);
+            // Don't block login if subscription init fails
+          }
         }
       } catch (profileError: any) {
         // Log error but don't block login
@@ -78,6 +87,10 @@ export const Auth = () => {
       if (!sessionData.session) {
         throw new Error("Authentication failed: no active session returned.");
       }
+      // Clear any cached user data on new login
+      const { clearUserIdCache } = await import('@/lib/userStorage');
+      clearUserIdCache();
+      
       // Redirect to dashboard after successful login using React Router (avoids full page reload)
       navigate("/dashboard", { replace: true });
     } catch (err: any) {
@@ -293,6 +306,12 @@ export const Auth = () => {
           <CardHeader className="space-y-3 pb-6">
             <CardTitle className="text-3xl font-bold bg-gradient-to-r from-cyan-400 to-blue-400 bg-clip-text text-transparent">Get in Touch</CardTitle>
             <p className="text-white/70 text-sm leading-relaxed">Fill out the form below and our team will contact you to help set up your business account.</p>
+            <div className="mt-4 p-3 bg-amber-500/10 border border-amber-500/30 rounded-lg">
+              <p className="text-amber-300 text-xs leading-relaxed">
+                <strong>Important:</strong> Each signup supports <strong>1 business only</strong>. 
+                For additional locations, please create a separate account with a new signup.
+              </p>
+            </div>
           </CardHeader>
           
           <CardContent>
@@ -351,16 +370,21 @@ export const Auth = () => {
               </div>
 
               <div className="group space-y-2">
-                <label className="block text-sm font-medium text-slate-200">Business Type (Optional)</label>
+                <label className="block text-sm font-medium text-slate-200">
+                  Business Type <span className="text-slate-400 text-xs">(1 Business per Account)</span>
+                </label>
                 <div className="relative">
                   <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400 group-focus-within:text-cyan-400 transition-colors" />
                   <Input
                     value={contactForm.businessType}
                     onChange={(e) => setContactForm({ ...contactForm, businessType: e.target.value })}
-                    placeholder="e.g., Retail, Restaurant, Healthcare"
+                    placeholder="Enter your business name or type (e.g., Gold Jewelry Store)"
                     className="pl-10 h-12 bg-slate-900/50 border-slate-600 text-white placeholder:text-slate-500 focus:border-cyan-500/50 focus:ring-cyan-500/20 focus:bg-slate-900/70 transition-all duration-200"
                   />
                 </div>
+                <p className="text-xs text-slate-400 mt-1">
+                  Note: Each account supports one business. Additional locations require separate signups.
+                </p>
               </div>
 
               <div className="group space-y-2">
@@ -368,7 +392,7 @@ export const Auth = () => {
                 <Textarea
                   value={contactForm.message}
                   onChange={(e) => setContactForm({ ...contactForm, message: e.target.value })}
-                  placeholder="Tell us about your business and setup requirements..."
+                  placeholder="Tell us about your business and setup requirements. Remember: 1 business = 1 account. For multiple locations, create separate accounts."
                   rows={4}
                   required
                   className="bg-slate-900/50 border-slate-600 text-white placeholder:text-slate-500 focus:border-cyan-500/50 focus:ring-cyan-500/20 focus:bg-slate-900/70 transition-all duration-200 resize-none"

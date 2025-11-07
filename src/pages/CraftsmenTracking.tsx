@@ -12,6 +12,7 @@ import { MaterialAssignDialog } from "@/components/MaterialAssignDialog";
 import { CraftsmanDetailsDialog } from "@/components/CraftsmanDetailsDialog";
 import { useToast } from "@/hooks/use-toast";
 import { useOfflineStorage } from "@/hooks/useOfflineStorage";
+import { useUserStorage } from "@/hooks/useUserStorage";
 
 const CraftsmenTracking = () => {
   const { toast } = useToast();
@@ -21,7 +22,8 @@ const CraftsmenTracking = () => {
   const [showDetailsDialog, setShowDetailsDialog] = useState(false);
   const [selectedCraftsman, setSelectedCraftsman] = useState<Craftsman | null>(null);
 
-  const { data: craftsmen, updateData: setCraftsmen, loaded } = useOfflineStorage<Craftsman[]>("craftsmen", [
+  // CRITICAL: Use useUserStorage for user-scoped data isolation
+  const { data: craftsmen, updateData: setCraftsmen, loaded } = useUserStorage<Craftsman[]>("craftsmen", [
     {
       id: "1",
       name: "Rajesh Kumar",

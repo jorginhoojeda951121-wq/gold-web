@@ -20,7 +20,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { useOfflineStorage } from "@/hooks/useOfflineStorage";
+import { useUserStorage } from "@/hooks/useUserStorage";
 import { enqueueChange } from "@/lib/sync";
 
 interface Employee {
@@ -38,10 +38,17 @@ interface Employee {
 const Staff = () => {
   const { toast } = useToast();
   const [showAddDialog, setShowAddDialog] = useState(false);
-  const { data: searchQuery, updateData: setSearchQuery } = useOfflineStorage<string>("staff_search", "");
-  const { data: departmentFilter, updateData: setDepartmentFilter } = useOfflineStorage<string>("staff_departmentFilter", "all");
-  const { data: statusFilter, updateData: setStatusFilter } = useOfflineStorage<string>("staff_statusFilter", "all");
-  const { data: employees, updateData: setEmployees } = useOfflineStorage<Employee[]>("staff_employees", [
+  const [showEditDialog, setShowEditDialog] = useState(false);
+  const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  
+  // Use user-scoped storage for all state (including search/filters for consistency)
+  const { data: searchQuery, updateData: setSearchQuery } = useUserStorage<string>("staff_search", "");
+  const { data: departmentFilter, updateData: setDepartmentFilter } = useUserStorage<string>("staff_departmentFilter", "all");
+  const { data: statusFilter, updateData: setStatusFilter } = useUserStorage<string>("staff_statusFilter", "all");
+  
+  // CRITICAL: Use useUserStorage for user-scoped data isolation
+  const { data: employees, updateData: setEmployees, loaded: employeesLoaded } = useUserStorage<Employee[]>("staff_employees", [
     {
       id: "1",
       name: "Sarah Johnson",
@@ -86,60 +93,308 @@ const Staff = () => {
     salary: "",
   });
 
-  const handleAddEmployee = (e: React.FormEvent) => {
+  const handleAddEmployee = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!formData.name || !formData.email || !formData.role) {
+      toast({
+        title: "Validation Error",
+        description: "Please fill in all required fields (Name, Email, Role).",
+        variant: "destructive"
+      });
       return;
     }
 
-    const newEmployee: Employee = {
-      id: Date.now().toString(),
-      ...formData,
-      salary: parseFloat(formData.salary) || 0,
-      hireDate: new Date().toISOString().split('T')[0],
-      status: "Active",
-    };
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(formData.email)) {
+      toast({
+        title: "Validation Error",
+        description: "Please enter a valid email address.",
+        variant: "destructive"
+      });
+      return;
+    }
 
-    setEmployees(prev => [...prev, newEmployee]);
-    enqueueChange('employees', 'upsert', {
-      id: newEmployee.id,
-      name: newEmployee.name,
-      email: newEmployee.email,
-      phone: newEmployee.phone,
-      role: newEmployee.role,
-      department: newEmployee.department,
-      salary: newEmployee.salary,
-      status: newEmployee.status,
-      hire_date: newEmployee.hireDate,
-      updated_at: new Date().toISOString(),
-    });
+    setIsLoading(true);
+    try {
+      // Get current user ID
+      const { getCurrentUserId, getUserData, setUserData } = await import('@/lib/userStorage');
+      const userId = await getCurrentUserId();
+      
+      if (!userId) {
+        toast({
+          title: "Authentication Error",
+          description: "User not logged in. Please log in again.",
+          variant: "destructive"
+        });
+        setIsLoading(false);
+        return;
+      }
+
+      const newEmployee: Employee & { user_id?: string } = {
+        id: Date.now().toString(),
+        ...formData,
+        salary: parseFloat(formData.salary) || 0,
+        hireDate: new Date().toISOString().split('T')[0],
+        status: "Active",
+        user_id: userId, // CRITICAL: Include user_id for data isolation
+      };
+
+      // Save to user-scoped storage
+      const employeesData = (await getUserData<any[]>('staff_employees')) || [];
+      
+      // Check for duplicate email
+      if (employeesData.some((emp: any) => emp.email.toLowerCase() === formData.email.toLowerCase())) {
+        toast({
+          title: "Duplicate Email",
+          description: "An employee with this email already exists.",
+          variant: "destructive"
+        });
+        setIsLoading(false);
+        return;
+      }
+      
+      employeesData.push(newEmployee);
+      await setUserData('staff_employees', employeesData);
+      
+      // Update state
+      setEmployees(prev => [...prev, newEmployee]);
+      
+      // Queue for sync
+      try {
+        await enqueueChange('staff', 'upsert', {
+          id: newEmployee.id,
+          user_id: userId, // CRITICAL: Include user_id for data isolation
+          name: newEmployee.name,
+          email: newEmployee.email,
+          phone: newEmployee.phone,
+          role: newEmployee.role,
+          department: newEmployee.department,
+          salary: newEmployee.salary,
+          status: newEmployee.status,
+          hire_date: newEmployee.hireDate,
+          updated_at: new Date().toISOString(),
+        });
+      } catch (syncError) {
+        console.warn('Failed to queue sync, but employee saved locally:', syncError);
+        // Don't fail the operation if sync fails - data is saved locally
+      }
     
-    setFormData({
-      name: "",
-      email: "",
-      phone: "",
-      role: "",
-      department: "",
-      salary: "",
-    });
-    
-    setShowAddDialog(false);
-    
-    toast({
-      title: "Employee Added",
-      description: `${newEmployee.name} has been added to the team.`
-    });
+      setFormData({
+        name: "",
+        email: "",
+        phone: "",
+        role: "",
+        department: "",
+        salary: "",
+      });
+      
+      setShowAddDialog(false);
+      
+      toast({
+        title: "Employee Added",
+        description: `${newEmployee.name} has been added to the team.`
+      });
+    } catch (error) {
+      console.error('Error adding employee:', error);
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to add employee. Please try again.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const handleDeleteEmployee = (id: string) => {
-    setEmployees(prev => prev.filter(emp => emp.id !== id));
-    enqueueChange('employees', 'delete', { id });
-    toast({
-      title: "Employee Removed",
-      description: "Employee has been removed from the system.",
-      variant: "destructive"
+  const handleEditEmployee = (employee: Employee) => {
+    setEditingEmployee(employee);
+    setFormData({
+      name: employee.name,
+      email: employee.email,
+      phone: employee.phone,
+      role: employee.role,
+      department: employee.department,
+      salary: employee.salary.toString(),
     });
+    setShowEditDialog(true);
+  };
+
+  const handleUpdateEmployee = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!editingEmployee || !formData.name || !formData.email || !formData.role) {
+      toast({
+        title: "Validation Error",
+        description: "Please fill in all required fields (Name, Email, Role).",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(formData.email)) {
+      toast({
+        title: "Validation Error",
+        description: "Please enter a valid email address.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      // Get current user ID
+      const { getCurrentUserId, getUserData, setUserData } = await import('@/lib/userStorage');
+      const userId = await getCurrentUserId();
+      
+      if (!userId) {
+        toast({
+          title: "Authentication Error",
+          description: "User not logged in. Please log in again.",
+          variant: "destructive"
+        });
+        setIsLoading(false);
+        return;
+      }
+
+      const updatedEmployee: Employee & { user_id?: string } = {
+        ...editingEmployee,
+        ...formData,
+        salary: parseFloat(formData.salary) || 0,
+        status: (editingEmployee?.status || "Active") as "Active" | "Inactive", // Use current status from editingEmployee
+        user_id: userId, // CRITICAL: Include user_id for data isolation
+      };
+
+      // Update in user-scoped storage
+      const employeesData = (await getUserData<any[]>('staff_employees')) || [];
+      
+      // Check for duplicate email (excluding current employee)
+      const duplicateEmail = employeesData.some(
+        (emp: any) => emp.id !== editingEmployee.id && 
+        emp.email.toLowerCase() === formData.email.toLowerCase()
+      );
+      
+      if (duplicateEmail) {
+        toast({
+          title: "Duplicate Email",
+          description: "An employee with this email already exists.",
+          variant: "destructive"
+        });
+        setIsLoading(false);
+        return;
+      }
+      
+      const updatedEmployees = employeesData.map((emp: any) => 
+        emp.id === editingEmployee.id ? updatedEmployee : emp
+      );
+      await setUserData('staff_employees', updatedEmployees);
+      
+      // Update state
+      setEmployees(prev => prev.map(emp => emp.id === editingEmployee.id ? updatedEmployee : emp));
+      
+      // Queue for sync
+      try {
+        await enqueueChange('staff', 'upsert', {
+          id: updatedEmployee.id,
+          user_id: userId, // CRITICAL: Include user_id for data isolation
+          name: updatedEmployee.name,
+          email: updatedEmployee.email,
+          phone: updatedEmployee.phone,
+          role: updatedEmployee.role,
+          department: updatedEmployee.department,
+          salary: updatedEmployee.salary,
+          status: updatedEmployee.status,
+          hire_date: updatedEmployee.hireDate,
+          updated_at: new Date().toISOString(),
+        });
+      } catch (syncError) {
+        console.warn('Failed to queue sync, but employee updated locally:', syncError);
+        // Don't fail the operation if sync fails - data is saved locally
+      }
+    
+      setFormData({
+        name: "",
+        email: "",
+        phone: "",
+        role: "",
+        department: "",
+        salary: "",
+      });
+      
+      setShowEditDialog(false);
+      setEditingEmployee(null);
+      
+      toast({
+        title: "Employee Updated",
+        description: `${updatedEmployee.name} has been updated.`
+      });
+    } catch (error) {
+      console.error('Error updating employee:', error);
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to update employee. Please try again.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleDeleteEmployee = async (id: string) => {
+    // Find employee name for better error messages
+    const employee = employees.find(emp => emp.id === id);
+    const employeeName = employee?.name || 'Employee';
+    
+    setIsLoading(true);
+    try {
+      // Get current user ID
+      const { getCurrentUserId, getUserData, setUserData } = await import('@/lib/userStorage');
+      const userId = await getCurrentUserId();
+      
+      if (!userId) {
+        toast({
+          title: "Authentication Error",
+          description: "User not logged in. Please log in again.",
+          variant: "destructive"
+        });
+        setIsLoading(false);
+        return;
+      }
+      
+      // Remove from user-scoped storage
+      const employeesData = (await getUserData<any[]>('staff_employees')) || [];
+      const updatedEmployees = employeesData.filter((emp: any) => emp.id !== id);
+      await setUserData('staff_employees', updatedEmployees);
+      
+      // Update state
+      setEmployees(prev => prev.filter(emp => emp.id !== id));
+      
+      // Queue for sync
+      try {
+        await enqueueChange('staff', 'delete', { id });
+      } catch (syncError) {
+        console.warn('Failed to queue sync, but employee deleted locally:', syncError);
+        // Don't fail the operation if sync fails - data is deleted locally
+      }
+      
+      toast({
+        title: "Employee Removed",
+        description: `${employeeName} has been removed from the system.`,
+        variant: "destructive"
+      });
+    } catch (error) {
+      console.error('Error deleting employee:', error);
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to delete employee. Please try again.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const filteredEmployees = employees.filter(employee => {
@@ -246,7 +501,13 @@ const Staff = () => {
           </div>
 
           <div className="grid gap-6">
-            {filteredEmployees.length === 0 ? (
+            {!employeesLoaded ? (
+              <div className="text-center py-12">
+                <Users className="h-16 w-16 text-gray-400 mx-auto mb-4 animate-pulse" />
+                <h3 className="text-xl font-semibold text-foreground mb-2">Loading employees...</h3>
+                <p className="text-muted-foreground">Please wait while we load your data</p>
+              </div>
+            ) : filteredEmployees.length === 0 ? (
               <div className="text-center py-12">
                 <Users className="h-16 w-16 text-gray-400 mx-auto mb-4" />
                 <h3 className="text-xl font-semibold text-foreground mb-2">No employees found</h3>
@@ -297,7 +558,11 @@ const Staff = () => {
                     </div>
                     
                     <div className="flex gap-2">
-                      <Button variant="outline" size="sm">
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        onClick={() => handleEditEmployee(employee)}
+                      >
                         <Edit className="h-4 w-4 mr-2" />
                         Edit
                       </Button>
@@ -306,9 +571,10 @@ const Staff = () => {
                         size="sm"
                         onClick={() => handleDeleteEmployee(employee.id)}
                         className="text-destructive hover:text-destructive"
+                        disabled={isLoading}
                       >
                         <Trash2 className="h-4 w-4 mr-2" />
-                        Remove
+                        {isLoading ? "Removing..." : "Remove"}
                       </Button>
                     </div>
                   </div>
@@ -425,8 +691,154 @@ const Staff = () => {
               <Button
                 type="submit"
                 className="bg-gradient-gold hover:bg-gold-dark text-primary transition-smooth"
+                disabled={isLoading}
               >
-                Add Employee
+                {isLoading ? "Adding..." : "Add Employee"}
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
+        <DialogContent className="sm:max-w-[500px] bg-card">
+          <DialogHeader>
+            <DialogTitle className="text-foreground">Edit Employee</DialogTitle>
+          </DialogHeader>
+          
+          <form onSubmit={handleUpdateEmployee} className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="edit-emp-name">Full Name *</Label>
+                <Input
+                  id="edit-emp-name"
+                  value={formData.name}
+                  onChange={(e) => setFormData(prev => ({...prev, name: e.target.value}))}
+                  placeholder="e.g., John Smith"
+                  required
+                />
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="edit-emp-email">Email *</Label>
+                <Input
+                  id="edit-emp-email"
+                  type="email"
+                  value={formData.email}
+                  onChange={(e) => setFormData(prev => ({...prev, email: e.target.value}))}
+                  placeholder="john@luxejewels.com"
+                  required
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="edit-emp-phone">Phone</Label>
+                <Input
+                  id="edit-emp-phone"
+                  value={formData.phone}
+                  onChange={(e) => setFormData(prev => ({...prev, phone: e.target.value}))}
+                  placeholder="+1 (555) 123-4567"
+                />
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="edit-emp-role">Role *</Label>
+                <Select 
+                  value={formData.role} 
+                  onValueChange={(value) => setFormData(prev => ({...prev, role: value}))}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select role" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Store Manager">Store Manager</SelectItem>
+                    <SelectItem value="Sales Associate">Sales Associate</SelectItem>
+                    <SelectItem value="Jewelry Appraiser">Jewelry Appraiser</SelectItem>
+                    <SelectItem value="Cashier">Cashier</SelectItem>
+                    <SelectItem value="Security">Security</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="edit-emp-department">Department</Label>
+                <Select 
+                  value={formData.department} 
+                  onValueChange={(value) => setFormData(prev => ({...prev, department: value}))}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select department" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Sales">Sales</SelectItem>
+                    <SelectItem value="Quality Control">Quality Control</SelectItem>
+                    <SelectItem value="Management">Management</SelectItem>
+                    <SelectItem value="Security">Security</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="edit-emp-salary">Annual Salary (₹)</Label>
+                <Input
+                  id="edit-emp-salary"
+                  type="number"
+                  value={formData.salary}
+                  onChange={(e) => setFormData(prev => ({...prev, salary: e.target.value}))}
+                  placeholder="e.g., 50000"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="edit-emp-status">Status</Label>
+              <Select 
+                value={editingEmployee?.status || "Active"} 
+                onValueChange={(value) => {
+                  if (editingEmployee) {
+                    setEditingEmployee({ ...editingEmployee, status: value as "Active" | "Inactive" });
+                  }
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Active">Active</SelectItem>
+                  <SelectItem value="Inactive">Inactive</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="flex justify-end space-x-2 pt-4">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  setShowEditDialog(false);
+                  setEditingEmployee(null);
+                  setFormData({
+                    name: "",
+                    email: "",
+                    phone: "",
+                    role: "",
+                    department: "",
+                    salary: "",
+                  });
+                }}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                className="bg-gradient-gold hover:bg-gold-dark text-primary transition-smooth"
+                disabled={isLoading}
+              >
+                {isLoading ? "Updating..." : "Update Employee"}
               </Button>
             </div>
           </form>

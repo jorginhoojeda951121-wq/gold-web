@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { FileText, Download, Calendar, TrendingUp, PieChart, BarChart3, Users } from "lucide-react";
 import jsPDF from 'jspdf';
 import { Button } from "@/components/ui/button";
@@ -8,11 +8,15 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
+import { getUserData } from "@/lib/userStorage";
+import { getSupabase } from "@/lib/supabase";
 
 export const ReportingDashboard = () => {
   const { toast } = useToast();
   const [selectedPeriod, setSelectedPeriod] = useState("month");
   const [selectedReport, setSelectedReport] = useState("sales");
+  const [reportData, setReportData] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
 
   const reportTypes = [
     { id: 'sales', name: 'Sales Report', icon: TrendingUp },
@@ -21,84 +25,245 @@ export const ReportingDashboard = () => {
     { id: 'employee', name: 'Employee Report', icon: Users }
   ];
 
-  // Mock report data
-  const reportData = {
-    sales: {
-      totalSales: 2450000,
-      totalOrders: 145,
-      averageOrderValue: 16897,
-      topProducts: [
-        { name: "Gold Chains", revenue: 450000, orders: 25 },
-        { name: "Diamond Earrings", revenue: 380000, orders: 18 },
-        { name: "Silver Bracelets", revenue: 280000, orders: 35 },
-        { name: "Artificial Jewelry", revenue: 180000, orders: 67 }
-      ],
-      salesByCategory: {
-        gold: 45,
-        diamond: 30,
-        silver: 15,
-        artificial: 10
-      },
-      monthlyTrend: [
-        { month: 'Jan', sales: 180000 },
-        { month: 'Feb', sales: 220000 },
-        { month: 'Mar', sales: 245000 },
-      ]
-    },
-    inventory: {
-      totalItems: 856,
-      totalValue: 4250000,
-      lowStock: 23,
-      outOfStock: 5,
-      categories: {
-        rings: 245,
-        necklaces: 189,
-        earrings: 178,
-        bracelets: 134,
-        brooches: 67,
-        artificial: 43
-      },
-      topMoving: [
-        { name: "Gold Rings", sold: 45, remaining: 12 },
-        { name: "Diamond Studs", sold: 38, remaining: 8 },
-        { name: "Silver Chains", sold: 52, remaining: 24 }
-      ]
-    },
-    financial: {
-      revenue: 2450000,
-      expenses: 1470000,
-      profit: 980000,
-      profitMargin: 40,
-      taxes: 73500,
-      netProfit: 906500,
-      cashFlow: {
-        opening: 450000,
-        closing: 680000,
-        change: 230000
-      },
-      expenseBreakdown: {
-        inventory: 60,
-        salaries: 25,
-        utilities: 8,
-        marketing: 4,
-        other: 3
-      }
-    },
-    employee: {
-      totalEmployees: 8,
-      activeEmployees: 7,
-      onLeave: 1,
-      totalSalaries: 285000,
-      averageSalary: 40714,
-      attendance: 92.5,
-      productivity: 87,
-      departments: {
-        sales: 4,
-        operations: 2,
-        management: 2
-      }
+  // Load real user-scoped data for reports
+  const loadReportData = useCallback(async () => {
+    try {
+      setLoading(true);
+      
+      // Load all user-scoped data
+      const [invoices, inventoryItems, customers, employees] = await Promise.all([
+        getUserData<any[]>('pos_recentInvoices') || [],
+        getUserData<any[]>('inventory_items') || [],
+        getUserData<any[]>('customers') || [],
+        getUserData<any[]>('staff_employees') || [],
+      ]);
+
+      // Debug logging
+      console.log('📊 Reporting Dashboard - Loaded data:', {
+        invoices: invoices.length,
+        inventoryItems: inventoryItems.length,
+        customers: customers.length,
+        employees: employees.length,
+        employeesData: employees
+      });
+
+      // Calculate sales report data
+      const totalSales = invoices.reduce((sum: number, inv: any) => sum + (inv.total || 0), 0);
+      const totalOrders = invoices.length;
+      const averageOrderValue = totalOrders > 0 ? totalSales / totalOrders : 0;
+
+      // Top products by revenue
+      const productRevenueMap = new Map<string, { revenue: number; orders: number }>();
+      invoices.forEach((inv: any) => {
+        if (inv.items) {
+          inv.items.forEach((item: any) => {
+            const itemName = item.name || 'Unknown Item';
+            const revenue = (item.price || 0) * (item.quantity || 0);
+            const existing = productRevenueMap.get(itemName);
+            if (existing) {
+              existing.revenue += revenue;
+              existing.orders += 1;
+            } else {
+              productRevenueMap.set(itemName, { revenue, orders: 1 });
+            }
+          });
+        }
+      });
+
+      const topProducts = Array.from(productRevenueMap.entries())
+        .map(([name, data]) => ({ name, revenue: data.revenue, orders: data.orders }))
+        .sort((a, b) => b.revenue - a.revenue)
+        .slice(0, 4);
+
+      // Calculate inventory report data
+      const totalItems = inventoryItems.length;
+      const totalValue = inventoryItems.reduce((sum: number, item: any) => sum + ((item.price || 0) * (item.inStock || item.stock || 0)), 0);
+      const lowStock = inventoryItems.filter((item: any) => (item.inStock || item.stock || 0) > 0 && (item.inStock || item.stock || 0) < 10).length;
+      const outOfStock = inventoryItems.filter((item: any) => (item.inStock || item.stock || 0) === 0).length;
+
+      // Calculate financial report data
+      const revenue = totalSales;
+      const expenses = 0; // Would need expense tracking
+      const profit = revenue - expenses;
+      const profitMargin = revenue > 0 ? (profit / revenue) * 100 : 0;
+      const taxes = revenue * 0.03; // 3% GST estimate
+      const netProfit = profit - taxes;
+
+      // Calculate employee report data
+      const totalEmployees = employees.length;
+      // Handle both 'Active'/'Inactive' and 'active'/'inactive' status values (case-insensitive)
+      const activeEmployees = employees.filter((emp: any) => {
+        const status = String(emp.status || '').toLowerCase();
+        return status === 'active';
+      }).length;
+      const onLeave = employees.filter((emp: any) => {
+        const status = String(emp.status || '').toLowerCase();
+        return status === 'inactive';
+      }).length;
+      const totalSalaries = employees.reduce((sum: number, emp: any) => {
+        const salary = parseFloat(String(emp.salary || 0)) || 0;
+        return sum + salary;
+      }, 0);
+      const averageSalary = totalEmployees > 0 ? totalSalaries / totalEmployees : 0;
+
+      // Debug logging for employee calculations
+      console.log('👥 Employee Report Calculations:', {
+        totalEmployees,
+        activeEmployees,
+        onLeave,
+        totalSalaries,
+        averageSalary,
+        employeesSample: employees.slice(0, 2).map((e: any) => ({
+          name: e.name,
+          status: e.status,
+          salary: e.salary,
+          department: e.department
+        }))
+      });
+
+      // Build report data object
+      const data = {
+        sales: {
+          totalSales,
+          totalOrders,
+          averageOrderValue: Math.round(averageOrderValue),
+          topProducts,
+          salesByCategory: {
+            gold: 0, // Would need category tracking
+            diamond: 0,
+            silver: 0,
+            artificial: 0
+          },
+          monthlyTrend: [] // Would need date-based grouping
+        },
+        inventory: {
+          totalItems,
+          totalValue,
+          lowStock,
+          outOfStock,
+          categories: {
+            rings: 0, // Would need category tracking
+            necklaces: 0,
+            earrings: 0,
+            bracelets: 0,
+            brooches: 0,
+            artificial: 0
+          },
+          topMoving: topProducts.slice(0, 3).map(p => ({
+            name: p.name,
+            sold: p.orders,
+            remaining: 0 // Would need stock tracking
+          }))
+        },
+        financial: {
+          revenue,
+          expenses,
+          profit,
+          profitMargin: Math.round(profitMargin),
+          taxes: Math.round(taxes),
+          netProfit: Math.round(netProfit),
+          cashFlow: {
+            opening: 0, // Would need cash flow tracking
+            closing: revenue,
+            change: revenue
+          },
+          expenseBreakdown: {
+            inventory: 0,
+            salaries: totalSalaries > 0 ? 100 : 0,
+            utilities: 0,
+            marketing: 0,
+            other: 0
+          }
+        },
+        employee: {
+          totalEmployees,
+          activeEmployees,
+          onLeave,
+          totalSalaries,
+          averageSalary: Math.round(averageSalary),
+          attendance: 0, // Would need attendance tracking
+          productivity: 0, // Would need productivity tracking
+          departments: {
+            sales: employees.filter((e: any) => String(e.department || '').toLowerCase() === 'sales').length,
+            operations: employees.filter((e: any) => String(e.department || '').toLowerCase() === 'operations').length,
+            management: employees.filter((e: any) => String(e.department || '').toLowerCase() === 'management').length
+          }
+        }
+      };
+
+      console.log('✅ Report data set:', {
+        employee: data.employee,
+        hasEmployeeData: !!data.employee.totalEmployees
+      });
+      
+      setReportData(data);
+    } catch (error) {
+      console.error('❌ Error loading report data:', error);
+      // Fallback to empty data
+      setReportData({
+        sales: { totalSales: 0, totalOrders: 0, averageOrderValue: 0, topProducts: [], salesByCategory: {}, monthlyTrend: [] },
+        inventory: { totalItems: 0, totalValue: 0, lowStock: 0, outOfStock: 0, categories: {}, topMoving: [] },
+        financial: { revenue: 0, expenses: 0, profit: 0, profitMargin: 0, taxes: 0, netProfit: 0, cashFlow: {}, expenseBreakdown: {} },
+        employee: { totalEmployees: 0, activeEmployees: 0, onLeave: 0, totalSalaries: 0, averageSalary: 0, attendance: 0, productivity: 0, departments: {} }
+      });
+    } finally {
+      setLoading(false);
     }
-  };
+  }, []);
+
+  // Load data on mount and when user changes
+  useEffect(() => {
+    loadReportData();
+    
+    // Listen for auth state changes to reload data when user changes
+    const supabase = getSupabase();
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      // Clear user ID cache when user changes to ensure fresh data load
+      const { clearUserIdCache } = await import('@/lib/userStorage');
+      clearUserIdCache();
+      
+      // Reload data when user changes (login/logout)
+      if (session?.user?.id) {
+        console.log('🔄 User changed, reloading report data...');
+        // Small delay to ensure cache is cleared and new user ID is fetched
+        setTimeout(() => {
+          loadReportData();
+        }, 100);
+      } else {
+        // User logged out, clear data
+        setReportData({
+          sales: { totalSales: 0, totalOrders: 0, averageOrderValue: 0, topProducts: [], salesByCategory: {}, monthlyTrend: [] },
+          inventory: { totalItems: 0, totalValue: 0, lowStock: 0, outOfStock: 0, categories: {}, topMoving: [] },
+          financial: { revenue: 0, expenses: 0, profit: 0, profitMargin: 0, taxes: 0, netProfit: 0, cashFlow: {}, expenseBreakdown: {} },
+          employee: { totalEmployees: 0, activeEmployees: 0, onLeave: 0, totalSalaries: 0, averageSalary: 0, attendance: 0, productivity: 0, departments: {} }
+        });
+      }
+    });
+    
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, [loadReportData]);
+
+  // Reload data when window gains focus or becomes visible (in case sync happened)
+  useEffect(() => {
+    const handleFocus = () => {
+      loadReportData();
+    };
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        loadReportData();
+      }
+    };
+    
+    window.addEventListener('focus', handleFocus);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    
+    return () => {
+      window.removeEventListener('focus', handleFocus);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [loadReportData]);
 
   const generateReport = (type: string) => {
     toast({
@@ -122,6 +287,14 @@ export const ReportingDashboard = () => {
     });
 
     // Get current report data
+    if (!reportData) {
+      toast({
+        title: "Error",
+        description: "Report data not loaded. Please try again.",
+        variant: "destructive"
+      });
+      return;
+    }
     const currentData = reportData[selectedReport as keyof typeof reportData];
     
     if (format === 'pdf') {
@@ -264,7 +437,17 @@ export const ReportingDashboard = () => {
         </Button>
       </div>
 
-      <Tabs value={selectedReport} onValueChange={setSelectedReport} className="w-full">
+      <Tabs 
+        value={selectedReport} 
+        onValueChange={(value) => {
+          setSelectedReport(value);
+          // Reload data when switching to employee tab to ensure fresh data
+          if (value === 'employee') {
+            loadReportData();
+          }
+        }} 
+        className="w-full"
+      >
         <TabsList className="grid w-full grid-cols-4">
           {reportTypes.map(type => {
             const Icon = type.icon;
@@ -278,6 +461,11 @@ export const ReportingDashboard = () => {
         </TabsList>
 
         <TabsContent value="sales">
+          {loading ? (
+            <div className="text-center py-12 text-muted-foreground">Loading report data...</div>
+          ) : !reportData ? (
+            <div className="text-center py-12 text-muted-foreground">No data available</div>
+          ) : (
           <div className="space-y-6">
             {/* Sales Summary */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -287,7 +475,7 @@ export const ReportingDashboard = () => {
                 </CardHeader>
                 <CardContent>
                   <div className="text-2xl font-bold">₹{reportData.sales.totalSales.toLocaleString()}</div>
-                  <p className="text-xs text-muted-foreground">+12.5% from last period</p>
+                  <p className="text-xs text-muted-foreground">All time sales</p>
                 </CardContent>
               </Card>
               
@@ -297,7 +485,7 @@ export const ReportingDashboard = () => {
                 </CardHeader>
                 <CardContent>
                   <div className="text-2xl font-bold">{reportData.sales.totalOrders}</div>
-                  <p className="text-xs text-muted-foreground">+8.3% from last period</p>
+                  <p className="text-xs text-muted-foreground">Total invoices</p>
                 </CardContent>
               </Card>
               
@@ -307,7 +495,7 @@ export const ReportingDashboard = () => {
                 </CardHeader>
                 <CardContent>
                   <div className="text-2xl font-bold">₹{reportData.sales.averageOrderValue.toLocaleString()}</div>
-                  <p className="text-xs text-muted-foreground">+3.7% from last period</p>
+                  <p className="text-xs text-muted-foreground">Per order</p>
                 </CardContent>
               </Card>
             </div>
@@ -319,7 +507,10 @@ export const ReportingDashboard = () => {
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  {reportData.sales.topProducts.map((product, index) => (
+                  {reportData.sales.topProducts.length === 0 ? (
+                    <div className="text-center py-4 text-muted-foreground">No sales data available</div>
+                  ) : (
+                    reportData.sales.topProducts.map((product, index) => (
                     <div key={index} className="flex items-center justify-between p-3 border rounded-lg">
                       <div className="flex-1">
                         <div className="font-medium">{product.name}</div>
@@ -330,7 +521,8 @@ export const ReportingDashboard = () => {
                         <div className="text-sm text-muted-foreground">Revenue</div>
                       </div>
                     </div>
-                  ))}
+                    ))
+                  )}
                 </div>
               </CardContent>
             </Card>
@@ -342,15 +534,19 @@ export const ReportingDashboard = () => {
               </CardHeader>
               <CardContent>
                 <div className="space-y-3">
-                  {Object.entries(reportData.sales.salesByCategory).map(([category, percentage]) => (
-                    <div key={category}>
-                      <div className="flex justify-between text-sm mb-1">
-                        <span className="capitalize">{category}</span>
-                        <span>{percentage}%</span>
+                  {Object.keys(reportData.sales.salesByCategory).length === 0 ? (
+                    <div className="text-center py-4 text-muted-foreground">Category data not available</div>
+                  ) : (
+                    Object.entries(reportData.sales.salesByCategory).map(([category, percentage]) => (
+                      <div key={category}>
+                        <div className="flex justify-between text-sm mb-1">
+                          <span className="capitalize">{category}</span>
+                          <span>{percentage}%</span>
+                        </div>
+                        <Progress value={percentage as number} className="h-2" />
                       </div>
-                      <Progress value={percentage} className="h-2" />
-                    </div>
-                  ))}
+                    ))
+                  )}
                 </div>
               </CardContent>
             </Card>
@@ -378,9 +574,15 @@ export const ReportingDashboard = () => {
               </CardContent>
             </Card>
           </div>
+          )}
         </TabsContent>
 
         <TabsContent value="inventory">
+          {loading ? (
+            <div className="text-center py-12 text-muted-foreground">Loading report data...</div>
+          ) : !reportData ? (
+            <div className="text-center py-12 text-muted-foreground">No data available</div>
+          ) : (
           <div className="space-y-6">
             {/* Inventory Summary */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
@@ -486,9 +688,15 @@ export const ReportingDashboard = () => {
               </CardContent>
             </Card>
           </div>
+          )}
         </TabsContent>
 
         <TabsContent value="financial">
+          {loading ? (
+            <div className="text-center py-12 text-muted-foreground">Loading report data...</div>
+          ) : !reportData ? (
+            <div className="text-center py-12 text-muted-foreground">No data available</div>
+          ) : (
           <div className="space-y-6">
             {/* Financial Summary */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -587,9 +795,15 @@ export const ReportingDashboard = () => {
               </CardContent>
             </Card>
           </div>
+          )}
         </TabsContent>
 
         <TabsContent value="employee">
+          {loading ? (
+            <div className="text-center py-12 text-muted-foreground">Loading report data...</div>
+          ) : !reportData || !reportData.employee ? (
+            <div className="text-center py-12 text-muted-foreground">No data available</div>
+          ) : (
           <div className="space-y-6">
             {/* Employee Summary */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
@@ -598,7 +812,7 @@ export const ReportingDashboard = () => {
                   <CardTitle className="text-sm font-medium">Total Employees</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">{reportData.employee.totalEmployees}</div>
+                  <div className="text-2xl font-bold">{reportData.employee?.totalEmployees || 0}</div>
                 </CardContent>
               </Card>
               
@@ -607,7 +821,7 @@ export const ReportingDashboard = () => {
                   <CardTitle className="text-sm font-medium">Active</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold text-green-600">{reportData.employee.activeEmployees}</div>
+                  <div className="text-2xl font-bold text-green-600">{reportData.employee?.activeEmployees || 0}</div>
                 </CardContent>
               </Card>
               
@@ -616,7 +830,7 @@ export const ReportingDashboard = () => {
                   <CardTitle className="text-sm font-medium">On Leave</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold text-yellow-600">{reportData.employee.onLeave}</div>
+                  <div className="text-2xl font-bold text-yellow-600">{reportData.employee?.onLeave || 0}</div>
                 </CardContent>
               </Card>
               
@@ -625,7 +839,7 @@ export const ReportingDashboard = () => {
                   <CardTitle className="text-sm font-medium">Attendance</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">{reportData.employee.attendance}%</div>
+                  <div className="text-2xl font-bold">{reportData.employee?.attendance || 0}%</div>
                 </CardContent>
               </Card>
             </div>
@@ -638,12 +852,12 @@ export const ReportingDashboard = () => {
               <CardContent>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="p-3 border rounded-lg">
-                    <div className="text-lg font-bold">₹{reportData.employee.totalSalaries.toLocaleString()}</div>
+                    <div className="text-lg font-bold">₹{Math.round(((reportData.employee?.totalSalaries || 0) / 12)).toLocaleString()}</div>
                     <div className="text-sm text-muted-foreground">Total Monthly Salaries</div>
                   </div>
                   <div className="p-3 border rounded-lg">
-                    <div className="text-lg font-bold">₹{reportData.employee.averageSalary.toLocaleString()}</div>
-                    <div className="text-sm text-muted-foreground">Average Salary</div>
+                    <div className="text-lg font-bold">₹{Math.round(((reportData.employee?.averageSalary || 0) / 12)).toLocaleString()}</div>
+                    <div className="text-sm text-muted-foreground">Average Monthly Salary</div>
                   </div>
                 </div>
               </CardContent>
@@ -655,14 +869,20 @@ export const ReportingDashboard = () => {
                 <CardTitle>Department Breakdown</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="grid grid-cols-3 gap-4">
-                  {Object.entries(reportData.employee.departments).map(([dept, count]) => (
-                    <div key={dept} className="p-3 border rounded-lg text-center">
-                      <div className="text-xl font-bold">{count}</div>
-                      <div className="text-sm text-muted-foreground capitalize">{dept}</div>
-                    </div>
-                  ))}
-                </div>
+                {reportData.employee.departments && Object.keys(reportData.employee.departments).length > 0 ? (
+                  <div className="grid grid-cols-3 gap-4">
+                    {Object.entries(reportData.employee.departments).map(([dept, count]) => (
+                      <div key={dept} className="p-3 border rounded-lg text-center">
+                        <div className="text-xl font-bold">{count as number}</div>
+                        <div className="text-sm text-muted-foreground capitalize">{dept}</div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-4 text-muted-foreground">
+                    <p className="text-sm">No department data available</p>
+                  </div>
+                )}
               </CardContent>
             </Card>
 
@@ -689,6 +909,7 @@ export const ReportingDashboard = () => {
               </CardContent>
             </Card>
           </div>
+          )}
         </TabsContent>
       </Tabs>
     </div>

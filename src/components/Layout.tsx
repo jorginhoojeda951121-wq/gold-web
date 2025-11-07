@@ -23,7 +23,9 @@ export const Layout = () => {
   const countdownIntervalRef = useRef<number | null>(null);
   const businessName = useBusinessName();
 
-  // Background auto-sync: on load, every 30 minutes, on visibility/online
+  // Background auto-sync: on load, every 30 minutes
+  // Note: Sync only occurs on initial mount (project start/reload) and periodic intervals
+  // Manual sync can be triggered via the sync button
   useEffect(() => {
     let cancelled = false;
     const SYNC_INTERVAL = 30 * 60 * 1000; // 30 minutes in milliseconds
@@ -71,27 +73,17 @@ export const Layout = () => {
       }
     };
 
-    // initial sync
+    // initial sync (runs on project start and page reload)
     runSync();
 
     // periodic sync every 30 minutes (30, 60, 90, 120...)
     syncIntervalRef.current = window.setInterval(runSync, SYNC_INTERVAL);
-
-    const onVisibility = () => {
-      if (document.visibilityState === "visible") runSync();
-    };
-    const onOnline = () => runSync();
-
-    document.addEventListener("visibilitychange", onVisibility);
-    window.addEventListener("online", onOnline);
 
     return () => {
       cancelled = true;
       if (syncIntervalRef.current) {
         window.clearInterval(syncIntervalRef.current);
       }
-      document.removeEventListener("visibilitychange", onVisibility);
-      window.removeEventListener("online", onOnline);
     };
   }, [isAuthRoute, supabase, toast]);
 
@@ -134,6 +126,11 @@ export const Layout = () => {
 
   const handleLogout = async () => {
     try {
+      // Clear user data before signing out
+      const { clearUserData, clearUserIdCache } = await import('@/lib/userStorage');
+      await clearUserData();
+      clearUserIdCache();
+      
       await supabase.auth.signOut();
     } catch (e) {
       // ignore

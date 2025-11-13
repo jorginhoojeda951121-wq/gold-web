@@ -7,7 +7,6 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { getSupabase } from '@/lib/supabase';
-import { syncReservationToCalendar } from '@/lib/googleCalendar';
 import { Calendar as CalendarIcon, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { Calendar } from '@/components/ui/calendar';
@@ -97,36 +96,10 @@ export function AddReservationDialog({ open, onOpenChange, onSuccess }: AddReser
 
       if (error) throw error;
 
-      // Sync to Google Calendar
-      try {
-        const reservation = {
-          id: reservationId,
-          customer_name: formData.customer_name,
-          customer_email: formData.customer_email || undefined,
-          customer_phone: formData.customer_phone,
-          event_type: formData.event_type,
-          event_date: format(eventDate, 'yyyy-MM-dd'),
-          event_description: formData.event_description || undefined,
-          pickup_date: pickupDate ? format(pickupDate, 'yyyy-MM-dd') : undefined,
-          return_date: returnDate ? format(returnDate, 'yyyy-MM-dd') : undefined,
-          status: 'pending',
-          special_requests: formData.special_requests || undefined,
-          total_amount: 0, // Will be updated when items are added
-        };
-        
-        await syncReservationToCalendar(reservation);
-        
-        toast({
-          title: 'Success',
-          description: 'Reservation created and synced to Google Calendar.',
-        });
-      } catch (calError) {
-        console.warn('Calendar sync failed:', calError);
-        toast({
-          title: 'Success',
-          description: 'Reservation created. Calendar sync failed.',
-        });
-      }
+      toast({
+        title: 'Success',
+        description: 'Reservation created successfully.',
+      });
 
       onSuccess();
       onOpenChange(false);

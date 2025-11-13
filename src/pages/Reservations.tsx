@@ -5,10 +5,9 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Calendar, Phone, Mail, DollarSign, Clock, Search, Plus, Eye, Edit, Trash2, CheckCircle, XCircle, AlertCircle, Package, Settings } from 'lucide-react';
+import { Calendar, Phone, Mail, DollarSign, Clock, Search, Plus, Eye, Edit, Trash2, CheckCircle, XCircle, AlertCircle, Package } from 'lucide-react';
 import { AddReservationDialog } from '@/components/AddReservationDialog';
 import { ReservationDetailsDialog } from '@/components/ReservationDetailsDialog';
-import { GoogleCalendarSettings } from '@/components/GoogleCalendarSettings';
 import { getSupabase } from '@/lib/supabase';
 import { useUserStorage } from '@/hooks/useUserStorage';
 import { format } from 'date-fns';
@@ -167,11 +166,6 @@ export default function Reservations() {
   };
 
   const filterReservations = () => {
-    // Skip filtering for calendar settings tab
-    if (activeTab === 'calendar') {
-      return;
-    }
-
     let filtered = [...reservations];
 
     // Filter by search query
@@ -339,7 +333,7 @@ export default function Reservations() {
 
       {/* Tabs and Reservations List */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-8">
+        <TabsList className="grid w-full grid-cols-7">
           <TabsTrigger value="all">All ({reservations.length})</TabsTrigger>
           <TabsTrigger value="upcoming">Upcoming ({stats.upcoming})</TabsTrigger>
           <TabsTrigger value="overdue">Overdue ({stats.overdue})</TabsTrigger>
@@ -347,10 +341,6 @@ export default function Reservations() {
           <TabsTrigger value="confirmed">Confirmed</TabsTrigger>
           <TabsTrigger value="ready">Ready</TabsTrigger>
           <TabsTrigger value="completed">Completed</TabsTrigger>
-          <TabsTrigger value="calendar">
-            <Settings className="h-4 w-4 mr-1" />
-            Calendar
-          </TabsTrigger>
         </TabsList>
 
         <TabsContent value={activeTab} className="mt-6">
@@ -478,11 +468,6 @@ export default function Reservations() {
               })}
             </div>
           )}
-        </TabsContent>
-
-        {/* Calendar Settings Tab */}
-        <TabsContent value="calendar" className="mt-6">
-          <GoogleCalendarSettings />
         </TabsContent>
       </Tabs>
 

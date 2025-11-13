@@ -7,28 +7,64 @@ import { getSupabase } from './supabase';
 import { idbGet, idbSet, idbDelete } from './indexedDb';
 
 let cachedUserId: string | null = null;
+let userIdPromise: Promise<string | null> | null = null;
 
 /**
  * Get current user ID from Supabase session
+ * Uses cache and promise deduplication to prevent multiple concurrent calls
  */
 export async function getCurrentUserId(): Promise<string | null> {
+  // Return cached value immediately if available
   if (cachedUserId) {
     return cachedUserId;
   }
 
-  try {
-    const supabase = getSupabase();
-    const { data: { session } } = await supabase.auth.getSession();
-    
-    if (session?.user?.id) {
-      cachedUserId = session.user.id;
-      return cachedUserId;
+  // If there's already a pending request, wait for it
+  if (userIdPromise) {
+    return userIdPromise;
+  }
+
+  // Create new request
+  userIdPromise = (async () => {
+    try {
+      const supabase = getSupabase();
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (session?.user?.id) {
+        cachedUserId = session.user.id;
+        // Also store in sessionStorage for faster retrieval on refresh
+        try {
+          sessionStorage.setItem('cached_user_id', cachedUserId);
+        } catch (e) {
+          // Ignore sessionStorage errors
+        }
+        return cachedUserId;
+      }
+      
+      return null;
+    } catch (error) {
+      console.error('Error getting user ID:', error);
+      return null;
+    } finally {
+      userIdPromise = null; // Clear promise after completion
     }
-    
-    return null;
-  } catch (error) {
-    console.error('Error getting user ID:', error);
-    return null;
+  })();
+
+  return userIdPromise;
+}
+
+/**
+ * Try to restore user ID from sessionStorage on page load
+ * This speeds up initial data loading after refresh
+ */
+export function restoreUserIdFromSession(): void {
+  try {
+    const storedId = sessionStorage.getItem('cached_user_id');
+    if (storedId) {
+      cachedUserId = storedId;
+    }
+  } catch (e) {
+    // Ignore sessionStorage errors
   }
 }
 
@@ -37,6 +73,12 @@ export async function getCurrentUserId(): Promise<string | null> {
  */
 export function clearUserIdCache(): void {
   cachedUserId = null;
+  userIdPromise = null;
+  try {
+    sessionStorage.removeItem('cached_user_id');
+  } catch (e) {
+    // Ignore sessionStorage errors
+  }
 }
 
 /**

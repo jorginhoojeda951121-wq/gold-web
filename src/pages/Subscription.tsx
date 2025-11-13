@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { getSupabase } from "@/lib/supabase";
+import { getCurrentUserId, getUserData, setUserData } from "@/lib/userStorage";
 import { getSubscriptionStatus, recordSubscriptionPayment, SubscriptionStatus } from "@/lib/subscription";
+import { useUserStorage } from "@/hooks/useUserStorage";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -30,9 +32,12 @@ export const Subscription = () => {
   const supabase = getSupabase();
   const navigate = useNavigate();
   const { toast } = useToast();
-  const [loading, setLoading] = useState(false); // Start as false to show UI immediately
+  
+  // CRITICAL: Use IndexedDB first for instant loading (no loading screen!)
+  const { data: subscriptionStatus, updateData: setSubscriptionStatus, loaded } = 
+    useUserStorage<SubscriptionStatus | null>('subscription_status', null);
+  
   const [processing, setProcessing] = useState(false);
-  const [subscriptionStatus, setSubscriptionStatus] = useState<SubscriptionStatus | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
   const [timeRemaining, setTimeRemaining] = useState({ days: 0, hours: 0, minutes: 0 });
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<string | null>(null);
@@ -62,36 +67,48 @@ export const Subscription = () => {
     return () => clearInterval(interval);
   }, [subscriptionStatus?.expiryDate]);
 
+  // Load fresh subscription status from Supabase in background (no loading screen!)
   useEffect(() => {
-    const checkSubscription = async () => {
+    if (!loaded) return; // Wait for IndexedDB to load first
+    
+    const syncSubscription = async () => {
       try {
-        setLoading(true);
-        const { data: { session } } = await supabase.auth.getSession();
-        if (!session?.user?.id) {
-          navigate("/auth", { replace: true });
-          return;
+        // Use cached user ID for fast access
+        const cachedUserId = await getCurrentUserId();
+        
+        if (!cachedUserId) {
+          // If no cached user ID, check session
+          const { data: { session } } = await supabase.auth.getSession();
+          if (!session?.user?.id) {
+            navigate("/auth", { replace: true });
+            return;
+          }
+          setUserId(session.user.id);
+          const status = await getSubscriptionStatus(session.user.id);
+          await setSubscriptionStatus(status);
+        } else {
+          // Use cached user ID for instant loading
+          setUserId(cachedUserId);
+          const status = await getSubscriptionStatus(cachedUserId);
+          await setSubscriptionStatus(status);
+          
+          // Verify session in background (no loading screen)
+          supabase.auth.getSession().then(({ data: { session } }) => {
+            if (!session?.user?.id) {
+              navigate("/auth", { replace: true });
+            }
+          });
         }
-
-        setUserId(session.user.id);
-        const status = await getSubscriptionStatus(session.user.id);
-        setSubscriptionStatus(status);
       } catch (error) {
-        console.error('Error checking subscription:', error);
-        toast({
-          title: "Error",
-          description: "Failed to load subscription status. Please try again.",
-          variant: "destructive",
-        });
-      } finally {
-        setLoading(false);
+        console.error('Background sync error for subscription:', error);
       }
     };
 
-    checkSubscription();
+    syncSubscription();
     // Refresh every 5 minutes
-    const interval = setInterval(checkSubscription, 5 * 60 * 1000);
+    const interval = setInterval(syncSubscription, 5 * 60 * 1000);
     return () => clearInterval(interval);
-  }, [navigate, toast, supabase]);
+  }, [loaded, navigate, supabase, setSubscriptionStatus]);
 
   const handlePayment = async (paymentMethod: string) => {
     if (!userId || !subscriptionStatus) return;
@@ -140,9 +157,9 @@ export const Subscription = () => {
     try {
       await recordSubscriptionPayment(userId, subscriptionStatus.renewalAmount);
       
-      // Refresh subscription status
+      // Refresh subscription status and save to IndexedDB
       const newStatus = await getSubscriptionStatus(userId);
-      setSubscriptionStatus(newStatus);
+      await setSubscriptionStatus(newStatus);
 
       toast({
         title: "Payment Recorded",
@@ -196,12 +213,7 @@ export const Subscription = () => {
         {/* Status Bar with Progress */}
         <Card className="border-2">
           <CardContent className="pt-6">
-            {loading && !subscriptionStatus ? (
-              <div className="flex items-center justify-center py-12">
-                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-                <span className="ml-3 text-muted-foreground">Loading subscription status...</span>
-              </div>
-            ) : !subscriptionStatus ? (
+            {!subscriptionStatus ? (
               <Alert variant="destructive">
                 <AlertCircle className="h-4 w-4" />
                 <AlertTitle>Error</AlertTitle>

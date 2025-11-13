@@ -39,6 +39,9 @@ const WEB_TO_SUPABASE_MAPPING: Record<string, string> = {
 	'reservation_items': 'reservation_items',
 	// Google Calendar settings
 	'google_calendar_settings': 'google_calendar_settings',
+	// Subscription management
+	'user_subscriptions': 'user_subscriptions',
+	'subscription_payments': 'subscription_payments',
 };
 
 // Map Supabase table names to web app IndexedDB table names
@@ -76,6 +79,9 @@ const SUPABASE_TO_WEB_MAPPING: Record<string, string> = {
 	'reservation_items': 'reservation_items',
 	// Google Calendar settings
 	'google_calendar_settings': 'google_calendar_settings',
+	// Subscription management
+	'user_subscriptions': 'user_subscriptions',
+	'subscription_payments': 'subscription_payments',
 };
 
 async function syncTable<T>(
@@ -165,6 +171,21 @@ async function syncTable<T>(
 	}
 	
 	if (upErr) {
+		// Check if it's a "table not found" error (common when migrations haven't been run yet)
+		const errorMsg = upErr?.message || '';
+		const errorCode = upErr?.code || '';
+		const isTableNotFound = errorCode === 'PGRST204' || errorCode === 'PGRST205' || 
+		                         errorMsg.includes('schema cache') || 
+		                         errorMsg.includes('does not exist') ||
+		                         errorMsg.includes('Could not find the table');
+		
+		if (isTableNotFound) {
+			// Table doesn't exist yet - this is normal if migrations haven't been run
+			console.log(`⏭️ Skipping ${supabaseTable}: table not found in database (run migrations to enable)`);
+			return; // Return silently - don't throw
+		}
+		
+		// For other errors, log and throw
 		console.error(`❌ Error fetching ${supabaseTable}:`, upErr);
 		throw upErr;
 	}
@@ -936,6 +957,8 @@ export async function syncAll() {
 	}));
 
 	// Gold Rates (current rates and making charges)
+	// NOTE: This requires the gold-rate-settings.sql migration to be run
+	// The sync will automatically skip if table doesn't exist
 	await run('gold_rates', () => syncTable('gold_rates', async (row: any) => {
 		if (!row.is_active) return; // Only sync active rates
 		

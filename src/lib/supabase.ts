@@ -12,8 +12,18 @@ export function getSupabase(): SupabaseClient {
   if (!supabaseUrl || !supabaseAnonKey) {
     throw new Error('Missing Supabase env. Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY (or VITE_SUPABASE_PUBLISHABLE_KEY), then restart the dev server.');
   }
-  // Ensure all queries use the configured REST schema (e.g., 'api' or 'public')
-  cached = createClient(supabaseUrl, supabaseAnonKey, { db: { schema } });
+  
+  // CRITICAL: Configure auth persistence to use localStorage
+  // This ensures session persists across browser refreshes
+  cached = createClient(supabaseUrl, supabaseAnonKey, { 
+    db: { schema },
+    auth: {
+      storage: window.localStorage, // Explicitly use localStorage for session persistence
+      autoRefreshToken: true, // Automatically refresh expired tokens
+      persistSession: true, // Persist session across page refreshes
+      detectSessionInUrl: true, // Detect session from URL (OAuth flows)
+    }
+  });
   return cached;
 }
 

@@ -26,8 +26,12 @@ import SyncApi from "./pages/SyncApi";
 import { Subscription } from "./pages/Subscription";
 import Reservations from "./pages/Reservations";
 import Vendors from "./pages/Vendors";
+import { restoreUserIdFromSession } from "./lib/userStorage";
 
 const queryClient = new QueryClient();
+
+// Restore cached user ID on app load for faster data loading
+restoreUserIdFromSession();
 
 const App = () => {
   return (

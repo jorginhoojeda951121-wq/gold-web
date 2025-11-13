@@ -15,8 +15,8 @@ export function useUserStorage<T>(key: string, initialValue: T) {
   useEffect(() => {
     let isMounted = true;
     let retryCount = 0;
-    const maxRetries = 5;
-    const retryDelay = 200; // 200ms between retries
+    const maxRetries = 10; // Increased retries
+    const retryDelay = 300; // Slightly longer delay
 
     const loadData = async (): Promise<void> => {
       try {
@@ -32,6 +32,15 @@ export function useUserStorage<T>(key: string, initialValue: T) {
               loadData();
             }
           }, retryDelay);
+          return;
+        }
+
+        // If still no userId after max retries, just mark as loaded with initial value
+        if (!userId) {
+          if (isMounted) {
+            setStoredValue(initialValue);
+            setLoaded(true);
+          }
           return;
         }
 
@@ -62,6 +71,7 @@ export function useUserStorage<T>(key: string, initialValue: T) {
           }
         }
       } catch (error) {
+        console.log(`Error loading data for key ${key}, using initial value:`, error);
         // On error, keep the initial value
         if (isMounted) {
           setStoredValue(initialValue);
@@ -76,7 +86,7 @@ export function useUserStorage<T>(key: string, initialValue: T) {
     return () => {
       isMounted = false;
     };
-  }, [key, initialValue, refreshTrigger]);
+  }, [key, refreshTrigger]); // Removed initialValue from dependencies to prevent reload loops
 
   // Listen for sync completion events to reload data in background
   useEffect(() => {

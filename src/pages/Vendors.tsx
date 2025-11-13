@@ -11,6 +11,7 @@ import { VendorDetailsDialog } from '@/components/VendorDetailsDialog';
 import { PurchaseOrdersTab } from '@/components/PurchaseOrdersTab';
 import { SupplierInvoicesTab } from '@/components/SupplierInvoicesTab';
 import { getSupabase } from '@/lib/supabase';
+import { useUserStorage } from '@/hooks/useUserStorage';
 
 interface Vendor {
   id: string;
@@ -45,59 +46,101 @@ const vendorTypeConfig = {
 
 export default function Vendors() {
   const { toast } = useToast();
-  const [vendors, setVendors] = useState<Vendor[]>([]);
+  
+  // CRITICAL: Use IndexedDB first for instant loading (no loading screen!)
+  const { data: vendors, updateData: setVendors, loaded } = useUserStorage<Vendor[]>('vendors', []);
+  
   const [filteredVendors, setFilteredVendors] = useState<Vendor[]>([]);
-  const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState('vendors');
   const [statusFilter, setStatusFilter] = useState('all');
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [selectedVendor, setSelectedVendor] = useState<Vendor | null>(null);
   const [showDetailsDialog, setShowDetailsDialog] = useState(false);
+  const [backgroundSyncing, setBackgroundSyncing] = useState(false);
 
+  // Load fresh data from Supabase in background (no loading screen!)
   useEffect(() => {
-    loadVendors();
-  }, []);
+    if (!loaded) return; // Wait for IndexedDB to load first
+    
+    const syncFromSupabase = async () => {
+      try {
+        setBackgroundSyncing(true);
+        const supabase = getSupabase();
+        
+        // Check if user is authenticated
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) return;
+        
+        // Query vendors from Supabase
+        const { data, error } = await supabase
+          .from('vendors')
+          .select('*')
+          .order('name', { ascending: true });
+
+        if (error) {
+          // Silent fail for table not found errors
+          if (error.code === 'PGRST301' || error.message.includes('JWT') || error.message.includes('schema cache')) {
+            return;
+          }
+          throw error;
+        }
+
+        await setVendors(data || []);
+      } catch (error: any) {
+        console.error('Background sync error for vendors:', error);
+      } finally {
+        setBackgroundSyncing(false);
+      }
+    };
+
+    syncFromSupabase();
+  }, [loaded, setVendors]);
 
   useEffect(() => {
     filterVendors();
   }, [searchQuery, statusFilter, vendors]);
 
-  const loadVendors = async () => {
+  const refreshVendors = async () => {
+    // Manual refresh - show toast
     try {
-      setLoading(true);
+      setBackgroundSyncing(true);
       const supabase = getSupabase();
       
-      // Query vendors directly from the table
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        toast({
+          title: 'Not Authenticated',
+          description: 'Please log in to refresh vendors.',
+          variant: 'destructive',
+        });
+        return;
+      }
+      
       const { data, error } = await supabase
         .from('vendors')
-        .select(`
-          *,
-          purchase_orders(count),
-          supplier_invoices(count)
-        `)
+        .select('*')
         .order('name', { ascending: true });
 
       if (error) throw error;
 
-      // Transform data to add computed fields
-      const transformedData = (data || []).map(vendor => ({
-        ...vendor,
-        purchase_order_count: vendor.purchase_orders?.[0]?.count || 0,
-        invoice_count: vendor.supplier_invoices?.[0]?.count || 0,
-        outstanding_invoice_count: 0 // Would need separate query with status filter
-      }));
-
-      setVendors(transformedData as any);
-    } catch (error) {
-      console.error('Error loading vendors:', error);
+      await setVendors(data || []);
+      
       toast({
-        title: 'Error',
-        description: 'Failed to load vendors. Please try again.',
-        variant: 'destructive',
+        title: 'Refreshed',
+        description: 'Vendors updated successfully.',
       });
+    } catch (error: any) {
+      console.error('Error refreshing vendors:', error);
+      if (!error?.message?.includes('JWT') && error?.code !== 'PGRST301') {
+        toast({
+          title: 'Error',
+          description: 'Failed to refresh vendors.',
+          variant: 'destructive',
+        });
+      }
     } finally {
-      setLoading(false);
+      setBackgroundSyncing(false);
     }
   };
 
@@ -134,11 +177,13 @@ export default function Vendors() {
 
       if (error) throw error;
 
+      // Update local storage immediately
+      await setVendors(vendors.filter(v => v.id !== id));
+      
       toast({
         title: 'Success',
         description: 'Vendor deleted successfully.',
       });
-      loadVendors();
     } catch (error: any) {
       console.error('Error deleting vendor:', error);
       toast({
@@ -188,14 +233,7 @@ export default function Vendors() {
     outstanding: vendors.reduce((sum, v) => sum + (v.outstanding_balance || 0), 0),
   };
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
-      </div>
-    );
-  }
-
+  // No loading screen - show UI immediately with cached data from IndexedDB!
   return (
     <div className="container mx-auto p-6 space-y-6">
       {/* Header */}
@@ -432,12 +470,12 @@ export default function Vendors() {
 
         {/* Purchase Orders Tab */}
         <TabsContent value="purchase-orders" className="mt-6">
-          <PurchaseOrdersTab vendors={vendors} onUpdate={loadVendors} />
+          <PurchaseOrdersTab vendors={vendors} onUpdate={refreshVendors} />
         </TabsContent>
 
         {/* Invoices Tab */}
         <TabsContent value="invoices" className="mt-6">
-          <SupplierInvoicesTab vendors={vendors} onUpdate={loadVendors} />
+          <SupplierInvoicesTab vendors={vendors} onUpdate={refreshVendors} />
         </TabsContent>
 
         {/* Payments Tab */}
@@ -458,7 +496,7 @@ export default function Vendors() {
       <AddVendorDialog
         open={showAddDialog}
         onOpenChange={setShowAddDialog}
-        onSuccess={loadVendors}
+        onSuccess={refreshVendors}
       />
 
       {selectedVendor && (
@@ -466,7 +504,7 @@ export default function Vendors() {
           open={showDetailsDialog}
           onOpenChange={setShowDetailsDialog}
           vendor={selectedVendor}
-          onSuccess={loadVendors}
+          onSuccess={refreshVendors}
         />
       )}
     </div>

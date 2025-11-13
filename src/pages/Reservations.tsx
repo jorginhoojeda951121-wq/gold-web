@@ -10,6 +10,7 @@ import { AddReservationDialog } from '@/components/AddReservationDialog';
 import { ReservationDetailsDialog } from '@/components/ReservationDetailsDialog';
 import { GoogleCalendarSettings } from '@/components/GoogleCalendarSettings';
 import { getSupabase } from '@/lib/supabase';
+import { useUserStorage } from '@/hooks/useUserStorage';
 import { format } from 'date-fns';
 
 interface Reservation {
@@ -53,59 +54,115 @@ const eventTypeConfig = {
 
 export default function Reservations() {
   const { toast } = useToast();
-  const [reservations, setReservations] = useState<Reservation[]>([]);
+  
+  // CRITICAL: Use IndexedDB first for instant loading (no loading screen!)
+  const { data: reservations, updateData: setReservations, loaded } = useUserStorage<Reservation[]>('reservations', []);
+  
   const [filteredReservations, setFilteredReservations] = useState<Reservation[]>([]);
-  const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState('all');
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [selectedReservation, setSelectedReservation] = useState<Reservation | null>(null);
   const [showDetailsDialog, setShowDetailsDialog] = useState(false);
+  const [backgroundSyncing, setBackgroundSyncing] = useState(false);
 
+  // Load fresh data from Supabase in background (no loading screen!)
   useEffect(() => {
-    loadReservations();
-  }, []);
+    if (!loaded) return; // Wait for IndexedDB to load first
+    
+    const syncFromSupabase = async () => {
+      try {
+        setBackgroundSyncing(true);
+        const supabase = getSupabase();
+        
+        // Check if user is authenticated
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) return;
+        
+        // Query reservations from Supabase
+        const { data, error } = await supabase
+          .from('reservations')
+          .select('*')
+          .order('event_date', { ascending: true });
+
+        if (error) {
+          // Silent fail for table not found errors
+          if (error.code === 'PGRST301' || error.message.includes('JWT') || error.message.includes('schema cache')) {
+            return;
+          }
+          throw error;
+        }
+
+        // Transform and update local storage
+        const transformedData = (data || []).map(reservation => ({
+          ...reservation,
+          is_overdue: reservation.status !== 'cancelled' && 
+                     reservation.status !== 'returned' && 
+                     new Date(reservation.event_date) < new Date()
+        }));
+
+        await setReservations(transformedData as any);
+      } catch (error: any) {
+        console.error('Background sync error for reservations:', error);
+      } finally {
+        setBackgroundSyncing(false);
+      }
+    };
+
+    syncFromSupabase();
+  }, [loaded, setReservations]);
 
   useEffect(() => {
     filterReservations();
   }, [searchQuery, activeTab, reservations]);
 
-  const loadReservations = async () => {
+  const refreshReservations = async () => {
+    // Manual refresh - show toast
     try {
-      setLoading(true);
+      setBackgroundSyncing(true);
       const supabase = getSupabase();
       
-      // Query reservations directly from the table
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        toast({
+          title: 'Not Authenticated',
+          description: 'Please log in to refresh reservations.',
+          variant: 'destructive',
+        });
+        return;
+      }
+      
       const { data, error } = await supabase
         .from('reservations')
-        .select(`
-          *,
-          reservation_items(count)
-        `)
+        .select('*')
         .order('event_date', { ascending: true });
 
       if (error) throw error;
 
-      // Transform data to add computed fields
       const transformedData = (data || []).map(reservation => ({
         ...reservation,
-        item_count: reservation.reservation_items?.[0]?.count || 0,
-        ready_count: 0, // Would need separate query to count ready items
         is_overdue: reservation.status !== 'cancelled' && 
                    reservation.status !== 'returned' && 
                    new Date(reservation.event_date) < new Date()
       }));
 
-      setReservations(transformedData as any);
-    } catch (error) {
-      console.error('Error loading reservations:', error);
+      await setReservations(transformedData as any);
+      
       toast({
-        title: 'Error',
-        description: 'Failed to load reservations. Please try again.',
-        variant: 'destructive',
+        title: 'Refreshed',
+        description: 'Reservations updated successfully.',
       });
+    } catch (error: any) {
+      console.error('Error refreshing reservations:', error);
+      if (!error?.message?.includes('JWT') && error?.code !== 'PGRST301') {
+        toast({
+          title: 'Error',
+          description: 'Failed to refresh reservations.',
+          variant: 'destructive',
+        });
+      }
     } finally {
-      setLoading(false);
+      setBackgroundSyncing(false);
     }
   };
 
@@ -158,11 +215,13 @@ export default function Reservations() {
 
       if (error) throw error;
 
+      // Update local storage immediately
+      await setReservations(reservations.filter(r => r.id !== id));
+      
       toast({
         title: 'Success',
         description: 'Reservation deleted successfully.',
       });
-      loadReservations();
     } catch (error) {
       console.error('Error deleting reservation:', error);
       toast({
@@ -218,14 +277,7 @@ export default function Reservations() {
     totalValue: reservations.reduce((sum, r) => sum + (r.total_amount || 0), 0),
   };
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
-      </div>
-    );
-  }
-
+  // No loading screen - show UI immediately with cached data from IndexedDB!
   return (
     <div className="container mx-auto p-6 space-y-6">
       {/* Header */}
@@ -438,7 +490,7 @@ export default function Reservations() {
       <AddReservationDialog
         open={showAddDialog}
         onOpenChange={setShowAddDialog}
-        onSuccess={loadReservations}
+        onSuccess={refreshReservations}
       />
 
       {selectedReservation && (
@@ -446,7 +498,7 @@ export default function Reservations() {
           open={showDetailsDialog}
           onOpenChange={setShowDetailsDialog}
           reservation={selectedReservation}
-          onSuccess={loadReservations}
+          onSuccess={refreshReservations}
         />
       )}
     </div>

@@ -132,7 +132,6 @@ export const CustomerLedger = () => {
       
       // Reload data when user changes (login/logout)
       if (session?.user?.id) {
-        console.log('🔄 User changed, reloading customer data...');
         // Small delay to ensure cache is cleared and new user ID is fetched
         setTimeout(() => {
           loadCustomerData();

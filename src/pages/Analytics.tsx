@@ -65,12 +65,17 @@ const Analytics = () => {
     try {
       setLoading(true);
       
-      // Load all user-scoped data
-      const [invoices, inventoryItems, customers] = await Promise.all([
-        getUserData<any[]>('pos_recentInvoices') || [],
-        getUserData<any[]>('inventory_items') || [],
-        getUserData<any[]>('customers') || [],
+      // Load all user-scoped data with proper defaults
+      const [invoicesData, inventoryData, customersData] = await Promise.all([
+        getUserData<any[]>('pos_recentInvoices'),
+        getUserData<any[]>('inventory_items'),
+        getUserData<any[]>('customers'),
       ]);
+
+      // Ensure arrays are defined
+      const invoices = Array.isArray(invoicesData) ? invoicesData : [];
+      const inventoryItems = Array.isArray(inventoryData) ? inventoryData : [];
+      const customers = Array.isArray(customersData) ? customersData : [];
 
       // Calculate monthly revenue and items sold from invoices
       const now = new Date();
@@ -217,6 +222,19 @@ const Analytics = () => {
 
   useEffect(() => {
     loadAnalyticsData();
+  }, [loadAnalyticsData]);
+
+  // Listen for sync completion events to reload data in background
+  useEffect(() => {
+    const handleDataSynced = () => {
+      loadAnalyticsData();
+    };
+
+    window.addEventListener('data-synced', handleDataSynced);
+    
+    return () => {
+      window.removeEventListener('data-synced', handleDataSynced);
+    };
   }, [loadAnalyticsData]);
 
   return (

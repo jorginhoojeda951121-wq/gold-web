@@ -3,7 +3,6 @@
 
 function handleUpload(request) {
   try {
-    console.log(`Received ${request.changes.length} changes from mobile`);
     
     // Process each change and save to web app's IndexedDB
     if (request.changes && request.changes.length > 0) {
@@ -15,7 +14,6 @@ function handleUpload(request) {
         id: change.id
       }));
       
-      console.log('Processed changes:', processedChanges);
       
       // Return success with processed changes
       return {
@@ -42,7 +40,6 @@ function handleDownload(since) {
   try {
     // For now, return empty changes
     // In a real implementation, you'd fetch from a database
-    console.log(`Download requested since: ${since}`);
     
     return {
       success: true,

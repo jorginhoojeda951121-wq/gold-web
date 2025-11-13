@@ -15,6 +15,8 @@ import POS from "./pages/POS";
 import Analytics from "./pages/Analytics";
 import { ReportingDashboard } from "@/components/ReportingDashboard";
 import Contact from "./pages/Contact";
+import Support from "./pages/Support";
+import PublicSupport from "./pages/PublicSupport";
 import GoldCollection from "./pages/GoldCollection";
 import PreciousStones from "./pages/PreciousStones";
 import JewelryCollection from "./pages/JewelryCollection";
@@ -22,11 +24,12 @@ import CraftsmenTracking from "./pages/CraftsmenTracking";
 import NotFound from "./pages/NotFound";
 import SyncApi from "./pages/SyncApi";
 import { Subscription } from "./pages/Subscription";
+import Reservations from "./pages/Reservations";
+import Vendors from "./pages/Vendors";
 
 const queryClient = new QueryClient();
 
 const App = () => {
-  console.log("App component rendering...");
   return (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
@@ -37,6 +40,7 @@ const App = () => {
           {/* Landing page - no layout wrapper */}
           <Route path="/" element={<Landing />} />
           <Route path="/auth" element={<Auth />} />
+          <Route path="/public-support" element={<PublicSupport />} />
           
           {/* Protected routes with layout */}
           <Route element={<Layout />}>
@@ -53,7 +57,10 @@ const App = () => {
             <Route path="/analytics" element={<Analytics />} />
             <Route path="/reports" element={<ReportingDashboard />} />
             <Route path="/ledger" element={<CustomerLedger />} />
+            <Route path="/reservations" element={<RequireAuth><Reservations /></RequireAuth>} />
+            <Route path="/vendors" element={<RequireAuth><Vendors /></RequireAuth>} />
             <Route path="/contact" element={<Contact />} />
+            <Route path="/support" element={<RequireAuth><Support /></RequireAuth>} />
             <Route path="/settings" element={<BusinessSettings />} />
             <Route path="/api/sync/download" element={<SyncApi />} />
             <Route path="/api/sync/upload" element={<SyncApi />} />

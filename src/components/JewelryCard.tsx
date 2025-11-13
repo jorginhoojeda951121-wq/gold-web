@@ -1,4 +1,5 @@
-import { MoreVertical, Edit, Trash2, Eye, Gem, ShoppingCart, Sparkles } from "lucide-react";
+import React from "react";
+import { MoreVertical, Edit, Trash2, Eye, Gem, ShoppingCart, Sparkles, MessageCircle } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
@@ -6,8 +7,10 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import { Badge } from "@/components/ui/badge";
+import { WhatsAppShare } from "./WhatsAppShare";
 
 export interface JewelryItem {
   id: string;
@@ -20,6 +23,13 @@ export interface JewelryItem {
   inStock: number;
   isArtificial?: boolean;
   image?: string;
+  // Custom Tax Rate Fields
+  taxRate?: number;           // Custom GST rate for this item (e.g., 3 for 3%, 18 for 18%)
+  taxIncluded?: boolean;      // Whether price includes tax or not (default: false)
+  taxCategory?: 'jewelry' | 'artificial' | 'gemstones' | 'other'; // Tax category for reporting
+  // Barcode/SKU
+  barcode?: string;           // Barcode or SKU for quick lookup
+  sku?: string;               // Stock Keeping Unit (alternative to barcode)
 }
 
 interface JewelryCardProps {
@@ -33,6 +43,8 @@ interface JewelryCardProps {
 }
 
 export const JewelryCard = ({ item, onEdit, onDelete, onView, onAddToCart, showAddToCart = false, showActions = true }: JewelryCardProps) => {
+  const [showWhatsAppShare, setShowWhatsAppShare] = React.useState(false);
+  
   const getStockStatus = (stock: number) => {
     if (stock === 0) return { label: "Out of Stock", variant: "destructive" as const };
     if (stock < 3) return { label: "Low Stock", variant: "secondary" as const };
@@ -42,13 +54,14 @@ export const JewelryCard = ({ item, onEdit, onDelete, onView, onAddToCart, showA
   const stockStatus = getStockStatus(item.inStock);
 
   return (
+    <>
     <Card 
-      className="group relative bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden transition-all duration-300 hover:shadow-2xl hover:-translate-y-1 hover:border-purple-300 cursor-pointer h-full flex flex-col"
+      className="group relative bg-white rounded-2xl shadow-lg border border-gray-100/80 overflow-hidden transition-all duration-300 hover:shadow-2xl hover:-translate-y-2 hover:border-purple-300/60 hover:scale-[1.02] cursor-pointer h-full flex flex-col backdrop-blur-sm"
       onClick={() => onView(item)}
     >
       <CardContent className="p-0 flex flex-col h-full">
         {/* Premium Image Section - Fixed Height */}
-        <div className="relative w-full overflow-hidden bg-gradient-to-br from-purple-50 via-pink-50 to-blue-50 flex-shrink-0" style={{ height: '256px', minHeight: '256px', maxHeight: '256px' }}>
+        <div className="relative w-full overflow-hidden bg-gradient-to-br from-purple-50 via-pink-50 to-blue-50 flex-shrink-0 shadow-inner" style={{ height: '160px', minHeight: '160px', maxHeight: '160px' }}>
           {item.image && item.image.trim() !== '' ? (
             <>
               <img 
@@ -59,9 +72,9 @@ export const JewelryCard = ({ item, onEdit, onDelete, onView, onAddToCart, showA
                 style={{ 
                   objectFit: 'cover', 
                   objectPosition: 'center',
-                  minHeight: '256px',
-                  maxHeight: '256px',
-                  height: '256px'
+                  minHeight: '160px',
+                  maxHeight: '160px',
+                  height: '160px'
                 }}
                 loading="lazy"
                 onError={(e) => {
@@ -100,14 +113,16 @@ export const JewelryCard = ({ item, onEdit, onDelete, onView, onAddToCart, showA
                   }
                 }}
               />
-              {/* Gradient overlay on hover */}
-              <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none"></div>
+              {/* Enhanced gradient overlay on hover */}
+              <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none"></div>
+              {/* Shine effect on hover */}
+              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000 pointer-events-none"></div>
             </>
           ) : (
             <div className="absolute inset-0 w-full h-full flex items-center justify-center">
               <div className="text-center">
-                <div className="w-20 h-20 mx-auto mb-3 rounded-full bg-gradient-to-br from-purple-400 via-pink-400 to-blue-400 flex items-center justify-center shadow-xl">
-                  <Gem className="h-10 w-10 text-white" />
+                <div className="w-12 h-12 mx-auto mb-2 rounded-full bg-gradient-to-br from-purple-400 via-pink-400 to-blue-400 flex items-center justify-center shadow-xl">
+                  <Gem className="h-6 w-6 text-white" />
                 </div>
                 <p className="text-xs text-gray-600 font-medium">Premium Jewelry</p>
               </div>
@@ -115,10 +130,10 @@ export const JewelryCard = ({ item, onEdit, onDelete, onView, onAddToCart, showA
           )}
 
           {/* Premium Badges */}
-          <div className="absolute top-4 left-4 flex flex-col gap-2">
+          <div className="absolute top-2 left-2 flex flex-col gap-1.5">
             {item.isArtificial && (
-              <Badge className="bg-gradient-to-r from-amber-400 to-orange-500 text-white text-xs font-bold shadow-lg border border-white/30 px-2.5 py-1">
-                <Sparkles className="h-3 w-3 mr-1" />
+              <Badge className="bg-gradient-to-r from-amber-400 to-orange-500 text-white text-xs font-bold shadow-lg border border-white/30 px-2 py-0.5">
+                <Sparkles className="h-2.5 w-2.5 mr-1" />
                 Artificial
               </Badge>
             )}
@@ -127,13 +142,13 @@ export const JewelryCard = ({ item, onEdit, onDelete, onView, onAddToCart, showA
           {/* Stock Status Badge */}
           <Badge 
             variant={stockStatus.variant}
-            className={`absolute top-4 right-4 shadow-lg backdrop-blur-sm border ${
+            className={`absolute top-2 right-2 shadow-lg backdrop-blur-sm border text-xs ${
               stockStatus.variant === 'destructive' 
                 ? 'bg-red-500/90 text-white border-white/30' 
                 : stockStatus.variant === 'secondary'
                 ? 'bg-yellow-500/90 text-white border-white/30'
                 : 'bg-green-500/90 text-white border-white/30'
-            } font-bold px-3 py-1`}
+            } font-bold px-2 py-0.5`}
           >
             {stockStatus.label}
           </Badge>
@@ -152,7 +167,7 @@ export const JewelryCard = ({ item, onEdit, onDelete, onView, onAddToCart, showA
                     <MoreVertical className="h-4 w-4 text-gray-700" />
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-48">
+                <DropdownMenuContent align="end" className="w-48" onClick={(e) => e.stopPropagation()}>
                   <DropdownMenuItem 
                     onClick={(e) => {
                       e.stopPropagation();
@@ -173,6 +188,22 @@ export const JewelryCard = ({ item, onEdit, onDelete, onView, onAddToCart, showA
                     <Edit className="h-4 w-4 mr-2" />
                     Edit Item
                   </DropdownMenuItem>
+                  
+                  <DropdownMenuSeparator />
+                  
+                  <DropdownMenuItem 
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setShowWhatsAppShare(true);
+                    }}
+                    className="cursor-pointer text-green-600 focus:text-green-700"
+                  >
+                    <MessageCircle className="h-4 w-4 mr-2" />
+                    Share on WhatsApp
+                  </DropdownMenuItem>
+                  
+                  <DropdownMenuSeparator />
+                  
                   <DropdownMenuItem 
                     onClick={(e) => {
                       e.stopPropagation();
@@ -190,57 +221,56 @@ export const JewelryCard = ({ item, onEdit, onDelete, onView, onAddToCart, showA
         </div>
 
         {/* Premium Content Section */}
-        <div className="p-6 bg-gradient-to-b from-white to-gray-50/50 flex flex-col min-h-[280px]">
+        <div className="p-4 bg-gradient-to-b from-white via-white to-gray-50/30 flex flex-col min-h-[200px] relative">
+          {/* Decorative corner accent */}
+          <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-purple-100/20 via-pink-100/20 to-blue-100/20 rounded-bl-full opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none"></div>
           {/* Product Header */}
-          <div className="mb-4">
-            <h3 className="text-xl font-bold text-gray-900 mb-1.5 group-hover:text-purple-600 transition-colors duration-300">
+          <div className="mb-2.5">
+            <h3 className="text-lg font-bold text-gray-900 mb-1 group-hover:text-purple-600 transition-colors duration-300 line-clamp-1">
               {item.name}
             </h3>
-            <p className="text-sm font-medium text-purple-600 uppercase tracking-wide">
+            <p className="text-xs font-medium text-purple-600 uppercase tracking-wide">
               {item.type}
             </p>
           </div>
 
           {/* Premium Details Grid - Fixed Height Container */}
-          <div className="grid grid-cols-2 gap-2.5 mb-5 flex-grow">
-            <div className="col-span-2 py-2.5 px-3.5 rounded-xl bg-gradient-to-r from-purple-50 to-pink-50 border border-purple-100 min-h-[48px] flex items-center">
+          <div className="grid grid-cols-2 gap-2 mb-2 flex-grow">
+            <div className="col-span-2 py-1 px-2 rounded-lg bg-gradient-to-r from-purple-50 via-pink-50 to-purple-50 border border-purple-100/80 min-h-[32px] flex items-center shadow-sm hover:shadow-md transition-shadow duration-300">
               <div className="flex items-center justify-between w-full">
                 <span className="text-xs font-semibold text-purple-700 uppercase tracking-wide">Gemstone</span>
-                <span className="text-sm font-bold text-gray-900">{item.gemstone || 'None'}</span>
+                <span className="text-xs font-bold text-gray-900 truncate ml-2">{item.gemstone || 'None'}</span>
               </div>
             </div>
             
-            {item.carat > 0 ? (
-              <div className="py-2.5 px-3.5 rounded-xl bg-gradient-to-r from-blue-50 to-cyan-50 border border-blue-100 min-h-[72px] flex flex-col justify-center">
-                <span className="text-xs font-semibold text-blue-700 uppercase tracking-wide mb-1">Carat</span>
-                <span className="text-sm font-bold text-gray-900">{item.carat}ct</span>
-              </div>
-            ) : (
-              <div className="py-2.5 px-3.5 rounded-xl bg-gradient-to-r from-blue-50 to-cyan-50 border border-blue-100 min-h-[72px] flex flex-col justify-center opacity-0 pointer-events-none">
-                <span className="text-xs font-semibold text-blue-700 uppercase tracking-wide mb-1">Carat</span>
-                <span className="text-sm font-bold text-gray-900">-</span>
+            {item.carat > 0 && (
+              <div className="py-1.5 px-2.5 rounded-lg bg-gradient-to-r from-blue-50 via-cyan-50 to-blue-50 border border-blue-100/80 min-h-[50px] flex flex-col justify-center shadow-sm hover:shadow-md transition-shadow duration-300">
+                <span className="text-xs font-semibold text-blue-700 uppercase tracking-wide mb-0.5">Carat</span>
+                <span className="text-xs font-bold text-gray-900">{item.carat}ct</span>
               </div>
             )}
             
-            <div className="py-2.5 px-3.5 rounded-xl bg-gradient-to-r from-amber-50 to-yellow-50 border border-amber-100 min-h-[72px] flex flex-col justify-center">
-              <span className="text-xs font-semibold text-amber-700 uppercase tracking-wide mb-1">Metal</span>
-              <span className="text-sm font-bold text-gray-900">{item.metal}</span>
+            <div className="col-span-2 py-1 px-2 rounded-lg bg-gradient-to-r from-amber-50 via-yellow-50 to-amber-50 border border-amber-100/80 min-h-[32px] flex items-center shadow-sm hover:shadow-md transition-shadow duration-300">
+              <div className="flex items-center justify-between w-full">
+                <span className="text-xs font-semibold text-amber-700 uppercase tracking-wide">PURITY</span>
+                <span className="text-xs font-bold text-gray-900 truncate ml-2">{item.metal}</span>
+              </div>
             </div>
             
-            <div className="col-span-2 py-2.5 px-3.5 rounded-xl bg-gray-50 border border-gray-200 min-h-[48px] flex items-center">
+            <div className="col-span-2 py-1 px-2 rounded-lg bg-gradient-to-r from-gray-50 to-gray-100/50 border border-gray-200/80 min-h-[32px] flex items-center shadow-sm hover:shadow-md transition-shadow duration-300">
               <div className="flex items-center justify-between w-full">
                 <span className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Stock</span>
-                <span className="text-sm font-bold text-gray-900">{item.inStock} units</span>
+                <span className="text-xs font-bold text-gray-900">{item.inStock} units</span>
               </div>
             </div>
           </div>
 
           {/* Price and Action Section - Always at Bottom */}
-          <div className="pt-4 border-t border-gray-200 mt-auto">
-            <div className="flex items-center justify-between mb-4">
+          <div className="pt-2 border-t border-gray-200/80 mt-auto relative z-10">
+            <div className="flex items-center justify-between mb-2">
               <div>
-                <span className="text-xs font-medium text-gray-500 uppercase tracking-wide block mb-1">Price</span>
-                <span className="text-2xl font-bold bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent">
+                <span className="text-xs font-medium text-gray-500 uppercase tracking-wide block mb-0.5">Price</span>
+                <span className="text-xl font-bold bg-gradient-to-r from-green-600 via-emerald-600 to-green-600 bg-clip-text text-transparent drop-shadow-sm">
                   ₹{item.price.toLocaleString()}
                 </span>
               </div>
@@ -249,22 +279,25 @@ export const JewelryCard = ({ item, onEdit, onDelete, onView, onAddToCart, showA
             {/* Action Button - Fixed at Bottom */}
             {showAddToCart && onAddToCart ? (
               <Button
-                size="default"
+                size="sm"
                 disabled={item.inStock === 0}
                 onClick={(e) => { e.stopPropagation(); onAddToCart(item); }}
-                className="w-full bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white font-semibold py-2.5 shadow-lg hover:shadow-xl transition-all duration-300 rounded-xl disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full bg-gradient-to-r from-green-600 via-emerald-600 to-green-600 hover:from-green-700 hover:via-emerald-700 hover:to-green-700 text-white font-semibold py-2 shadow-md hover:shadow-lg hover:scale-[1.02] active:scale-[0.98] transition-all duration-300 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed relative overflow-hidden group/btn text-xs"
               >
-                <ShoppingCart className="h-4 w-4 mr-2" />
-                {item.inStock === 0 ? "Out of Stock" : "Add to Cart"}
+                <span className="relative z-10 flex items-center justify-center">
+                  <ShoppingCart className="h-3.5 w-3.5 mr-1.5" />
+                  {item.inStock === 0 ? "Out of Stock" : "Add to Cart"}
+                </span>
+                <div className="absolute inset-0 bg-gradient-to-r from-white/0 via-white/20 to-white/0 translate-x-[-100%] group-hover/btn:translate-x-[100%] transition-transform duration-700"></div>
               </Button>
             ) : (
               <Button
                 variant="outline"
-                size="default"
+                size="sm"
                 onClick={(e) => { e.stopPropagation(); onView(item); }}
-                className="w-full border-2 border-purple-200 text-purple-700 hover:bg-purple-50 hover:border-purple-300 font-semibold py-2.5 transition-all duration-200 rounded-xl"
+                className="w-full border-2 border-purple-200/80 text-purple-700 hover:bg-gradient-to-r hover:from-purple-50 hover:to-pink-50 hover:border-purple-300 font-semibold py-2 hover:scale-[1.02] active:scale-[0.98] transition-all duration-300 rounded-lg shadow-sm hover:shadow-md text-xs"
               >
-                <Eye className="h-4 w-4 mr-2" />
+                <Eye className="h-3.5 w-3.5 mr-1.5" />
                 View Details
               </Button>
             )}
@@ -272,5 +305,13 @@ export const JewelryCard = ({ item, onEdit, onDelete, onView, onAddToCart, showA
         </div>
       </CardContent>
     </Card>
+      
+    {/* WhatsApp Share Dialog - Outside Card to prevent event propagation */}
+    <WhatsAppShare
+      item={item}
+      open={showWhatsAppShare}
+      onOpenChange={setShowWhatsAppShare}
+    />
+    </>
   );
 };

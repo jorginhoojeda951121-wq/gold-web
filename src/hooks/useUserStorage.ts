@@ -9,11 +9,32 @@ import { getUserData, setUserData } from '@/lib/userStorage';
 export function useUserStorage<T>(key: string, initialValue: T) {
   const [storedValue, setStoredValue] = useState<T>(initialValue);
   const [loaded, setLoaded] = useState(false);
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
 
+  // Load data from IndexedDB with retry if user ID not available
   useEffect(() => {
     let isMounted = true;
-    (async () => {
+    let retryCount = 0;
+    const maxRetries = 5;
+    const retryDelay = 200; // 200ms between retries
+
+    const loadData = async (): Promise<void> => {
       try {
+        // Check if user ID is available
+        const { getCurrentUserId } = await import('@/lib/userStorage');
+        const userId = await getCurrentUserId();
+        
+        // If no user ID and we haven't retried enough, wait and retry
+        if (!userId && retryCount < maxRetries) {
+          retryCount++;
+          setTimeout(() => {
+            if (isMounted) {
+              loadData();
+            }
+          }, retryDelay);
+          return;
+        }
+
         const valueFromDb = await getUserData<T>(key);
         if (isMounted) {
           // If valueFromDb is undefined, use initialValue
@@ -30,7 +51,6 @@ export function useUserStorage<T>(key: string, initialValue: T) {
             // Empty array exists but we have seed data - use seed data if key is in seed list
             const seedableKeys = ['craftsmen', 'customers', 'staff_employees', 'jewelry_items', 'gold_items', 'stones_items', 'pos_recentInvoices'];
             if (seedableKeys.includes(key)) {
-              console.log(`⚠️ ${key} exists but is empty, using seed data`);
               setStoredValue(initialValue);
               // Also save seed data to IndexedDB
               await setUserData<T>(key, initialValue);
@@ -42,7 +62,6 @@ export function useUserStorage<T>(key: string, initialValue: T) {
           }
         }
       } catch (error) {
-        console.log(error);
         // On error, keep the initial value
         if (isMounted) {
           setStoredValue(initialValue);
@@ -50,11 +69,28 @@ export function useUserStorage<T>(key: string, initialValue: T) {
       } finally {
         if (isMounted) setLoaded(true);
       }
-    })();
+    };
+
+    loadData();
+    
     return () => {
       isMounted = false;
     };
-  }, [key, initialValue]);
+  }, [key, initialValue, refreshTrigger]);
+
+  // Listen for sync completion events to reload data in background
+  useEffect(() => {
+    const handleDataSynced = () => {
+      // Trigger a re-fetch of data
+      setRefreshTrigger(prev => prev + 1);
+    };
+
+    window.addEventListener('data-synced', handleDataSynced);
+    
+    return () => {
+      window.removeEventListener('data-synced', handleDataSynced);
+    };
+  }, [key]);
 
   const setValue = async (value: T | ((val: T) => T)) => {
     try {

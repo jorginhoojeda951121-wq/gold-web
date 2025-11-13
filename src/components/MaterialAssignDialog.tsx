@@ -18,7 +18,8 @@ export const MaterialAssignDialog = ({ open, onOpenChange, craftsmanName, onAssi
     type: "",
     quantity: "",
     unit: "",
-    projectId: ""
+    projectId: "",
+    agreedAmount: ""
   });
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -33,7 +34,10 @@ export const MaterialAssignDialog = ({ open, onOpenChange, craftsmanName, onAssi
       quantity: parseFloat(formData.quantity),
       unit: formData.unit,
       assignedDate: new Date().toISOString().split('T')[0],
-      projectId: formData.projectId || undefined
+      projectId: formData.projectId || undefined,
+      agreedAmount: formData.agreedAmount ? parseFloat(formData.agreedAmount) : undefined,
+      amountPaid: 0,
+      paymentStatus: 'unpaid'
     };
 
     onAssign(newMaterial);
@@ -41,7 +45,8 @@ export const MaterialAssignDialog = ({ open, onOpenChange, craftsmanName, onAssi
       type: "",
       quantity: "",
       unit: "",
-      projectId: ""
+      projectId: "",
+      agreedAmount: ""
     });
     onOpenChange(false);
   };
@@ -123,6 +128,21 @@ export const MaterialAssignDialog = ({ open, onOpenChange, craftsmanName, onAssi
               onChange={(e) => setFormData({ ...formData, projectId: e.target.value })}
               placeholder="Enter project ID"
             />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="agreedAmount">Agreed Amount (₹) (Optional)</Label>
+            <Input
+              id="agreedAmount"
+              type="number"
+              step="0.01"
+              value={formData.agreedAmount}
+              onChange={(e) => setFormData({ ...formData, agreedAmount: e.target.value })}
+              placeholder="Enter agreed payment amount"
+            />
+            <p className="text-xs text-gray-500">
+              Amount to be paid to craftsman for this work
+            </p>
           </div>
 
           <div className="flex justify-end space-x-3 pt-4">

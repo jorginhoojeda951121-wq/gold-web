@@ -43,10 +43,10 @@ export function clearUserIdCache(): void {
  * Get user-scoped storage key
  * Format: user:{userId}:{key}
  */
-export async function getUserScopedKey(key: string): Promise<string> {
+export async function getUserScopedKey(key: string): Promise<string | null> {
   const userId = await getCurrentUserId();
   if (!userId) {
-    throw new Error('User not authenticated. Cannot access user-scoped storage.');
+    return null;
   }
   return `user:${userId}:${key}`;
 }
@@ -57,9 +57,13 @@ export async function getUserScopedKey(key: string): Promise<string> {
 export async function getUserData<T>(key: string): Promise<T | undefined> {
   try {
     const scopedKey = await getUserScopedKey(key);
+    if (!scopedKey) {
+      // User not authenticated, return undefined silently
+      return undefined;
+    }
     return await idbGet<T>(scopedKey);
   } catch (error) {
-    console.error(`Error getting user data for key ${key}:`, error);
+    // Silent fail - just return undefined
     return undefined;
   }
 }
@@ -70,6 +74,10 @@ export async function getUserData<T>(key: string): Promise<T | undefined> {
 export async function setUserData<T>(key: string, value: T): Promise<void> {
   try {
     const scopedKey = await getUserScopedKey(key);
+    if (!scopedKey) {
+      // User not authenticated, skip silently
+      return;
+    }
     await idbSet<T>(scopedKey, value);
   } catch (error) {
     console.error(`Error setting user data for key ${key}:`, error);
@@ -83,6 +91,10 @@ export async function setUserData<T>(key: string, value: T): Promise<void> {
 export async function deleteUserData(key: string): Promise<void> {
   try {
     const scopedKey = await getUserScopedKey(key);
+    if (!scopedKey) {
+      // User not authenticated, skip silently
+      return;
+    }
     await idbDelete(scopedKey);
   } catch (error) {
     console.error(`Error deleting user data for key ${key}:`, error);

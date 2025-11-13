@@ -8,6 +8,7 @@ import { useOfflineStorage } from "@/hooks/useOfflineStorage";
 import { useUserStorage } from "@/hooks/useUserStorage";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { enqueueChange } from "@/lib/sync";
 import { getUserData } from "@/lib/userStorage";
@@ -18,6 +19,7 @@ interface GoldItem {
   weight: string;
   purity: string;
   price: number;
+  stock: number;
   image: string;
 }
 
@@ -39,10 +41,14 @@ const GoldCollection = () => {
   const [formData, setFormData] = useState({
     name: "",
     weight: "",
-    purity: "",
+    purity: "Gold 18K",
     price: "",
+    stock: "",
     image: ""
   });
+
+  // Dropdown options
+  const purityOptions = ['Gold 24K', 'Gold 22K', 'Gold 18K', 'Gold 14K', 'Gold 10K'];
   const fileInputRef = useRef<HTMLInputElement>(null);
   const editFileInputRef = useRef<HTMLInputElement>(null);
 
@@ -62,14 +68,25 @@ const GoldCollection = () => {
         goldData.forEach((item: any) => {
           if (!item || !item.id || processedIds.has(item.id)) return;
           processedIds.add(item.id);
-          allGoldItems.push({
+          // Clean and validate image URL
+          let imageUrl = item.image || item.image_url || '';
+          
+          // Fix corrupted image data (single characters, invalid strings)
+          if (imageUrl && (imageUrl.length < 10 || imageUrl === '[' || imageUrl === '{')) {
+            console.warn(`⚠️ Corrupted image data detected for ${item.name}, clearing...`);
+            imageUrl = '';
+          }
+          
+          const goldItem = {
             id: item.id,
             name: item.name || 'Unknown Gold',
             weight: item.weight || '',
             purity: item.purity || item.metal || 'Gold 18K',
             price: item.price || item.totalPrice || 0,
-            image: item.image || '',
-          });
+            stock: item.stock ?? item.inStock ?? 10,
+            image: imageUrl,
+          };
+          allGoldItems.push(goldItem);
         });
       }
 
@@ -79,14 +96,26 @@ const GoldCollection = () => {
           if (!item || !item.id || processedIds.has(item.id)) return;
           if (item.item_type === 'gold' || item.category === 'gold' || item.type === 'Gold Bar') {
             processedIds.add(item.id);
-            allGoldItems.push({
+            
+            // Clean and validate image URL
+            let imageUrl = item.image || item.image_url || '';
+            
+            // Fix corrupted image data (single characters, invalid strings)
+            if (imageUrl && (imageUrl.length < 10 || imageUrl === '[' || imageUrl === '{')) {
+              console.warn(`⚠️ Corrupted image data detected for ${item.name}, clearing...`);
+              imageUrl = '';
+            }
+            
+            const goldItem = {
               id: item.id,
               name: item.name || 'Unknown Gold',
               weight: item.attributes?.weight || item.weight || '',
               purity: item.attributes?.purity || item.purity || item.metal || 'Gold 18K',
               price: item.price || 0,
-              image: item.image || item.image_url || '',
-            });
+              stock: item.inStock ?? item.stock ?? 10,
+              image: imageUrl,
+            };
+            allGoldItems.push(goldItem);
           }
         });
       }
@@ -98,36 +127,17 @@ const GoldCollection = () => {
     }
   }, [setGoldItems]);
 
-  // Load gold items on mount and when window gains focus
+  // Load gold items on mount only
   useEffect(() => {
     loadGoldItems();
-  }, [loadGoldItems]);
-
-  useEffect(() => {
-    const handleFocus = () => {
-      loadGoldItems();
-    };
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible') {
-        loadGoldItems();
-      }
-    };
-    
-    window.addEventListener('focus', handleFocus);
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    
-    return () => {
-      window.removeEventListener('focus', handleFocus);
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-    };
-  }, [loadGoldItems]);
+  }, []); // Empty dependency array - run only once on mount
 
   const filteredItems = goldItems.filter(item =>
     item.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   const handleAddItem = async () => {
-    if (!formData.name || !formData.weight || !formData.purity || !formData.price) {
+    if (!formData.name || !formData.weight || !formData.purity || !formData.price || !formData.stock) {
       toast({
         title: "Missing Information",
         description: "Please fill in all required fields.",
@@ -152,8 +162,11 @@ const GoldCollection = () => {
 
       const newItem: GoldItem & { user_id?: string } = {
         id: Date.now().toString(),
-        ...formData,
+        name: formData.name,
+        weight: formData.weight,
+        purity: formData.purity,
         price: parseFloat(formData.price) || 0,
+        stock: parseInt(formData.stock) || 10,
         image: formData.image || "https://images.unsplash.com/photo-1545873509-33e944ca7655?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3wzNzg4OTl8MHwxfHNlYXJjaHwxfHxnb2xkfGVufDF8MHx8fDE3NTM3NjY5MjB8MA&ixlib=rb-4.1.0&q=80&w=1080",
         user_id: userId, // CRITICAL: Include user_id for data isolation
       };
@@ -173,6 +186,8 @@ const GoldCollection = () => {
         name: newItem.name,
         attributes: { weight: newItem.weight, purity: newItem.purity },
         price: newItem.price,
+        inStock: newItem.stock,
+        stock: newItem.stock,
         image: newItem.image,
         updated_at: new Date().toISOString(),
       });
@@ -186,6 +201,8 @@ const GoldCollection = () => {
         name: newItem.name,
         attributes: { weight: newItem.weight, purity: newItem.purity },
         price: newItem.price,
+        inStock: newItem.stock,
+        stock: newItem.stock,
         image: newItem.image,
         updated_at: new Date().toISOString(),
       });
@@ -193,7 +210,7 @@ const GoldCollection = () => {
       // Reload gold items to show the new item
       await loadGoldItems();
       
-      setFormData({ name: "", weight: "", purity: "", price: "", image: "" });
+      setFormData({ name: "", weight: "", purity: "", price: "", stock: "", image: "" });
       setShowAddDialog(false);
       toast({
         title: "Item Added",
@@ -216,13 +233,14 @@ const GoldCollection = () => {
       weight: item.weight,
       purity: item.purity,
       price: item.price.toString(),
-      image: item.image
+      stock: item.stock.toString(),
+      image: item.image || '' // Ensure image is set
     });
     setShowEditDialog(true);
   };
 
   const handleUpdateItem = async () => {
-    if (!selectedItem || !formData.name || !formData.weight || !formData.purity || !formData.price) {
+    if (!selectedItem || !formData.name || !formData.weight || !formData.purity || !formData.price || !formData.stock) {
       toast({
         title: "Missing Information",
         description: "Please fill in all required fields.",
@@ -247,9 +265,19 @@ const GoldCollection = () => {
 
       const updatedItem: GoldItem = {
         ...selectedItem,
-        ...formData,
-        price: parseFloat(formData.price) || 0
+        name: formData.name,
+        weight: formData.weight,
+        purity: formData.purity,
+        price: parseFloat(formData.price) || 0,
+        stock: parseInt(formData.stock) || 10,
+        image: formData.image || selectedItem.image // Ensure image is preserved
       };
+
+
+      // Update local state immediately for instant UI update
+      setGoldItems(prev => prev.map(item => 
+        item.id === selectedItem.id ? updatedItem : item
+      ));
 
       // Update gold_items
       const goldData = (await getUserData<any[]>('gold_items')) || [];
@@ -271,7 +299,10 @@ const GoldCollection = () => {
           name: updatedItem.name,
           attributes: { weight: updatedItem.weight, purity: updatedItem.purity },
           price: updatedItem.price,
+          inStock: updatedItem.stock,
+          stock: updatedItem.stock,
           image: updatedItem.image,
+          image_url: updatedItem.image, // Also save as image_url for compatibility
           updated_at: new Date().toISOString(),
         };
         await setUserData('inventory_items', inventoryItems);
@@ -285,14 +316,17 @@ const GoldCollection = () => {
         name: updatedItem.name,
         attributes: { weight: updatedItem.weight, purity: updatedItem.purity },
         price: updatedItem.price,
+        inStock: updatedItem.stock,
+        stock: updatedItem.stock,
         image: updatedItem.image,
+        image_url: updatedItem.image, // Also sync image_url for compatibility
         updated_at: new Date().toISOString(),
       });
       
-      // Reload gold items to show the updated item
+      // Reload gold items to ensure data consistency
       await loadGoldItems();
       
-      setFormData({ name: "", weight: "", purity: "", price: "", image: "" });
+      setFormData({ name: "", weight: "", purity: "", price: "", stock: "", image: "" });
       setSelectedItem(null);
       setShowEditDialog(false);
       toast({
@@ -502,31 +536,45 @@ const GoldCollection = () => {
         </div>
 
         {/* Gold Items */}
-        <div className={`grid gap-8 ${viewMode === 'grid' ? 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4' : 'grid-cols-1'}`}>
+        <div className={`grid gap-4 ${viewMode === 'grid' ? 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4' : 'grid-cols-1'}`}>
           {filteredItems.map(item => (
             <div 
               key={`${item.id}-${item.image || 'no-image'}-${item.name}`}
               className="group relative bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden transition-all duration-300 hover:shadow-2xl hover:-translate-y-1 hover:border-amber-300"
             >
               {/* Image Section with Gradient Overlay */}
-              <div className="relative h-64 overflow-hidden bg-gradient-to-br from-yellow-50 via-amber-50 to-orange-50">
-                {item.image && item.image.trim() !== '' ? (
-                  <img 
-                    key={`img-${item.id}-${item.image ? item.image.substring(0, 50) : 'no-image'}`}
-                    src={item.image || ''}
-                    alt={item.name}
-                    className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
-                    loading="lazy"
-                    onError={(e) => {
-                      // Fallback to placeholder if image fails to load
-                      e.currentTarget.style.display = 'none';
-                    }}
-                  />
+              <div className="relative h-40 overflow-hidden bg-gradient-to-br from-yellow-50 via-amber-50 to-orange-50">
+                {item.image && item.image.trim() !== '' && item.image !== 'undefined' ? (
+                  <>
+                    <img 
+                      key={`gold-img-${item.id}-${Date.now()}`}
+                      src={item.image}
+                      alt={item.name}
+                      className="absolute inset-0 w-full h-full object-cover object-center transition-transform duration-500 group-hover:scale-110 z-10"
+                      style={{ 
+                        objectFit: 'cover', 
+                        objectPosition: 'center',
+                        minHeight: '160px',
+                        maxHeight: '160px',
+                        height: '160px'
+                      }}
+                      loading="lazy"
+                      onError={(e) => {
+                        // Hide image if it fails to load, placeholder will show
+                        e.currentTarget.style.display = 'none';
+                      }}
+                      onLoad={(e) => {
+                        e.currentTarget.style.display = 'block';
+                      }}
+                    />
+                    {/* Gradient overlay on hover */}
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none z-20"></div>
+                  </>
                 ) : (
                   <div className="absolute inset-0 flex items-center justify-center">
                     <div className="text-center">
-                      <div className="w-20 h-20 mx-auto mb-3 rounded-full bg-gradient-to-br from-yellow-400 to-amber-600 flex items-center justify-center shadow-lg">
-                        <span className="text-4xl">✨</span>
+                      <div className="w-12 h-12 mx-auto mb-2 rounded-full bg-gradient-to-br from-yellow-400 to-amber-600 flex items-center justify-center shadow-lg">
+                        <span className="text-2xl">✨</span>
                       </div>
                       <p className="text-xs text-gray-500 font-medium">Premium Gold</p>
                     </div>
@@ -534,58 +582,60 @@ const GoldCollection = () => {
                 )}
                 
                 {/* Gold Purity Badge */}
-                <div className="absolute top-4 left-4">
-                  <span className="px-3 py-1.5 rounded-full bg-gradient-to-r from-yellow-400 via-amber-500 to-orange-500 text-white text-xs font-bold shadow-lg backdrop-blur-sm border border-white/30">
+                <div className="absolute top-2 left-2 z-30">
+                  <span className="px-2 py-0.5 rounded-full bg-gradient-to-r from-yellow-400 via-amber-500 to-orange-500 text-white text-xs font-bold shadow-lg backdrop-blur-sm border border-white/30">
                     {item.purity}
                   </span>
                 </div>
-
-                {/* Overlay on Hover */}
-                <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
               </div>
 
               {/* Content Section */}
-              <div className="p-6 bg-gradient-to-b from-white to-gray-50/50">
+              <div className="p-4 bg-gradient-to-b from-white to-gray-50/50 flex flex-col min-h-[200px]">
                 {/* Product Name */}
-                <h3 className="text-xl font-bold text-gray-900 mb-3 group-hover:text-amber-600 transition-colors duration-300">
+                <h3 className="text-lg font-bold text-gray-900 mb-1 group-hover:text-amber-600 transition-colors duration-300 line-clamp-1">
                   {item.name}
                 </h3>
 
                 {/* Details Section */}
-                <div className="space-y-2.5 mb-5">
-                  <div className="flex items-center justify-between py-2 px-3 rounded-lg bg-gray-50 border border-gray-100">
+                <div className="space-y-2 mb-3 flex-grow">
+                  <div className="flex items-center justify-between py-1 px-2 rounded-lg bg-gray-50 border border-gray-100 min-h-[32px]">
                     <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">Weight</span>
-                    <span className="text-sm font-semibold text-gray-800">{item.weight}</span>
+                    <span className="text-xs font-semibold text-gray-800 truncate ml-2">{item.weight || '-'}</span>
                   </div>
-                  <div className="flex items-center justify-between py-2 px-3 rounded-lg bg-gradient-to-r from-yellow-50 to-amber-50 border border-yellow-200">
+                  <div className="flex items-center justify-between py-1 px-2 rounded-lg bg-gradient-to-r from-yellow-50 to-amber-50 border border-yellow-200 min-h-[32px]">
                     <span className="text-xs font-medium text-yellow-700 uppercase tracking-wide">Purity</span>
-                    <span className="text-sm font-bold text-yellow-800">{item.purity}</span>
+                    <span className="text-xs font-bold text-yellow-800 truncate ml-2">{item.purity}</span>
+                  </div>
+                  <div className="flex items-center justify-between py-1 px-2 rounded-lg bg-gradient-to-r from-blue-50 to-cyan-50 border border-blue-100 min-h-[32px]">
+                    <span className="text-xs font-medium text-blue-700 uppercase tracking-wide">Stock</span>
+                    <span className="text-xs font-bold text-blue-800 truncate ml-2">{item.stock} units</span>
                   </div>
                 </div>
 
                 {/* Price Section */}
-                <div className="mb-5 pb-5 border-b border-gray-200">
+                <div className="mb-3 pb-3 border-b border-gray-200">
                   <div className="flex items-baseline gap-2">
-                    <span className="text-xs font-medium text-gray-500">Price</span>
+                    <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">Price</span>
                   </div>
-                  <div className="flex items-center gap-2 mt-1">
-                    <span className="text-2xl font-bold bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent">
+                  <div className="flex items-center gap-2 mt-0.5">
+                    <span className="text-xl font-bold bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent">
                       ₹{item.price.toLocaleString()}
                     </span>
                   </div>
                 </div>
 
                 {/* Action Buttons */}
-                <div className="flex flex-col gap-2">
+                <div className="flex flex-col gap-2 mt-auto">
                   {/* Primary Action - Order Now */}
                   <Button 
                     onClick={(e) => {
                       e.stopPropagation();
                       handleOrderNow(item);
                     }}
-                    className="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-semibold py-2.5 shadow-lg hover:shadow-xl transition-all duration-300 rounded-xl"
+                    size="sm"
+                    className="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-semibold py-2 shadow-md hover:shadow-lg transition-all duration-300 rounded-lg text-xs"
                   >
-                    <ShoppingCart className="h-4 w-4 mr-2" />
+                    <ShoppingCart className="h-3.5 w-3.5 mr-1.5" />
                     Order Now
                   </Button>
 
@@ -598,7 +648,7 @@ const GoldCollection = () => {
                       }}
                       size="sm"
                       variant="outline"
-                      className="flex-1 border-blue-200 text-blue-600 hover:bg-blue-50 hover:border-blue-300 font-medium rounded-lg transition-all duration-200"
+                      className="flex-1 border-blue-200 text-blue-600 hover:bg-blue-50 hover:border-blue-300 font-medium rounded-lg transition-all duration-200 text-xs"
                     >
                       <Edit className="h-3.5 w-3.5 mr-1.5" />
                       Edit
@@ -610,7 +660,7 @@ const GoldCollection = () => {
                       }}
                       size="sm"
                       variant="outline"
-                      className="flex-1 border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300 font-medium rounded-lg transition-all duration-200"
+                      className="flex-1 border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300 font-medium rounded-lg transition-all duration-200 text-xs"
                     >
                       <Trash2 className="h-3.5 w-3.5 mr-1.5" />
                       Delete
@@ -653,17 +703,21 @@ const GoldCollection = () => {
                   id="weight"
                   value={formData.weight}
                   onChange={(e) => setFormData(prev => ({ ...prev, weight: e.target.value }))}
-                  placeholder="e.g., 50g"
+                  placeholder="30"
                 />
               </div>
               <div>
                 <Label htmlFor="purity">Purity *</Label>
-                <Input
-                  id="purity"
-                  value={formData.purity}
-                  onChange={(e) => setFormData(prev => ({ ...prev, purity: e.target.value }))}
-                  placeholder="e.g., 24K"
-                />
+                <Select value={formData.purity} onValueChange={(value) => setFormData(prev => ({ ...prev, purity: value }))}>
+                  <SelectTrigger id="purity">
+                    <SelectValue placeholder="Select purity" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {purityOptions.map((purity) => (
+                      <SelectItem key={purity} value={purity}>{purity}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
             </div>
             <div>
@@ -674,6 +728,16 @@ const GoldCollection = () => {
                 value={formData.price}
                 onChange={(e) => setFormData(prev => ({ ...prev, price: e.target.value }))}
                 placeholder="e.g., 350000"
+              />
+            </div>
+            <div>
+              <Label htmlFor="stock">Stock (units) *</Label>
+              <Input
+                id="stock"
+                type="number"
+                value={formData.stock}
+                onChange={(e) => setFormData(prev => ({ ...prev, stock: e.target.value }))}
+                placeholder="e.g., 10"
               />
             </div>
             <div>
@@ -757,17 +821,21 @@ const GoldCollection = () => {
                   id="edit-weight"
                   value={formData.weight}
                   onChange={(e) => setFormData(prev => ({ ...prev, weight: e.target.value }))}
-                  placeholder="e.g., 50g"
+                  placeholder="30"
                 />
               </div>
               <div>
                 <Label htmlFor="edit-purity">Purity *</Label>
-                <Input
-                  id="edit-purity"
-                  value={formData.purity}
-                  onChange={(e) => setFormData(prev => ({ ...prev, purity: e.target.value }))}
-                  placeholder="e.g., 24K"
-                />
+                <Select value={formData.purity} onValueChange={(value) => setFormData(prev => ({ ...prev, purity: value }))}>
+                  <SelectTrigger id="edit-purity">
+                    <SelectValue placeholder="Select purity" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {purityOptions.map((purity) => (
+                      <SelectItem key={purity} value={purity}>{purity}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
             </div>
             <div>
@@ -778,6 +846,16 @@ const GoldCollection = () => {
                 value={formData.price}
                 onChange={(e) => setFormData(prev => ({ ...prev, price: e.target.value }))}
                 placeholder="e.g., 350000"
+              />
+            </div>
+            <div>
+              <Label htmlFor="edit-stock">Stock (units) *</Label>
+              <Input
+                id="edit-stock"
+                type="number"
+                value={formData.stock}
+                onChange={(e) => setFormData(prev => ({ ...prev, stock: e.target.value }))}
+                placeholder="e.g., 10"
               />
             </div>
             <div>

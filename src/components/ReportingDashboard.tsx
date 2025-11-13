@@ -27,36 +27,36 @@ export const ReportingDashboard = () => {
 
   // Load real user-scoped data for reports
   const loadReportData = useCallback(async () => {
+    setLoading(true);
+    
     try {
-      setLoading(true);
-      
-      // Load all user-scoped data
-      const [invoices, inventoryItems, customers, employees] = await Promise.all([
-        getUserData<any[]>('pos_recentInvoices') || [],
-        getUserData<any[]>('inventory_items') || [],
-        getUserData<any[]>('customers') || [],
-        getUserData<any[]>('staff_employees') || [],
+      // Load all user-scoped data with proper null/undefined handling
+      const [invoicesRaw, inventoryItemsRaw, customersRaw, employeesRaw] = await Promise.all([
+        getUserData<any[]>('pos_recentInvoices'),
+        getUserData<any[]>('inventory_items'),
+        getUserData<any[]>('customers'),
+        getUserData<any[]>('staff_employees'),
       ]);
 
-      // Debug logging
-      console.log('📊 Reporting Dashboard - Loaded data:', {
-        invoices: invoices.length,
-        inventoryItems: inventoryItems.length,
-        customers: customers.length,
-        employees: employees.length,
-        employeesData: employees
-      });
+      // Ensure all data is an array (handle undefined/null)
+      const invoices = Array.isArray(invoicesRaw) ? invoicesRaw : [];
+      const inventoryItems = Array.isArray(inventoryItemsRaw) ? inventoryItemsRaw : [];
+      const customers = Array.isArray(customersRaw) ? customersRaw : [];
+      const employees = Array.isArray(employeesRaw) ? employeesRaw : [];
 
-      // Calculate sales report data
-      const totalSales = invoices.reduce((sum: number, inv: any) => sum + (inv.total || 0), 0);
-      const totalOrders = invoices.length;
+      // Calculate sales report data - with safe array operations
+      const totalSales = Array.isArray(invoices) 
+        ? invoices.reduce((sum: number, inv: any) => sum + (inv?.total || 0), 0)
+        : 0;
+      const totalOrders = Array.isArray(invoices) ? invoices.length : 0;
       const averageOrderValue = totalOrders > 0 ? totalSales / totalOrders : 0;
 
       // Top products by revenue
       const productRevenueMap = new Map<string, { revenue: number; orders: number }>();
-      invoices.forEach((inv: any) => {
-        if (inv.items) {
-          inv.items.forEach((item: any) => {
+      if (Array.isArray(invoices)) {
+        invoices.forEach((inv: any) => {
+          if (inv?.items && Array.isArray(inv.items)) {
+            inv.items.forEach((item: any) => {
             const itemName = item.name || 'Unknown Item';
             const revenue = (item.price || 0) * (item.quantity || 0);
             const existing = productRevenueMap.get(itemName);
@@ -66,20 +66,27 @@ export const ReportingDashboard = () => {
             } else {
               productRevenueMap.set(itemName, { revenue, orders: 1 });
             }
-          });
-        }
-      });
+            });
+          }
+        });
+      }
 
       const topProducts = Array.from(productRevenueMap.entries())
         .map(([name, data]) => ({ name, revenue: data.revenue, orders: data.orders }))
         .sort((a, b) => b.revenue - a.revenue)
         .slice(0, 4);
 
-      // Calculate inventory report data
-      const totalItems = inventoryItems.length;
-      const totalValue = inventoryItems.reduce((sum: number, item: any) => sum + ((item.price || 0) * (item.inStock || item.stock || 0)), 0);
-      const lowStock = inventoryItems.filter((item: any) => (item.inStock || item.stock || 0) > 0 && (item.inStock || item.stock || 0) < 10).length;
-      const outOfStock = inventoryItems.filter((item: any) => (item.inStock || item.stock || 0) === 0).length;
+      // Calculate inventory report data - with safe array operations
+      const totalItems = Array.isArray(inventoryItems) ? inventoryItems.length : 0;
+      const totalValue = Array.isArray(inventoryItems)
+        ? inventoryItems.reduce((sum: number, item: any) => sum + ((item?.price || 0) * (item?.inStock || item?.stock || 0)), 0)
+        : 0;
+      const lowStock = Array.isArray(inventoryItems)
+        ? inventoryItems.filter((item: any) => (item?.inStock || item?.stock || 0) > 0 && (item?.inStock || item?.stock || 0) < 10).length
+        : 0;
+      const outOfStock = Array.isArray(inventoryItems)
+        ? inventoryItems.filter((item: any) => (item?.inStock || item?.stock || 0) === 0).length
+        : 0;
 
       // Calculate financial report data
       const revenue = totalSales;
@@ -89,37 +96,28 @@ export const ReportingDashboard = () => {
       const taxes = revenue * 0.03; // 3% GST estimate
       const netProfit = profit - taxes;
 
-      // Calculate employee report data
-      const totalEmployees = employees.length;
+      // Calculate employee report data - with safe array operations
+      const totalEmployees = Array.isArray(employees) ? employees.length : 0;
       // Handle both 'Active'/'Inactive' and 'active'/'inactive' status values (case-insensitive)
-      const activeEmployees = employees.filter((emp: any) => {
-        const status = String(emp.status || '').toLowerCase();
-        return status === 'active';
-      }).length;
-      const onLeave = employees.filter((emp: any) => {
-        const status = String(emp.status || '').toLowerCase();
-        return status === 'inactive';
-      }).length;
-      const totalSalaries = employees.reduce((sum: number, emp: any) => {
-        const salary = parseFloat(String(emp.salary || 0)) || 0;
-        return sum + salary;
-      }, 0);
+      const activeEmployees = Array.isArray(employees)
+        ? employees.filter((emp: any) => {
+            const status = String(emp?.status || '').toLowerCase();
+            return status === 'active';
+          }).length
+        : 0;
+      const onLeave = Array.isArray(employees)
+        ? employees.filter((emp: any) => {
+            const status = String(emp?.status || '').toLowerCase();
+            return status === 'inactive';
+          }).length
+        : 0;
+      const totalSalaries = Array.isArray(employees)
+        ? employees.reduce((sum: number, emp: any) => {
+            const salary = parseFloat(String(emp?.salary || 0)) || 0;
+            return sum + salary;
+          }, 0)
+        : 0;
       const averageSalary = totalEmployees > 0 ? totalSalaries / totalEmployees : 0;
-
-      // Debug logging for employee calculations
-      console.log('👥 Employee Report Calculations:', {
-        totalEmployees,
-        activeEmployees,
-        onLeave,
-        totalSalaries,
-        averageSalary,
-        employeesSample: employees.slice(0, 2).map((e: any) => ({
-          name: e.name,
-          status: e.status,
-          salary: e.salary,
-          department: e.department
-        }))
-      });
 
       // Build report data object
       const data = {
@@ -191,10 +189,6 @@ export const ReportingDashboard = () => {
         }
       };
 
-      console.log('✅ Report data set:', {
-        employee: data.employee,
-        hasEmployeeData: !!data.employee.totalEmployees
-      });
       
       setReportData(data);
     } catch (error) {
@@ -206,10 +200,24 @@ export const ReportingDashboard = () => {
         financial: { revenue: 0, expenses: 0, profit: 0, profitMargin: 0, taxes: 0, netProfit: 0, cashFlow: {}, expenseBreakdown: {} },
         employee: { totalEmployees: 0, activeEmployees: 0, onLeave: 0, totalSalaries: 0, averageSalary: 0, attendance: 0, productivity: 0, departments: {} }
       });
-    } finally {
-      setLoading(false);
     }
+    
+    // Always set loading to false, even if there was an error
+    setLoading(false);
   }, []);
+
+  // Listen for sync completion events to reload data in background
+  useEffect(() => {
+    const handleDataSynced = () => {
+      loadReportData();
+    };
+
+    window.addEventListener('data-synced', handleDataSynced);
+    
+    return () => {
+      window.removeEventListener('data-synced', handleDataSynced);
+    };
+  }, [loadReportData]);
 
   // Load data on mount and when user changes
   useEffect(() => {
@@ -224,7 +232,6 @@ export const ReportingDashboard = () => {
       
       // Reload data when user changes (login/logout)
       if (session?.user?.id) {
-        console.log('🔄 User changed, reloading report data...');
         // Small delay to ensure cache is cleared and new user ID is fetched
         setTimeout(() => {
           loadReportData();

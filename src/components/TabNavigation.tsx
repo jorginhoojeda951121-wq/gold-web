@@ -34,24 +34,6 @@ const navigationTabs = [
     description: "Process transactions"
   },
   { 
-    id: "craftsmen", 
-    name: "Craftsmen", 
-    icon: Hammer,
-    description: "Track craftsmen"
-  },
-  { 
-    id: "employees", 
-    name: "Employees", 
-    icon: Users,
-    description: "Staff management"
-  },
-  { 
-    id: "analytics", 
-    name: "Analytics", 
-    icon: BarChart3,
-    description: "AI insights"
-  },
-  { 
     id: "reports", 
     name: "Reports", 
     icon: FileText,

@@ -30,7 +30,7 @@ export const Subscription = () => {
   const supabase = getSupabase();
   const navigate = useNavigate();
   const { toast } = useToast();
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false); // Start as false to show UI immediately
   const [processing, setProcessing] = useState(false);
   const [subscriptionStatus, setSubscriptionStatus] = useState<SubscriptionStatus | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
@@ -65,6 +65,7 @@ export const Subscription = () => {
   useEffect(() => {
     const checkSubscription = async () => {
       try {
+        setLoading(true);
         const { data: { session } } = await supabase.auth.getSession();
         if (!session?.user?.id) {
           navigate("/auth", { replace: true });
@@ -90,7 +91,7 @@ export const Subscription = () => {
     // Refresh every 5 minutes
     const interval = setInterval(checkSubscription, 5 * 60 * 1000);
     return () => clearInterval(interval);
-  }, [navigate, toast]);
+  }, [navigate, toast, supabase]);
 
   const handlePayment = async (paymentMethod: string) => {
     if (!userId || !subscriptionStatus) return;
@@ -164,31 +165,12 @@ export const Subscription = () => {
     }
   };
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <Loader2 className="h-8 w-8 animate-spin" />
-      </div>
-    );
-  }
+  // Always show page structure - never block with full-screen spinner
+  // Show loading/error states within the page content
 
-  if (!subscriptionStatus) {
-    return (
-      <div className="container mx-auto p-6">
-        <Alert variant="destructive">
-          <AlertCircle className="h-4 w-4" />
-          <AlertTitle>Error</AlertTitle>
-          <AlertDescription>
-            Unable to load subscription status. Please try again later.
-          </AlertDescription>
-        </Alert>
-      </div>
-    );
-  }
-
-  const isExpired = subscriptionStatus.isExpired || subscriptionStatus.requiresPayment;
-  const isActive = subscriptionStatus.isActive && !isExpired;
-  const isInGracePeriod = subscriptionStatus.isExpired && !subscriptionStatus.requiresPayment;
+  const isExpired = subscriptionStatus?.isExpired || subscriptionStatus?.requiresPayment;
+  const isActive = subscriptionStatus?.isActive && !isExpired;
+  const isInGracePeriod = subscriptionStatus?.isExpired && !subscriptionStatus?.requiresPayment;
 
   // Payment methods
   const paymentMethods = [
@@ -214,6 +196,20 @@ export const Subscription = () => {
         {/* Status Bar with Progress */}
         <Card className="border-2">
           <CardContent className="pt-6">
+            {loading && !subscriptionStatus ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                <span className="ml-3 text-muted-foreground">Loading subscription status...</span>
+              </div>
+            ) : !subscriptionStatus ? (
+              <Alert variant="destructive">
+                <AlertCircle className="h-4 w-4" />
+                <AlertTitle>Error</AlertTitle>
+                <AlertDescription>
+                  Unable to load subscription status. Please try again later.
+                </AlertDescription>
+              </Alert>
+            ) : (
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
@@ -296,10 +292,12 @@ export const Subscription = () => {
                 </div>
               )}
             </div>
+            )}
           </CardContent>
         </Card>
 
         {/* Subscription Details Card */}
+        {subscriptionStatus && (
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -408,9 +406,10 @@ export const Subscription = () => {
             )}
           </CardContent>
         </Card>
+        )}
 
         {/* Payment Section */}
-        {isExpired && (
+        {isExpired && subscriptionStatus && (
           <Card className="border-2 border-orange-200">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -507,7 +506,7 @@ export const Subscription = () => {
         )}
 
         {/* Active Subscription Info */}
-        {isActive && (
+        {isActive && subscriptionStatus && (
           <Card>
             <CardHeader>
               <CardTitle>Subscription Information</CardTitle>

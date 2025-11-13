@@ -7,6 +7,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { useOfflineStorage } from "@/hooks/useOfflineStorage";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { enqueueChange } from "@/lib/sync";
 import { getUserData, setUserData } from "@/lib/userStorage";
@@ -14,8 +15,12 @@ import { getUserData, setUserData } from "@/lib/userStorage";
 interface JewelryItem {
   id: string;
   name: string;
-  description: string;
+  type: string;
+  gemstone: string;
+  carat: string;
+  metal: string;
   price: number;
+  stock: number;
   image: string;
 }
 
@@ -28,6 +33,11 @@ const JewelryCollection = () => {
   const [itemsLoaded, setItemsLoaded] = useState(false);
   const { data: posCart, updateData: setPosCart } = useOfflineStorage<any[]>("pos_cart", []);
 
+  // Dropdown options
+  const jewelryTypes = ['Ring', 'Necklace', 'Earrings', 'Bracelet', 'Brooch', 'Pendant', 'Chain', 'Anklet'];
+  const gemstoneOptions = ['None', 'Diamond', 'Emerald', 'Sapphire', 'Ruby', 'Pearl', 'Amethyst', 'Topaz', 'Garnet', 'Opal', 'Turquoise', 'Crystal'];
+  const metalOptions = ['Gold 24K', 'Gold 18K', 'Gold 14K', 'Gold 10K', 'White Gold', 'Rose Gold', 'Platinum', 'Silver', 'Stainless Steel', 'Brass', 'Copper'];
+
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -35,8 +45,12 @@ const JewelryCollection = () => {
   const [selectedItem, setSelectedItem] = useState<JewelryItem | null>(null);
   const [formData, setFormData] = useState({
     name: "",
-    description: "",
+    type: "Ring",
+    gemstone: "None",
+    carat: "",
+    metal: "Gold 18K",
     price: "",
+    stock: "",
     image: ""
   });
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -46,7 +60,6 @@ const JewelryCollection = () => {
   // Filter to only show jewelry items (not gold bars or gemstones)
   const loadAllInventory = useCallback(async () => {
     try {
-      console.log('🔄 Loading jewelry inventory from IndexedDB...');
       
       // Load all inventory types directly from IndexedDB
       const [jewelryData, goldData, stonesData, inventoryData] = await Promise.all([
@@ -55,13 +68,6 @@ const JewelryCollection = () => {
         getUserData<any[]>("stones_items") || Promise.resolve([]),
         getUserData<any[]>("inventory_items") || Promise.resolve([]),
       ]);
-
-      console.log('📦 Raw data loaded:', {
-        jewelry: jewelryData?.length || 0,
-        gold: goldData?.length || 0,
-        stones: stonesData?.length || 0,
-        inventory: inventoryData?.length || 0,
-      });
 
       const allItems: JewelryItem[] = [];
       const processedIds = new Set<string>();
@@ -72,24 +78,41 @@ const JewelryCollection = () => {
           if (!item || !item.id || processedIds.has(item.id)) return;
           processedIds.add(item.id);
 
+          // Clean and validate image URL (same logic as GoldCollection)
+          let imageUrl = item.image || item.image_url || '';
+          
+          // Fix corrupted image data (single characters, invalid strings)
+          if (imageUrl && (imageUrl.length < 10 || imageUrl === '[' || imageUrl === '{' || imageUrl === 'undefined')) {
+            console.warn(`⚠️ Corrupted image data detected for ${item.name}, clearing...`);
+            imageUrl = '';
+          }
+
           // Check if it's a full JewelryItem format or legacy format
           if (item.type && item.type !== 'Gold Bar' && item.type !== 'Gemstone') {
             // Full format with all fields
             allItems.push({
               id: item.id,
               name: item.name || 'Unknown Item',
-              description: item.description || item.gemstone || item.type || 'Elegant jewelry piece',
+              type: item.type || 'Ring',
+              gemstone: item.gemstone || 'None',
+              carat: item.carat || '',
+              metal: item.metal || 'Gold 18K',
               price: item.price || 0,
-              image: item.image || '',
+              stock: item.stock ?? item.inStock ?? 10,
+              image: imageUrl,
             });
           } else if (!item.type || item.type === 'Ring' || item.type === 'Necklace' || item.type === 'Earrings' || item.type === 'Bracelet') {
             // Legacy format or simple jewelry format
             allItems.push({
               id: item.id,
               name: item.name || 'Unknown Item',
-              description: item.description || 'Elegant jewelry piece',
+              type: item.type || 'Ring',
+              gemstone: item.gemstone || 'None',
+              carat: item.carat || '',
+              metal: item.metal || 'Gold 18K',
               price: item.price || 0,
-              image: item.image || '',
+              stock: item.stock ?? item.inStock ?? 10,
+              image: imageUrl,
             });
           }
         });
@@ -102,13 +125,26 @@ const JewelryCollection = () => {
           
           // Only include jewelry items, skip gold and stones
           if (item.item_type === 'jewelry' || (!item.item_type && item.type && item.type !== 'Gold Bar' && item.type !== 'Gemstone')) {
+            // Clean and validate image URL
+            let imageUrl = item.image || item.image_url || '';
+            
+            // Fix corrupted image data (single characters, invalid strings)
+            if (imageUrl && (imageUrl.length < 10 || imageUrl === '[' || imageUrl === '{' || imageUrl === 'undefined')) {
+              console.warn(`⚠️ Corrupted image data detected for ${item.name}, clearing...`);
+              imageUrl = '';
+            }
+
             const existingIndex = allItems.findIndex(i => i.id === item.id);
             const transformedItem: JewelryItem = {
               id: item.id,
               name: item.name || 'Unknown Item',
-              description: item.attributes?.description || item.description || item.type || item.gemstone || 'Elegant jewelry piece',
+              type: item.type || item.attributes?.type || 'Ring',
+              gemstone: item.gemstone || item.attributes?.gemstone || 'None',
+              carat: item.carat || item.attributes?.carat || '',
+              metal: item.metal || item.attributes?.metal || 'Gold 18K',
               price: item.price || 0,
-              image: item.image || '',
+              stock: item.stock ?? item.inStock ?? 10,
+              image: imageUrl,
             };
 
             if (existingIndex >= 0) {
@@ -120,10 +156,6 @@ const JewelryCollection = () => {
           }
         });
       }
-
-      console.log('✅ Jewelry inventory loaded successfully:', {
-        totalJewelryItems: allItems.length,
-      });
 
       setJewelryItems(allItems);
       setItemsLoaded(true);
@@ -161,11 +193,13 @@ const JewelryCollection = () => {
 
   const filteredItems = jewelryItems.filter(item =>
     item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    item.description.toLowerCase().includes(searchQuery.toLowerCase())
+    item.type.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    item.gemstone.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    item.metal.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   const handleAddItem = async () => {
-    if (!formData.name || !formData.description || !formData.price) {
+    if (!formData.name || !formData.price || !formData.stock) {
       toast({
         title: "Missing Information",
         description: "Please fill in all required fields.",
@@ -190,8 +224,13 @@ const JewelryCollection = () => {
       
       const newItem: JewelryItem = {
         id: Date.now().toString(),
-        ...formData,
+        name: formData.name,
+        type: formData.type,
+        gemstone: formData.gemstone,
+        carat: formData.carat,
+        metal: formData.metal,
         price: parseFloat(formData.price) || 0,
+        stock: parseInt(formData.stock) || 0,
         image: formData.image || "https://images.unsplash.com/photo-1543294001-f7cd5d7fb516?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3wzNzg4OTl8MHwxfHNlYXJjaHwxfHxqZXdlbHJ5fGVufDF8MHx8fDE3NTM3NTkzMjh8MA&ixlib=rb-4.1.0&q=80&w=1080"
       };
 
@@ -203,17 +242,23 @@ const JewelryCollection = () => {
       });
       await setUserData('jewelry_items', jewelryData);
       
-      // Also save to inventory_items for sync
+      // Also save to inventory_items for sync (with both image and image_url for compatibility)
       const inventoryItems = (await getUserData<any[]>('inventory_items')) || [];
       inventoryItems.push({
         id: newItem.id,
         user_id: userId, // CRITICAL: Include user_id for data isolation
         item_type: 'jewelry',
         name: newItem.name,
-        type: 'Ring', // Default type
-        attributes: { description: newItem.description },
+        type: newItem.type,
+        gemstone: newItem.gemstone,
+        carat: newItem.carat,
+        metal: newItem.metal,
+        attributes: { type: newItem.type, gemstone: newItem.gemstone, carat: newItem.carat, metal: newItem.metal },
         price: newItem.price,
+        inStock: newItem.stock,
+        stock: newItem.stock,
         image: newItem.image,
+        image_url: newItem.image, // Add for compatibility
         updated_at: new Date().toISOString(),
       });
       await setUserData('inventory_items', inventoryItems);
@@ -223,17 +268,23 @@ const JewelryCollection = () => {
         id: newItem.id,
         item_type: 'jewelry',
         name: newItem.name,
-        type: 'Ring',
-        attributes: { description: newItem.description },
+        type: newItem.type,
+        gemstone: newItem.gemstone,
+        carat: newItem.carat,
+        metal: newItem.metal,
+        attributes: { type: newItem.type, gemstone: newItem.gemstone, carat: newItem.carat, metal: newItem.metal },
         price: newItem.price,
+        inStock: newItem.stock,
+        stock: newItem.stock,
         image: newItem.image,
+        image_url: newItem.image, // Add for compatibility
         updated_at: new Date().toISOString(),
       });
       
       // Reload inventory
       await loadAllInventory();
       
-      setFormData({ name: "", description: "", price: "", image: "" });
+      setFormData({ name: "", type: "Ring", gemstone: "None", carat: "", metal: "Gold 18K", price: "", stock: "", image: "" });
       setShowAddDialog(false);
       toast({
         title: "Item Added",
@@ -253,15 +304,19 @@ const JewelryCollection = () => {
     setSelectedItem(item);
     setFormData({
       name: item.name,
-      description: item.description,
+      type: item.type,
+      gemstone: item.gemstone,
+      carat: item.carat,
+      metal: item.metal,
       price: item.price.toString(),
+      stock: item.stock.toString(),
       image: item.image
     });
     setShowEditDialog(true);
   };
 
   const handleUpdateItem = async () => {
-    if (!selectedItem || !formData.name || !formData.description || !formData.price) {
+    if (!selectedItem || !formData.name || !formData.price || !formData.stock) {
       toast({
         title: "Missing Information",
         description: "Please fill in all required fields.",
@@ -271,10 +326,19 @@ const JewelryCollection = () => {
     }
 
     try {
+      // Preserve existing image if no new image was uploaded
+      const finalImage = formData.image || selectedItem.image || '';
+
       const updatedItem: JewelryItem = {
         ...selectedItem,
-        ...formData,
-        price: parseFloat(formData.price) || 0
+        name: formData.name,
+        type: formData.type,
+        gemstone: formData.gemstone,
+        carat: formData.carat,
+        metal: formData.metal,
+        price: parseFloat(formData.price) || 0,
+        stock: parseInt(formData.stock) || 0,
+        image: finalImage
       };
 
       // Save to IndexedDB
@@ -287,17 +351,23 @@ const JewelryCollection = () => {
       }
       await setUserData('jewelry_items', jewelryData);
       
-      // Also update inventory_items for sync
+      // Also update inventory_items for sync (with both image and image_url for compatibility)
       const inventoryItems = (await getUserData<any[]>('inventory_items')) || [];
       const inventoryIndex = inventoryItems.findIndex((item: any) => item.id === updatedItem.id);
       const inventoryUpdate = {
         id: updatedItem.id,
         item_type: 'jewelry',
         name: updatedItem.name,
-        type: 'Ring',
-        attributes: { description: updatedItem.description },
+        type: updatedItem.type,
+        gemstone: updatedItem.gemstone,
+        carat: updatedItem.carat,
+        metal: updatedItem.metal,
+        attributes: { type: updatedItem.type, gemstone: updatedItem.gemstone, carat: updatedItem.carat, metal: updatedItem.metal },
         price: updatedItem.price,
-        image: updatedItem.image,
+        inStock: updatedItem.stock,
+        stock: updatedItem.stock,
+        image: finalImage,
+        image_url: finalImage, // Add for compatibility
         updated_at: new Date().toISOString(),
       };
       if (inventoryIndex >= 0) {
@@ -313,7 +383,7 @@ const JewelryCollection = () => {
       // Reload inventory
       await loadAllInventory();
       
-      setFormData({ name: "", description: "", price: "", image: "" });
+      setFormData({ name: "", type: "Ring", gemstone: "None", carat: "", metal: "Gold 18K", price: "", stock: "", image: "" });
       setSelectedItem(null);
       setShowEditDialog(false);
       toast({
@@ -514,7 +584,7 @@ const JewelryCollection = () => {
               className="group relative bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden transition-all duration-300 hover:shadow-2xl hover:-translate-y-1 hover:border-purple-300"
             >
               {/* Premium Image Section - Fixed Height */}
-              <div className="relative w-full overflow-hidden bg-gradient-to-br from-purple-50 via-pink-50 to-blue-50 flex-shrink-0" style={{ height: '256px', minHeight: '256px', maxHeight: '256px' }}>
+              <div className="relative w-full overflow-hidden bg-gradient-to-br from-purple-50 via-pink-50 to-blue-50 flex-shrink-0" style={{ height: '160px', minHeight: '160px', maxHeight: '160px' }}>
                 {item.image && item.image.trim() !== '' ? (
                   <>
                     <img 
@@ -525,9 +595,9 @@ const JewelryCollection = () => {
                       style={{ 
                         objectFit: 'cover', 
                         objectPosition: 'center',
-                        minHeight: '256px',
-                        maxHeight: '256px',
-                        height: '256px'
+                        minHeight: '160px',
+                        maxHeight: '160px',
+                        height: '160px'
                       }}
                       loading="lazy"
                       onError={(e) => {
@@ -542,8 +612,8 @@ const JewelryCollection = () => {
                             placeholderDiv.className = 'image-placeholder absolute inset-0 w-full h-full flex items-center justify-center';
                             placeholderDiv.innerHTML = `
                               <div class="text-center">
-                                <div class="w-20 h-20 mx-auto mb-3 rounded-full bg-gradient-to-br from-purple-400 via-pink-400 to-blue-400 flex items-center justify-center shadow-xl">
-                                  <svg class="h-10 w-10 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <div class="w-12 h-12 mx-auto mb-2 rounded-full bg-gradient-to-br from-purple-400 via-pink-400 to-blue-400 flex items-center justify-center shadow-xl">
+                                  <svg class="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
                                   </svg>
                                 </div>
@@ -572,8 +642,8 @@ const JewelryCollection = () => {
                 ) : (
                   <div className="absolute inset-0 w-full h-full flex items-center justify-center">
                     <div className="text-center">
-                      <div className="w-20 h-20 mx-auto mb-3 rounded-full bg-gradient-to-br from-purple-400 via-pink-400 to-blue-400 flex items-center justify-center shadow-xl">
-                        <Gem className="h-10 w-10 text-white" />
+                      <div className="w-12 h-12 mx-auto mb-2 rounded-full bg-gradient-to-br from-purple-400 via-pink-400 to-blue-400 flex items-center justify-center shadow-xl">
+                        <Gem className="h-6 w-6 text-white" />
                       </div>
                       <p className="text-xs text-gray-600 font-medium">Premium Jewelry</p>
                     </div>
@@ -582,27 +652,24 @@ const JewelryCollection = () => {
               </div>
 
               {/* Content Section */}
-              <div className="p-6 bg-gradient-to-b from-white to-gray-50/50 flex flex-col min-h-[280px]">
+              <div className="p-4 bg-gradient-to-b from-white to-gray-50/50 flex flex-col min-h-[200px]">
                 {/* Product Header */}
-                <div className="mb-4">
-                  <h3 className="text-xl font-bold text-gray-900 mb-2 group-hover:text-purple-600 transition-colors duration-300">
+                <div className="mb-3">
+                  <h3 className="text-lg font-bold text-gray-900 group-hover:text-purple-600 transition-colors duration-300 line-clamp-1">
                     {item.name}
                   </h3>
-                  <p className="text-sm text-gray-600 leading-relaxed line-clamp-2">
-                    {item.description || 'Elegant jewelry piece'}
-                  </p>
                 </div>
 
                 {/* Spacer to push price/buttons to bottom */}
                 <div className="flex-grow"></div>
 
                 {/* Price Section */}
-                <div className="mb-5 pb-5 border-b border-gray-200">
+                <div className="mb-3 pb-3 border-b border-gray-200">
                   <div className="flex items-baseline gap-2">
                     <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">Price</span>
                   </div>
-                  <div className="flex items-center gap-2 mt-1">
-                    <span className="text-2xl font-bold bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent">
+                  <div className="flex items-center gap-2 mt-0.5">
+                    <span className="text-xl font-bold bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent">
                       ₹{item.price.toLocaleString()}
                     </span>
                   </div>
@@ -616,9 +683,10 @@ const JewelryCollection = () => {
                       e.stopPropagation();
                       handleOrderNow(item);
                     }}
-                    className="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-semibold py-2.5 shadow-lg hover:shadow-xl transition-all duration-300 rounded-xl"
+                    size="sm"
+                    className="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-semibold py-2 shadow-md hover:shadow-lg transition-all duration-300 rounded-lg text-xs"
                   >
-                    <ShoppingCart className="h-4 w-4 mr-2" />
+                    <ShoppingCart className="h-3.5 w-3.5 mr-1.5" />
                     Order Now
                   </Button>
 
@@ -631,7 +699,7 @@ const JewelryCollection = () => {
                       }}
                       size="sm"
                       variant="outline"
-                      className="flex-1 border-blue-200 text-blue-600 hover:bg-blue-50 hover:border-blue-300 font-medium rounded-lg transition-all duration-200"
+                      className="flex-1 border-blue-200 text-blue-600 hover:bg-blue-50 hover:border-blue-300 font-medium rounded-lg transition-all duration-200 text-xs"
                     >
                       <Edit className="h-3.5 w-3.5 mr-1.5" />
                       Edit
@@ -643,7 +711,7 @@ const JewelryCollection = () => {
                       }}
                       size="sm"
                       variant="outline"
-                      className="flex-1 border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300 font-medium rounded-lg transition-all duration-200"
+                      className="flex-1 border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300 font-medium rounded-lg transition-all duration-200 text-xs"
                     >
                       <Trash2 className="h-3.5 w-3.5 mr-1.5" />
                       Delete
@@ -670,33 +738,88 @@ const JewelryCollection = () => {
             <DialogTitle>Add New Jewelry Item</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
-            <div>
-              <Label htmlFor="name">Name *</Label>
-              <Input
-                id="name"
-                value={formData.name}
-                onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
-                placeholder="e.g., Diamond Earrings"
-              />
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="name">Item Name *</Label>
+                <Input
+                  id="name"
+                  value={formData.name}
+                  onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
+                  placeholder="e.g., Diamond"
+                />
+              </div>
+              <div>
+                <Label htmlFor="type">Type *</Label>
+                <Select value={formData.type} onValueChange={(value) => setFormData(prev => ({ ...prev, type: value }))}>
+                  <SelectTrigger id="type">
+                    <SelectValue placeholder="Select type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {jewelryTypes.map((type) => (
+                      <SelectItem key={type} value={type}>{type}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="gemstone">Gemstone</Label>
+                <Select value={formData.gemstone} onValueChange={(value) => setFormData(prev => ({ ...prev, gemstone: value }))}>
+                  <SelectTrigger id="gemstone">
+                    <SelectValue placeholder="Select gemstone" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {gemstoneOptions.map((gem) => (
+                      <SelectItem key={gem} value={gem}>{gem}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label htmlFor="carat">Carat Weight</Label>
+                <Input
+                  id="carat"
+                  value={formData.carat}
+                  onChange={(e) => setFormData(prev => ({ ...prev, carat: e.target.value }))}
+                  placeholder="0"
+                />
+              </div>
             </div>
             <div>
-              <Label htmlFor="description">Description *</Label>
-              <Input
-                id="description"
-                value={formData.description}
-                onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
-                placeholder="e.g., Beautiful diamond stud earrings"
-              />
+              <Label htmlFor="metal">Metal *</Label>
+              <Select value={formData.metal} onValueChange={(value) => setFormData(prev => ({ ...prev, metal: value }))}>
+                <SelectTrigger id="metal">
+                  <SelectValue placeholder="Select metal" />
+                </SelectTrigger>
+                <SelectContent>
+                  {metalOptions.map((metal) => (
+                    <SelectItem key={metal} value={metal}>{metal}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
-            <div>
-              <Label htmlFor="price">Price (₹) *</Label>
-              <Input
-                id="price"
-                type="number"
-                value={formData.price}
-                onChange={(e) => setFormData(prev => ({ ...prev, price: e.target.value }))}
-                placeholder="e.g., 250000"
-              />
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="price">Price (₹) *</Label>
+                <Input
+                  id="price"
+                  type="number"
+                  value={formData.price}
+                  onChange={(e) => setFormData(prev => ({ ...prev, price: e.target.value }))}
+                  placeholder="250000"
+                />
+              </div>
+              <div>
+                <Label htmlFor="stock">Stock Quantity *</Label>
+                <Input
+                  id="stock"
+                  type="number"
+                  value={formData.stock}
+                  onChange={(e) => setFormData(prev => ({ ...prev, stock: e.target.value }))}
+                  placeholder="0"
+                />
+              </div>
             </div>
             <div>
               <Label>Item Image</Label>
@@ -763,33 +886,88 @@ const JewelryCollection = () => {
             <DialogTitle>Edit Jewelry Item</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
-            <div>
-              <Label htmlFor="edit-name">Name *</Label>
-              <Input
-                id="edit-name"
-                value={formData.name}
-                onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
-                placeholder="e.g., Diamond Earrings"
-              />
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="edit-name">Item Name *</Label>
+                <Input
+                  id="edit-name"
+                  value={formData.name}
+                  onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
+                  placeholder="e.g., Diamond"
+                />
+              </div>
+              <div>
+                <Label htmlFor="edit-type">Type *</Label>
+                <Select value={formData.type} onValueChange={(value) => setFormData(prev => ({ ...prev, type: value }))}>
+                  <SelectTrigger id="edit-type">
+                    <SelectValue placeholder="Select type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {jewelryTypes.map((type) => (
+                      <SelectItem key={type} value={type}>{type}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="edit-gemstone">Gemstone</Label>
+                <Select value={formData.gemstone} onValueChange={(value) => setFormData(prev => ({ ...prev, gemstone: value }))}>
+                  <SelectTrigger id="edit-gemstone">
+                    <SelectValue placeholder="Select gemstone" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {gemstoneOptions.map((gem) => (
+                      <SelectItem key={gem} value={gem}>{gem}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label htmlFor="edit-carat">Carat Weight</Label>
+                <Input
+                  id="edit-carat"
+                  value={formData.carat}
+                  onChange={(e) => setFormData(prev => ({ ...prev, carat: e.target.value }))}
+                  placeholder="0"
+                />
+              </div>
             </div>
             <div>
-              <Label htmlFor="edit-description">Description *</Label>
-              <Input
-                id="edit-description"
-                value={formData.description}
-                onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
-                placeholder="e.g., Beautiful diamond stud earrings"
-              />
+              <Label htmlFor="edit-metal">Metal *</Label>
+              <Select value={formData.metal} onValueChange={(value) => setFormData(prev => ({ ...prev, metal: value }))}>
+                <SelectTrigger id="edit-metal">
+                  <SelectValue placeholder="Select metal" />
+                </SelectTrigger>
+                <SelectContent>
+                  {metalOptions.map((metal) => (
+                    <SelectItem key={metal} value={metal}>{metal}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
-            <div>
-              <Label htmlFor="edit-price">Price (₹) *</Label>
-              <Input
-                id="edit-price"
-                type="number"
-                value={formData.price}
-                onChange={(e) => setFormData(prev => ({ ...prev, price: e.target.value }))}
-                placeholder="e.g., 250000"
-              />
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="edit-price">Price (₹) *</Label>
+                <Input
+                  id="edit-price"
+                  type="number"
+                  value={formData.price}
+                  onChange={(e) => setFormData(prev => ({ ...prev, price: e.target.value }))}
+                  placeholder="250000"
+                />
+              </div>
+              <div>
+                <Label htmlFor="edit-stock">Stock Quantity *</Label>
+                <Input
+                  id="edit-stock"
+                  type="number"
+                  value={formData.stock}
+                  onChange={(e) => setFormData(prev => ({ ...prev, stock: e.target.value }))}
+                  placeholder="0"
+                />
+              </div>
             </div>
             <div>
               <Label>Item Image</Label>

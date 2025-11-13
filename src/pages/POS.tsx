@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { JewelryCard, JewelryItem } from "@/components/JewelryCard";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
@@ -27,7 +27,8 @@ import {
   Smartphone,
   CheckCircle,
   Eye,
-  X
+  X,
+  Scan
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useUserStorage } from "@/hooks/useUserStorage";
@@ -36,6 +37,7 @@ import { generateReceiptPDF, ReceiptData } from "@/lib/pdfGenerator";
 import ItemDetailsDialog from "@/components/ItemDetailsDialog";
 // Removed idbGet, idbSet - now using getUserData, setUserData from userStorage
 import { enqueueChange } from "@/lib/sync";
+import { BarcodeInput } from "@/components/BarcodeScanner";
 
 interface CartItem {
   id: string;
@@ -43,6 +45,9 @@ interface CartItem {
   price: number;
   quantity: number;
   type: string;
+  taxRate?: number;        // Custom tax rate for this item (percentage)
+  taxIncluded?: boolean;   // Whether price includes tax
+  taxCategory?: string;    // Tax category for reporting
 }
 
 interface Invoice {
@@ -120,12 +125,16 @@ const POS = () => {
   const [availableItems, setAvailableItems] = useState<JewelryItem[]>([]);
   const [itemsLoaded, setItemsLoaded] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const isLoadingRef = useRef(false);
 
   // Function to load all inventory from IndexedDB directly
-  const loadAllInventory = useCallback(async () => {
+  const loadAllInventory = useCallback(async (forceReload = false) => {
+    // Prevent multiple simultaneous loads (unless forced)
+    if (isLoadingRef.current && !forceReload) return;
+    isLoadingRef.current = true;
+    
     try {
       setIsRefreshing(true);
-      console.log('🔄 Loading all inventory from IndexedDB...');
       
       // Load all inventory types directly from user-scoped storage
       const [jewelryData, goldData, stonesData, inventoryData] = await Promise.all([
@@ -134,13 +143,6 @@ const POS = () => {
         getUserData<any[]>("stones_items") || Promise.resolve([]),
         getUserData<any[]>("inventory_items") || Promise.resolve([]),
       ]);
-
-      console.log('📦 Raw data loaded:', {
-        jewelry: jewelryData?.length || 0,
-        gold: goldData?.length || 0,
-        stones: stonesData?.length || 0,
-        inventory: inventoryData?.length || 0,
-      });
 
       const items: JewelryItem[] = [];
       const processedIds = new Set<string>();
@@ -267,13 +269,6 @@ const POS = () => {
         });
       }
 
-      console.log('✅ Inventory loaded successfully:', {
-        totalItems: items.length,
-        jewelry: items.filter(i => i.type !== 'Gold Bar' && i.type !== 'Gemstone').length,
-        gold: items.filter(i => i.type === 'Gold Bar').length,
-        stones: items.filter(i => i.type === 'Gemstone').length,
-      });
-
       setAvailableItems(items);
       setItemsLoaded(true);
     } catch (error) {
@@ -282,20 +277,30 @@ const POS = () => {
       setItemsLoaded(true);
     } finally {
       setIsRefreshing(false);
+      isLoadingRef.current = false;
     }
   }, []);
 
-  // Load inventory on mount and when dependencies change
+  // Load inventory on mount only
   useEffect(() => {
-    loadAllInventory();
+    if (!itemsLoaded) {
+      loadAllInventory();
+    }
+  }, []);
+
+  // Listen for sync completion events to reload data in background
+  useEffect(() => {
+    const handleDataSynced = () => {
+      // Force reload without blocking UI
+      loadAllInventory(true);
+    };
+
+    window.addEventListener('data-synced', handleDataSynced);
+    
+    return () => {
+      window.removeEventListener('data-synced', handleDataSynced);
+    };
   }, [loadAllInventory]);
-  
-  // Debug logging
-  useEffect(() => {
-    console.log('POS Debug - availableItems:', availableItems);
-    console.log('POS Debug - itemsLoaded:', itemsLoaded);
-    console.log('POS Debug - total items:', availableItems.length);
-  }, [availableItems, itemsLoaded]);
   
   // Update function for POS inventory updates - CRITICAL: Must update inventory_items and enqueue for sync
   const updateInventoryStock = useCallback(async (updatedItems: JewelryItem[]) => {
@@ -399,7 +404,6 @@ const POS = () => {
         setUserData("stones_items", updatedStones),
       ]);
 
-      console.log('✅ Inventory stock updated and queued for sync:', updatedItems.map(i => ({ id: i.id, name: i.name, newStock: i.inStock })));
 
       // Reload inventory
       await loadAllInventory();
@@ -451,8 +455,43 @@ const POS = () => {
             : cartItem
         );
       }
-      return [...prev, { id: item.id, name: item.name, price: item.price, quantity: 1, type: item.type }];
+      return [...prev, { 
+        id: item.id, 
+        name: item.name, 
+        price: item.price, 
+        quantity: 1, 
+        type: item.type,
+        taxRate: item.taxRate ?? 3,
+        taxIncluded: item.taxIncluded ?? false,
+        taxCategory: item.taxCategory ?? 'jewelry'
+      }];
     });
+  };
+
+  const handleBarcodeScan = (barcode: string) => {
+    const barcodeUpper = barcode.toUpperCase();
+    
+    // Search in available items by barcode or SKU
+    const foundItem = availableItems.find(
+      item => 
+        (item.barcode && item.barcode.toUpperCase() === barcodeUpper) ||
+        (item.sku && item.sku.toUpperCase() === barcodeUpper) ||
+        item.id.toUpperCase() === barcodeUpper
+    );
+
+    if (foundItem) {
+      addToCart(foundItem);
+      toast({
+        title: "Item Added",
+        description: `${foundItem.name} added to cart`,
+      });
+    } else {
+      toast({
+        title: "Item Not Found",
+        description: `No item found with barcode: ${barcode}`,
+        variant: "destructive",
+      });
+    }
   };
 
   const updateQuantity = (id: string, newQuantity: number) => {
@@ -469,10 +508,49 @@ const POS = () => {
     setCart(prev => prev.filter(item => item.id !== id));
   };
 
-  const subtotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-  const taxRate = 0.08; // 8% tax
-  const tax = subtotal * taxRate;
-  const total = subtotal + tax;
+  // Memoize cart calculations to avoid re-computing on every render with per-item tax rates
+  const { subtotal, tax, total, taxBreakdown } = useMemo(() => {
+    let subTotal = 0;
+    let totalTax = 0;
+    const taxBreakdownMap = new Map<number, { amount: number; count: number }>();
+
+    cart.forEach(item => {
+      const itemTaxRate = (item.taxRate ?? 3) / 100; // Default 3% if not specified
+      const itemTotal = item.price * item.quantity;
+
+      if (item.taxIncluded) {
+        // If tax is included, extract the base price and tax
+        const basePrice = itemTotal / (1 + itemTaxRate);
+        const taxAmount = itemTotal - basePrice;
+        subTotal += basePrice;
+        totalTax += taxAmount;
+        
+        const rateKey = item.taxRate ?? 3;
+        const existing = taxBreakdownMap.get(rateKey) || { amount: 0, count: 0 };
+        taxBreakdownMap.set(rateKey, { amount: existing.amount + taxAmount, count: existing.count + 1 });
+      } else {
+        // If tax is not included, calculate tax on top
+        const taxAmount = itemTotal * itemTaxRate;
+        subTotal += itemTotal;
+        totalTax += taxAmount;
+        
+        const rateKey = item.taxRate ?? 3;
+        const existing = taxBreakdownMap.get(rateKey) || { amount: 0, count: 0 };
+        taxBreakdownMap.set(rateKey, { amount: existing.amount + taxAmount, count: existing.count + 1 });
+      }
+    });
+
+    return {
+      subtotal: subTotal,
+      tax: totalTax,
+      total: subTotal + totalTax,
+      taxBreakdown: Array.from(taxBreakdownMap.entries()).map(([rate, data]) => ({
+        rate,
+        amount: data.amount,
+        count: data.count
+      }))
+    };
+  }, [cart]);
 
   // Filter customers by search query
   const filteredCustomers = useMemo(() => {
@@ -733,11 +811,21 @@ const POS = () => {
       
       <header className="bg-gradient-primary shadow-elegant border-b border-border/50">
         <div className="container mx-auto px-6 py-6">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between gap-4">
             <div>
               <h1 className="text-2xl font-bold text-primary-foreground">Point of Sale</h1>
               <p className="text-primary-foreground/70 text-sm">Process sales and generate invoices</p>
             </div>
+            
+            {/* Barcode Scanner Input */}
+            <div className="flex-1 max-w-md">
+              <BarcodeInput 
+                onScan={handleBarcodeScan}
+                placeholder="Scan barcode to add item..."
+                className="w-full"
+              />
+            </div>
+            
             <div className="flex items-center gap-4">
               <Badge className="bg-accent text-accent-foreground">
                 Terminal: POS-001
@@ -748,37 +836,57 @@ const POS = () => {
       </header>
 
       <main className="container mx-auto px-4 sm:px-6 py-8 max-w-full overflow-x-hidden">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 lg:gap-8">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 lg:gap-8 w-full">
           
           {/* Product Selection */}
-          <div className="lg:col-span-2 space-y-6">
-            <Card className="bg-card shadow-card border-border/50">
-              <CardHeader>
+          <div className="lg:col-span-2 space-y-6 w-full overflow-x-hidden">
+            <Card className="bg-gradient-to-br from-white via-blue-50/30 to-purple-50/30 shadow-xl border-2 border-blue-100/50 w-full overflow-hidden relative">
+              {/* Decorative background elements */}
+              <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-br from-blue-200/20 to-purple-200/20 rounded-full blur-3xl -z-0"></div>
+              <div className="absolute bottom-0 left-0 w-48 h-48 bg-gradient-to-tr from-purple-200/20 to-pink-200/20 rounded-full blur-3xl -z-0"></div>
+              
+              <CardHeader className="relative z-10 bg-gradient-to-r from-blue-50/50 via-white to-purple-50/50 border-b-2 border-blue-100/50 pb-4">
                 <CardTitle className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <ShoppingCart className="h-5 w-5" />
-                    Quick Add Items
+                  <div className="flex items-center gap-3">
+                    <div className="p-2.5 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 shadow-lg shadow-blue-500/30">
+                      <ShoppingCart className="h-6 w-6 text-white" />
+                    </div>
+                    <div>
+                      <h2 className="text-2xl font-bold bg-gradient-to-r from-blue-700 via-indigo-700 to-purple-700 bg-clip-text text-transparent">
+                        Quick Add Items
+                      </h2>
+                      <p className="text-xs text-gray-500 font-medium mt-0.5">
+                        Select products to add to cart
+                      </p>
+                    </div>
                   </div>
                   <Button
                     variant="outline"
                     size="sm"
                     onClick={loadAllInventory}
                     disabled={isRefreshing}
+                    className="bg-white/80 backdrop-blur-sm border-2 border-blue-200 hover:bg-blue-50 hover:border-blue-300 shadow-md hover:shadow-lg transition-all duration-300"
                   >
                     <RefreshCw className={`h-4 w-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
                     Refresh
                   </Button>
                 </CardTitle>
               </CardHeader>
-              <CardContent>
+              <CardContent className="w-full overflow-x-hidden relative z-10 pt-6">
                 {!itemsLoaded ? (
-                  <div className="text-center py-8">
-                    <p className="text-muted-foreground">Loading inventory...</p>
+                  <div className="text-center py-12">
+                    <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gradient-to-br from-blue-100 to-purple-100 mb-4">
+                      <RefreshCw className="h-8 w-8 text-blue-600 animate-spin" />
+                    </div>
+                    <p className="text-gray-600 font-medium">Loading inventory...</p>
                   </div>
                 ) : availableItems.length === 0 ? (
-                  <div className="text-center py-8">
-                    <p className="text-muted-foreground mb-4">No inventory items available</p>
-                    <p className="text-sm text-muted-foreground mb-2">
+                  <div className="text-center py-12">
+                    <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-gradient-to-br from-gray-100 to-gray-200 mb-4">
+                      <ShoppingCart className="h-10 w-10 text-gray-400" />
+                    </div>
+                    <p className="text-gray-700 font-semibold mb-2 text-lg">No inventory items available</p>
+                    <p className="text-sm text-gray-500 mb-4 max-w-md mx-auto">
                       No items found in IndexedDB. Make sure you have added inventory items.
                     </p>
                     <Button
@@ -786,27 +894,33 @@ const POS = () => {
                       size="sm"
                       onClick={loadAllInventory}
                       disabled={isRefreshing}
+                      className="bg-gradient-to-r from-blue-50 to-purple-50 border-2 border-blue-200 hover:from-blue-100 hover:to-purple-100"
                     >
                       <RefreshCw className={`h-4 w-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
                       Reload
                     </Button>
-                    <p className="text-xs text-muted-foreground mt-2">
+                    <p className="text-xs text-gray-400 mt-3">
                       Check console for detailed logs
                     </p>
                   </div>
                 ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 max-h-96 overflow-y-auto">
-                    {availableItems.map(item => (
-                      <JewelryCard
-                        key={item.id}
-                        item={item}
-                        onEdit={() => {}}
-                        onDelete={() => {}}
-                        onView={(it) => { setSelected(it); setShowDetails(true); }}
-                        onAddToCart={addToCart}
-                        showAddToCart={true}
-                        showActions={false}
-                      />
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 max-h-[900px] overflow-y-auto overflow-x-hidden w-full min-w-0 scrollbar-thin pr-2">
+                    {availableItems.map((item, index) => (
+                      <div 
+                        key={item.id} 
+                        className="min-w-0 w-full animate-in fade-in slide-in-from-bottom-4"
+                        style={{ animationDelay: `${index * 50}ms` }}
+                      >
+                        <JewelryCard
+                          item={item}
+                          onEdit={() => {}}
+                          onDelete={() => {}}
+                          onView={(it) => { setSelected(it); setShowDetails(true); }}
+                          onAddToCart={addToCart}
+                          showAddToCart={true}
+                          showActions={false}
+                        />
+                      </div>
                     ))}
                   </div>
                 )}
@@ -825,18 +939,18 @@ const POS = () => {
                 {recentInvoices.length === 0 ? (
                   <p className="text-muted-foreground text-center py-4">No recent invoices</p>
                 ) : (
-                  <div className="space-y-3">
+                  <div className="space-y-3 max-h-[300px] overflow-y-auto overflow-x-hidden scrollbar-thin pr-2">
                     {recentInvoices.map(invoice => (
                       <div key={invoice.id} className="flex items-center justify-between p-3 bg-secondary rounded-lg hover:bg-secondary/80 transition-colors">
-                        <div className="flex-1">
-                          <p className="font-medium text-foreground">{invoice.id}</p>
-                          <p className="text-sm text-muted-foreground">{invoice.customerName || "Walk-in Customer"}</p>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-foreground truncate">{invoice.id}</p>
+                          <p className="text-sm text-muted-foreground truncate">{invoice.customerName || "Walk-in Customer"}</p>
                         </div>
-                        <div className="text-right mr-4">
+                        <div className="text-right mr-4 flex-shrink-0">
                           <p className="font-bold text-foreground">₹{invoice.total.toFixed(2)}</p>
                           <p className="text-xs text-muted-foreground">{invoice.paymentMethod}</p>
                         </div>
-                        <div className="flex gap-2">
+                        <div className="flex gap-2 flex-shrink-0">
                           <Button 
                             variant="outline" 
                             size="sm"
@@ -1076,16 +1190,31 @@ const POS = () => {
                   <div className="space-y-2">
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">Subtotal:</span>
-                      <span className="font-medium">₹{subtotal.toLocaleString()}</span>
+                      <span className="font-medium">₹{subtotal.toFixed(2)}</span>
                     </div>
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Tax (8%):</span>
-                      <span className="font-medium">₹{tax.toLocaleString()}</span>
-                    </div>
+                    
+                    {/* Tax Breakdown */}
+                    {taxBreakdown && taxBreakdown.length > 0 && (
+                      <div className="space-y-1 bg-amber-50 p-2 rounded border border-amber-200">
+                        <div className="text-xs font-semibold text-amber-900 mb-1">GST Breakdown:</div>
+                        {taxBreakdown.map((tax, idx) => (
+                          <div key={idx} className="flex justify-between text-xs text-amber-800">
+                            <span>GST @ {tax.rate}% ({tax.count} item{tax.count > 1 ? 's' : ''}):</span>
+                            <span className="font-medium">₹{tax.amount.toFixed(2)}</span>
+                          </div>
+                        ))}
+                        <Separator className="my-1" />
+                        <div className="flex justify-between text-sm font-semibold text-amber-900">
+                          <span>Total GST:</span>
+                          <span>₹{tax.toFixed(2)}</span>
+                        </div>
+                      </div>
+                    )}
+                    
                     <Separator />
                     <div className="flex justify-between text-lg font-bold">
                       <span>Total:</span>
-                      <span>₹{total.toLocaleString()}</span>
+                      <span>₹{total.toFixed(2)}</span>
                     </div>
                   </div>
                   
@@ -1297,7 +1426,7 @@ const POS = () => {
                   <p className="font-semibold">₹{viewingInvoice.subtotal.toLocaleString('en-IN')}</p>
                 </div>
                 <div className="flex justify-between">
-                  <Label className="text-muted-foreground">Tax (8%)</Label>
+                  <Label className="text-muted-foreground">Total GST</Label>
                   <p className="font-semibold">₹{viewingInvoice.tax.toLocaleString('en-IN')}</p>
                 </div>
                 <Separator />

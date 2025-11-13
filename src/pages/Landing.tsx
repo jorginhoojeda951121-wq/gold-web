@@ -1,4 +1,5 @@
 import { useNavigate } from "react-router-dom";
+import { getSupabase } from "@/lib/supabase";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -61,7 +62,8 @@ const Landing = () => {
   };
 
   const handleSupportClick = () => {
-    navigate("/contact");
+    // Navigate to public support page (no login required)
+    navigate("/public-support");
   };
 
   const handleSignInClick = () => {

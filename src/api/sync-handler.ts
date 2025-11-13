@@ -130,8 +130,6 @@ function convertMobileToWebData(tableName: string, mobileData: any): any {
 
 export async function handleUpload(request: SyncRequest): Promise<SyncResponse> {
   try {
-    console.log('🔄 Processing sync upload from mobile...');
-    console.log('📊 Changes received:', request.changes.length);
 
     if (!request.changes || request.changes.length === 0) {
       return {
@@ -147,7 +145,6 @@ export async function handleUpload(request: SyncRequest): Promise<SyncResponse> 
       try {
         const webKey = TABLE_KEY_MAPPING[change.table_name];
         if (!webKey) {
-          console.log(`⚠️ Unknown table: ${change.table_name}, skipping`);
           continue;
         }
 
@@ -162,7 +159,6 @@ export async function handleUpload(request: SyncRequest): Promise<SyncResponse> 
           const updatedData = [...currentData, webData];
           await idbSet(webKey, updatedData);
           
-          console.log(`✅ Added ${change.table_name} item: ${webData.name}`);
           processedChanges.push(change);
           
         } else if (change.operation === 'update') {
@@ -175,7 +171,6 @@ export async function handleUpload(request: SyncRequest): Promise<SyncResponse> 
           );
           await idbSet(webKey, updatedData);
           
-          console.log(`✅ Updated ${change.table_name} item: ${webData.name}`);
           processedChanges.push(change);
           
         } else if (change.operation === 'delete') {
@@ -183,7 +178,6 @@ export async function handleUpload(request: SyncRequest): Promise<SyncResponse> 
           const updatedData = currentData.filter((item: any) => item.id !== change.data.id);
           await idbSet(webKey, updatedData);
           
-          console.log(`✅ Deleted ${change.table_name} item: ${change.data.id}`);
           processedChanges.push(change);
         }
         
@@ -192,7 +186,6 @@ export async function handleUpload(request: SyncRequest): Promise<SyncResponse> 
       }
     }
 
-    console.log(`✅ Successfully processed ${processedChanges.length} changes`);
     
     return {
       success: true,
@@ -211,7 +204,6 @@ export async function handleUpload(request: SyncRequest): Promise<SyncResponse> 
 
 export async function handleDownload(since: string): Promise<SyncResponse> {
   try {
-    console.log(`📥 Processing sync download since: ${since}`);
     
     // For now, return empty changes since we're primarily handling uploads
     // In a real implementation, you'd fetch changes from web app's IndexedDB

@@ -1,6 +1,6 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { Gem, Package, TrendingUp, DollarSign, Search, Plus } from "lucide-react";
-import { TabNavigation } from "@/components/TabNavigation";
+import { Navigation } from "@/components/Navigation";
 import { StatsCard } from "@/components/StatsCard";
 import { JewelryCard, JewelryItem } from "@/components/JewelryCard";
 import { AddItemDialog } from "@/components/AddItemDialog";
@@ -67,10 +67,11 @@ const Index = () => {
   const { data: craftsmen, updateData: setCraftsmen } = useOfflineStorage<Craftsman[]>('craftsmen', []);
 
   // Load all inventory from all sources (jewelry, gold, stones, and inventory_items from sync)
-  const loadAllInventory = useCallback(async () => {
+  const loadAllInventory = useCallback(async (forceReload = false) => {
+    // Prevent multiple simultaneous loads (unless forced)
+    if (itemsLoaded && !forceReload) return;
+    
     try {
-      console.log('🔄 Loading all inventory from IndexedDB...');
-      
       // Load all inventory types directly from user-scoped IndexedDB
       const [jewelryData, goldData, stonesData, inventoryData] = await Promise.all([
         getUserData<any[]>("jewelry_items") || Promise.resolve([]),
@@ -78,13 +79,6 @@ const Index = () => {
         getUserData<any[]>("stones_items") || Promise.resolve([]),
         getUserData<any[]>("inventory_items") || Promise.resolve([]),
       ]);
-
-      console.log('📦 Raw data loaded:', {
-        jewelry: jewelryData?.length || 0,
-        gold: goldData?.length || 0,
-        stones: stonesData?.length || 0,
-        inventory: inventoryData?.length || 0,
-      });
 
       const allItems: JewelryItem[] = [];
       const processedIds = new Set<string>();
@@ -211,13 +205,6 @@ const Index = () => {
         });
       }
 
-      console.log('✅ Inventory loaded successfully:', {
-        totalItems: allItems.length,
-        jewelry: allItems.filter(i => i.type !== 'Gold Bar' && i.type !== 'Gemstone').length,
-        gold: allItems.filter(i => i.type === 'Gold Bar').length,
-        stones: allItems.filter(i => i.type === 'Gemstone').length,
-      });
-
       setItems(allItems);
       setItemsLoaded(true);
     } catch (error) {
@@ -225,21 +212,21 @@ const Index = () => {
       setItems([]);
       setItemsLoaded(true);
     }
+  }, [itemsLoaded]);
+
+  // Load inventory on mount only - prevent excessive reloads
+  useEffect(() => {
+    if (!itemsLoaded) {
+      loadAllInventory();
+    }
   }, []);
 
-  // Load inventory on mount and when user changes
+  // Listen for auth state changes to handle logout
   useEffect(() => {
-    loadAllInventory();
-    
-    // Listen for auth state changes to reload data when user changes
     const supabase = getSupabase();
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      // Reload inventory when user changes (login/logout)
-      if (session?.user?.id) {
-        console.log('🔄 User changed, reloading inventory...');
-        loadAllInventory();
-      } else {
-        // User logged out, clear items
+      // Only clear items on logout
+      if (!session?.user?.id && itemsLoaded) {
         setItems([]);
         setItemsLoaded(false);
       }
@@ -248,59 +235,75 @@ const Index = () => {
     return () => {
       subscription.unsubscribe();
     };
-  }, [loadAllInventory]);
+  }, [itemsLoaded]);
 
-  // Reload inventory when window gains focus or becomes visible (in case sync happened)
+  // Listen for sync completion events to reload data in background
   useEffect(() => {
-    const handleFocus = () => {
-      loadAllInventory();
+    const handleDataSynced = () => {
+      // Force reload without blocking UI
+      loadAllInventory(true);
     };
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible') {
-        loadAllInventory();
-      }
-    };
-    
-    window.addEventListener('focus', handleFocus);
-    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    window.addEventListener('data-synced', handleDataSynced);
     
     return () => {
-      window.removeEventListener('focus', handleFocus);
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('data-synced', handleDataSynced);
     };
   }, [loadAllInventory]);
 
-  const filteredItems = items.filter(item => {
-    const name = (item?.name || '').toLowerCase();
-    const type = (item?.type || '').toLowerCase();
-    const gemstone = (item?.gemstone || '').toLowerCase();
-    const query = searchQuery.toLowerCase();
-    return name.includes(query) || type.includes(query) || gemstone.includes(query);
-  });
+  // Removed: Reload inventory when window gains focus - too aggressive, causes slow loading
+  // Users can manually refresh if needed using sync buttons
 
-  const totalValue = items.reduce((sum, item) => {
-    const price = typeof item.price === 'number' && !isNaN(item.price) ? item.price : 0;
-    const inStock = typeof item.inStock === 'number' && !isNaN(item.inStock) ? item.inStock : 0;
-    return sum + (price * inStock);
-  }, 0);
-  const totalItems = items.reduce((sum, item) => {
-    const inStock = typeof item.inStock === 'number' && !isNaN(item.inStock) ? item.inStock : 0;
-    return sum + inStock;
-  }, 0);
-  const lowStockItems = items.filter(item => {
-    const inStock = typeof item.inStock === 'number' && !isNaN(item.inStock) ? item.inStock : 0;
-    return inStock < 5;
-  }).length;
-  const todayRevenue = transactions
-    .filter(t => new Date(t.timestamp).toDateString() === new Date().toDateString())
-    .reduce((sum, t) => {
-      const total = typeof t.total === 'number' && !isNaN(t.total) ? t.total : 0;
-      return sum + total;
+  // Memoize filtered items to avoid re-filtering on every render
+  const filteredItems = useMemo(() => {
+    if (!searchQuery) return items;
+    const query = searchQuery.toLowerCase();
+    return items.filter(item => {
+      const name = (item?.name || '').toLowerCase();
+      const type = (item?.type || '').toLowerCase();
+      const gemstone = (item?.gemstone || '').toLowerCase();
+      return name.includes(query) || type.includes(query) || gemstone.includes(query);
+    });
+  }, [items, searchQuery]);
+
+  // Memoize calculations to avoid re-calculating on every render
+  const { totalValue, totalItems } = useMemo(() => {
+    return items.reduce((acc, item) => {
+      const price = typeof item.price === 'number' && !isNaN(item.price) ? item.price : 0;
+      const inStock = typeof item.inStock === 'number' && !isNaN(item.inStock) ? item.inStock : 0;
+      return {
+        totalValue: acc.totalValue + (price * inStock),
+        totalItems: acc.totalItems + inStock
+      };
+    }, { totalValue: 0, totalItems: 0 });
+  }, [items]);
+
+  // Memoize low stock count
+  const lowStockItems = useMemo(() => {
+    return items.filter(item => {
+      const inStock = typeof item.inStock === 'number' && !isNaN(item.inStock) ? item.inStock : 0;
+      return inStock < 5;
+    }).length;
+  }, [items]);
+
+  // Memoize today's revenue
+  const todayRevenue = useMemo(() => {
+    const today = new Date().toDateString();
+    return transactions
+      .filter(t => new Date(t.timestamp).toDateString() === today)
+      .reduce((sum, t) => {
+        const total = typeof t.total === 'number' && !isNaN(t.total) ? t.total : 0;
+        return sum + total;
+      }, 0);
+  }, [transactions]);
+
+  // Memoize cart count
+  const cartCount = useMemo(() => {
+    return cartItems.reduce((sum, item) => {
+      const quantity = typeof item.quantity === 'number' && !isNaN(item.quantity) ? item.quantity : 0;
+      return sum + quantity;
     }, 0);
-  const cartCount = cartItems.reduce((sum, item) => {
-    const quantity = typeof item.quantity === 'number' && !isNaN(item.quantity) ? item.quantity : 0;
-    return sum + quantity;
-  }, 0);
+  }, [cartItems]);
 
   const handleAddItem = async (newItem: Omit<JewelryItem, 'id'>) => {
     try {
@@ -610,11 +613,7 @@ const Index = () => {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <TabNavigation 
-        activeTab={activeTab} 
-        onTabChange={setActiveTab}
-        cartCount={cartCount}
-      />
+      <Navigation />
       
       {/* Header Section */}
       <header className="bg-gradient-to-r from-green-100 to-yellow-50 border-b border-gray-200">
@@ -670,100 +669,121 @@ const Index = () => {
             </section>
 
             {/* Search Section */}
-            <section className="bg-white rounded-lg shadow-lg p-6 mb-8 border border-gray-200">
-              <div className="flex items-center space-x-4">
+            <section className="bg-gradient-to-r from-white via-gray-50/50 to-white rounded-xl shadow-lg p-6 mb-8 border border-gray-200/80 backdrop-blur-sm">
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4">
                 <div className="relative flex-1 max-w-md">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                  <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400 z-10" />
                   <Input
                     placeholder="Search jewelry and gems..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className="pl-10 border-gray-300 focus:border-green-500 focus:ring-green-500"
+                    className="pl-12 h-12 text-base border-2 border-gray-200 focus:border-blue-500 focus:ring-blue-500/20 shadow-sm"
                   />
                 </div>
                 <Button 
                   onClick={() => setShowAddDialog(true)}
-                  className="bg-green-600 hover:bg-green-700 text-white shadow-sm"
+                  className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white shadow-lg hover:shadow-xl h-12 px-6 font-semibold"
                 >
-                  <Plus className="h-4 w-4 mr-2" />
+                  <Plus className="h-5 w-5 mr-2" />
                   Add Item
                 </Button>
               </div>
             </section>
 
             {/* Stats Grid */}
-            <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+            <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-4">
               <StatsCard
                 title="Total Items"
                 value={totalItems.toString()}
                 icon={Package}
                 trend="+12% this month"
+                variant="blue"
               />
               <StatsCard
                 title="Total Value"
                 value={`₹${totalValue.toLocaleString()}`}
                 icon={DollarSign}
-                trend="+8% this month" 
+                trend="+8% this month"
+                variant="gold"
               />
               <StatsCard
                 title="Unique Pieces"
                 value={items.length.toString()}
                 icon={Gem}
                 trend="+3 new items"
+                variant="purple"
               />
               <StatsCard
                 title="Low Stock Alert"
                 value={lowStockItems.toString()}
                 icon={TrendingUp}
                 trend={lowStockItems > 0 ? "Needs attention" : "All good"}
+                variant={lowStockItems > 0 ? "green" : "default"}
               />
             </section>
 
             {/* Inventory Grid */}
             <section>
-              <div className="flex justify-between items-center mb-6">
-                <h2 className="text-2xl font-bold text-gray-800">Inventory</h2>
-                <p className="text-gray-600">
-                  {filteredItems.length} of {items.length} items
-                </p>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                {filteredItems.map(item => (
-                  <JewelryCard
-                    key={`${item.id}-${item.image || 'no-image'}-${item.name}`}
-                    item={item}
-                    onEdit={handleEditItem}
-                    onDelete={handleDeleteItem}
-                    onView={handleViewItem}
-                    onAddToCart={handleAddToCart}
-                    showAddToCart={false}
-                  />
-                ))}
-              </div>
-
-              {filteredItems.length === 0 && (
-                <div className="text-center py-12">
-                  <Gem className="h-16 w-16 text-gray-400 mx-auto mb-4" />
-                  <h3 className="text-lg font-semibold text-gray-800 mb-2">No items found</h3>
-                  <p className="text-gray-600">
-                    Try adjusting your search or add new jewelry items
-                  </p>
+              <div className="flex justify-between items-center mb-4 pb-3 border-b border-gray-200/80">
+                <div>
+                  <h2 className="text-3xl font-bold bg-gradient-to-r from-gray-900 via-gray-800 to-gray-900 bg-clip-text text-transparent mb-1">
+                    Inventory
+                  </h2>
+                  <p className="text-sm text-gray-500">Manage your jewelry collection</p>
                 </div>
+                <div className="text-right">
+                  {!itemsLoaded ? (
+                    <span className="text-sm text-muted-foreground font-medium">Loading...</span>
+                  ) : (
+                    <span className="text-sm font-semibold text-gray-700 bg-gray-100 px-3 py-1.5 rounded-lg">
+                      {filteredItems.length} of {items.length} items
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {!itemsLoaded ? (
+                // Subtle loading state - shows page structure while loading
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                  {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
+                    <div key={i} className="bg-white rounded-lg shadow-md border border-gray-200 p-6 animate-pulse">
+                      <div className="h-48 bg-gray-200 rounded-lg mb-4"></div>
+                      <div className="h-4 bg-gray-200 rounded mb-2"></div>
+                      <div className="h-4 bg-gray-200 rounded w-3/4"></div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                    {filteredItems.map(item => (
+                      <JewelryCard
+                        key={`${item.id}-${item.image || 'no-image'}-${item.name}`}
+                        item={item}
+                        onEdit={handleEditItem}
+                        onDelete={handleDeleteItem}
+                        onView={handleViewItem}
+                        onAddToCart={handleAddToCart}
+                        showAddToCart={false}
+                      />
+                    ))}
+                  </div>
+
+                  {filteredItems.length === 0 && (
+                    <div className="text-center py-12">
+                      <Gem className="h-16 w-16 text-gray-400 mx-auto mb-4" />
+                      <h3 className="text-lg font-semibold text-gray-800 mb-2">No items found</h3>
+                      <p className="text-gray-600">
+                        Try adjusting your search or add new jewelry items
+                      </p>
+                    </div>
+                  )}
+                </>
               )}
             </section>
           </div>
         )}
 
-        {/* Craftsmen Tab */}
-        {activeTab === "craftsmen" && (
-          <CraftsmenManagement
-            craftsmen={craftsmen}
-            onAddCraftsman={handleAddCraftsman}
-            onUpdateCraftsman={handleUpdateCraftsman}
-            onDeleteCraftsman={handleDeleteCraftsman}
-          />
-        )}
 
         {/* Point of Sale Tab */}
         {activeTab === "pos" && (
@@ -873,11 +893,14 @@ const Index = () => {
           </div>
         )}
 
-        {/* Analytics Tab */}
-        {activeTab === "analytics" && <AIAnalyticsDashboard />}
 
-        {/* Employees Tab */}
-        {activeTab === "employees" && <EmployeeManagement />}
+        {/* Employees Tab - Redirect to dedicated Staff page */}
+        {activeTab === "employees" && (
+          <div className="text-center py-12">
+            <p className="text-muted-foreground mb-4">Employee Management has been moved to a dedicated page</p>
+            <p className="text-sm text-muted-foreground">Please use the "Staff" link in the sidebar to access employee management</p>
+          </div>
+        )}
 
         {/* Settings Tab */}
         {activeTab === "settings" && <BusinessSettings />}

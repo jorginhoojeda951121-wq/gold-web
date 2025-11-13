@@ -18,6 +18,9 @@ export default {
 			}
 		},
 		extend: {
+			screens: {
+				'nav': '1480px', // Custom breakpoint for navigation toggle
+			},
 			backgroundImage: {
 				'gradient-primary': 'var(--gradient-primary)',
 				'gradient-gold': 'var(--gradient-gold)',

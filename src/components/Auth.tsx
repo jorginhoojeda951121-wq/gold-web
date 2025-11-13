@@ -87,9 +87,13 @@ export const Auth = () => {
       if (!sessionData.session) {
         throw new Error("Authentication failed: no active session returned.");
       }
-      // Clear any cached user data on new login
-      const { clearUserIdCache } = await import('@/lib/userStorage');
-      clearUserIdCache();
+      // Cache user ID immediately so data loading works after redirect
+      try {
+        const { getCurrentUserId } = await import('@/lib/userStorage');
+        await getCurrentUserId(); // This will cache the user ID
+      } catch (e) {
+        console.error('Error caching user ID on login:', e);
+      }
       
       // Redirect to dashboard after successful login using React Router (avoids full page reload)
       navigate("/dashboard", { replace: true });

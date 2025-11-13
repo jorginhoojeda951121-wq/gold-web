@@ -196,7 +196,9 @@ export const EmployeeManagement = () => {
              recordDate.getFullYear() === year;
     });
 
-    const workingDays = 26; // Standard working days
+    // FIXED: Calculate actual days in the month (30/31 days, or 28/29 for February)
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const workingDays = daysInMonth; // Use actual days in month instead of fixed 26
     const presentDays = monthlyAttendance.filter(r => r.status === 'present').length;
     const lateDays = monthlyAttendance.filter(r => r.status === 'late').length;
     const halfDays = monthlyAttendance.filter(r => r.status === 'half-day').length;

@@ -3,7 +3,8 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { Calendar, Package, Phone, User, Hammer, Check, FileText } from "lucide-react";
+import { Card } from "@/components/ui/card";
+import { Calendar, Package, Phone, User, Hammer, Check, FileText, DollarSign, CreditCard, AlertCircle, Building2, MapPin, FileCheck } from "lucide-react";
 import { Craftsman } from "./AddCraftsmanDialog";
 import { ProjectCompletionDialog } from "./ProjectCompletionDialog";
 
@@ -14,6 +15,7 @@ interface CraftsmanDetailsDialogProps {
   onAssignMaterial: () => void;
   onCompleteTask?: (materialId: string) => void;
   onCompleteProject?: (materialId: string, notes: string) => void;
+  onRecordPayment?: () => void;
 }
 
 export const CraftsmanDetailsDialog = ({ 
@@ -22,7 +24,8 @@ export const CraftsmanDetailsDialog = ({
   craftsman, 
   onAssignMaterial,
   onCompleteTask,
-  onCompleteProject
+  onCompleteProject,
+  onRecordPayment
 }: CraftsmanDetailsDialogProps) => {
   const [showCompletionDialog, setShowCompletionDialog] = useState(false);
   const [selectedProject, setSelectedProject] = useState<{id: string, name: string} | null>(null);
@@ -69,8 +72,27 @@ export const CraftsmanDetailsDialog = ({
           <div className="bg-gray-50 p-4 rounded-lg">
             <div className="flex items-start justify-between mb-4">
               <div>
-                <h3 className="text-xl font-semibold text-gray-900">{craftsman.name}</h3>
+                <div className="flex items-center space-x-2 mb-1">
+                  <h3 className="text-xl font-semibold text-gray-900">{craftsman.name}</h3>
+                  {craftsman.type === 'firm' && (
+                    <Badge variant="outline" className="bg-blue-100 text-blue-800 border-blue-300">
+                      <Building2 className="h-3 w-3 mr-1" />
+                      Firm
+                    </Badge>
+                  )}
+                  {craftsman.type === 'individual' && (
+                    <Badge variant="outline" className="bg-green-100 text-green-800 border-green-300">
+                      <User className="h-3 w-3 mr-1" />
+                      Individual
+                    </Badge>
+                  )}
+                </div>
                 <p className="text-gray-600">{craftsman.specialty}</p>
+                {craftsman.type === 'firm' && craftsman.contactPerson && (
+                  <p className="text-sm text-gray-500 mt-1">
+                    Contact: {craftsman.contactPerson}
+                  </p>
+                )}
               </div>
               <Badge className={getStatusColor(craftsman.status)}>
                 {craftsman.status}
@@ -93,7 +115,113 @@ export const CraftsmanDetailsDialog = ({
                 <span className="text-gray-600">Active Projects:</span>
                 <span className="font-medium">{craftsman.currentProjects}</span>
               </div>
+              
+              {/* Firm-specific fields */}
+              {craftsman.type === 'firm' && (
+                <>
+                  {craftsman.firmContact && (
+                    <div className="flex items-center space-x-2">
+                      <Phone className="h-4 w-4 text-blue-500" />
+                      <span className="text-gray-600">Firm Contact:</span>
+                      <span className="font-medium">{craftsman.firmContact}</span>
+                    </div>
+                  )}
+                  {craftsman.firmAddress && (
+                    <div className="flex items-center space-x-2 col-span-2">
+                      <MapPin className="h-4 w-4 text-blue-500" />
+                      <span className="text-gray-600">Address:</span>
+                      <span className="font-medium">{craftsman.firmAddress}</span>
+                    </div>
+                  )}
+                  {craftsman.firmGSTNumber && (
+                    <div className="flex items-center space-x-2 col-span-2">
+                      <FileCheck className="h-4 w-4 text-blue-500" />
+                      <span className="text-gray-600">GST Number:</span>
+                      <span className="font-medium">{craftsman.firmGSTNumber}</span>
+                    </div>
+                  )}
+                </>
+              )}
             </div>
+          </div>
+
+          <Separator />
+
+          {/* Payment Tracking Section */}
+          <div>
+            <h4 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+              <DollarSign className="h-5 w-5 mr-2 text-green-600" />
+              Payment Tracking
+            </h4>
+            
+            <div className="grid grid-cols-3 gap-4 mb-4">
+              {/* Total Due */}
+              <Card className="p-4 bg-blue-50 border-blue-200">
+                <div className="text-sm text-blue-600 mb-1">Total Due</div>
+                <div className="text-2xl font-bold text-blue-900">
+                  ₹{(craftsman.totalAmountDue || 0).toLocaleString()}
+                </div>
+              </Card>
+
+              {/* Total Paid */}
+              <Card className="p-4 bg-green-50 border-green-200">
+                <div className="text-sm text-green-600 mb-1">Total Paid</div>
+                <div className="text-2xl font-bold text-green-900">
+                  ₹{(craftsman.totalAmountPaid || 0).toLocaleString()}
+                </div>
+              </Card>
+
+              {/* Pending Amount */}
+              <Card className="p-4 bg-amber-50 border-amber-200">
+                <div className="text-sm text-amber-600 mb-1">Pending</div>
+                <div className="text-2xl font-bold text-amber-900">
+                  ₹{(craftsman.pendingAmount || 0).toLocaleString()}
+                </div>
+              </Card>
+            </div>
+
+            {/* Record Payment Button */}
+            {onRecordPayment && (craftsman.pendingAmount || 0) > 0 && (
+              <Button
+                onClick={onRecordPayment}
+                className="w-full bg-green-600 hover:bg-green-700 text-white mb-4"
+              >
+                <CreditCard className="h-4 w-4 mr-2" />
+                Record Payment
+              </Button>
+            )}
+
+            {/* Payment History */}
+            {craftsman.paymentHistory && craftsman.paymentHistory.length > 0 && (
+              <div className="mt-4">
+                <h5 className="text-sm font-semibold text-gray-700 mb-2">Recent Payments</h5>
+                <div className="space-y-2 max-h-40 overflow-y-auto">
+                  {craftsman.paymentHistory.slice(-5).reverse().map((payment) => (
+                    <div key={payment.id} className="bg-gray-50 p-3 rounded border border-gray-200">
+                      <div className="flex justify-between items-start">
+                        <div className="flex-1">
+                          <div className="flex items-center space-x-2">
+                            <span className="font-medium text-green-600">
+                              ₹{payment.amount.toLocaleString()}
+                            </span>
+                            <Badge variant="outline" className="text-xs">
+                              {payment.paymentMethod}
+                            </Badge>
+                          </div>
+                          <p className="text-sm text-gray-600 mt-1">{payment.description}</p>
+                          {payment.projectId && (
+                            <p className="text-xs text-gray-500">Project: {payment.projectId}</p>
+                          )}
+                        </div>
+                        <div className="text-right text-xs text-gray-500">
+                          {new Date(payment.paymentDate).toLocaleDateString()}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
           <Separator />
@@ -133,6 +261,25 @@ export const CraftsmanDetailsDialog = ({
                           <p className="text-sm text-gray-600">
                             Project: {material.projectId}
                           </p>
+                        )}
+                        {material.agreedAmount && (
+                          <div className="mt-2 space-y-1">
+                            <p className="text-sm font-medium text-gray-700">
+                              Payment: ₹{(material.amountPaid || 0).toLocaleString()} / ₹{material.agreedAmount.toLocaleString()}
+                            </p>
+                            <Badge 
+                              variant={
+                                material.paymentStatus === 'paid' ? 'default' :
+                                material.paymentStatus === 'partial' ? 'secondary' :
+                                'destructive'
+                              }
+                              className="text-xs"
+                            >
+                              {material.paymentStatus === 'paid' ? 'Paid' :
+                               material.paymentStatus === 'partial' ? 'Partial Payment' :
+                               'Unpaid'}
+                            </Badge>
+                          </div>
                         )}
                         {material.completed && material.completedDate && (
                           <div className="space-y-1">

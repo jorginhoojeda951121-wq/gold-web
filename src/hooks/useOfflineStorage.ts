@@ -25,7 +25,6 @@ export function useOfflineStorage<T>(key: string, initialValue: T) {
             // Empty array exists but we have seed data - use seed data if key is in seed list
             const seedableKeys = ['craftsmen', 'customers', 'staff_employees', 'jewelry_items', 'gold_items', 'stones_items', 'pos_recentInvoices'];
             if (seedableKeys.includes(key)) {
-              console.log(`⚠️ ${key} exists but is empty, using seed data`);
               setStoredValue(initialValue);
               // Also save seed data to IndexedDB
               await idbSet<T>(key, initialValue);
@@ -37,7 +36,6 @@ export function useOfflineStorage<T>(key: string, initialValue: T) {
           }
         }
       } catch (error) {
-        console.log(error);
         // On error, keep the initial value
         if (isMounted) {
           setStoredValue(initialValue);
@@ -57,7 +55,6 @@ export function useOfflineStorage<T>(key: string, initialValue: T) {
       setStoredValue(valueToStore);
       await idbSet<T>(key, valueToStore);
     } catch (error) {
-      console.log(error);
     }
   };
 

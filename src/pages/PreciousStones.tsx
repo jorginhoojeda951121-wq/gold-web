@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { Search, Grid, List, ArrowLeft, Plus, Edit, Trash2, Upload, X, ShoppingCart, AlertTriangle, Gem } from "lucide-react";
 import { Navigation } from "@/components/Navigation";
 import { Button } from "@/components/ui/button";
@@ -8,8 +8,10 @@ import { useOfflineStorage } from "@/hooks/useOfflineStorage";
 import { useUserStorage } from "@/hooks/useUserStorage";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { enqueueChange } from "@/lib/sync";
+import { getUserData } from "@/lib/userStorage";
 
 interface StoneItem {
   id: string;
@@ -18,6 +20,7 @@ interface StoneItem {
   clarity: string;
   cut: string;
   price: number;
+  stock: number;
   image: string;
 }
 
@@ -42,63 +45,150 @@ const PreciousStones = () => {
     clarity: "",
     cut: "",
     price: "",
+    stock: "",
     image: ""
   });
+
+  // Dropdown options
+  const clarityOptions = ['IF', 'VVS1', 'VVS2', 'VS1', 'VS2', 'SI1', 'SI2', 'I1', 'I2', 'I3'];
+  const cutOptions = ['Excellent', 'Very Good', 'Good', 'Fair', 'Poor', 'Round Brilliant', 'Princess', 'Cushion', 'Emerald', 'Oval', 'Pear', 'Marquise'];
   const fileInputRef = useRef<HTMLInputElement>(null);
   const editFileInputRef = useRef<HTMLInputElement>(null);
+
+  // Load stones from both stones_items and inventory_items (for items added from Home page)
+  const loadStoneItems = useCallback(async () => {
+    try {
+      const [stonesData, inventoryData] = await Promise.all([
+        getUserData<any[]>('stones_items') || [],
+        getUserData<any[]>('inventory_items') || [],
+      ]);
+
+      const allStoneItems: StoneItem[] = [];
+      const processedIds = new Set<string>();
+
+      // Add items from stones_items
+      if (stonesData && Array.isArray(stonesData)) {
+        stonesData.forEach((item: any) => {
+          if (!item || !item.id || processedIds.has(item.id)) return;
+          processedIds.add(item.id);
+          const stoneItem = {
+            id: item.id,
+            name: item.name || 'Unknown Stone',
+            carat: item.carat || '',
+            clarity: item.clarity || '',
+            cut: item.cut || '',
+            price: item.price || 0,
+            stock: item.stock ?? item.inStock ?? 10,
+            image: item.image || item.image_url || '',
+          };
+          allStoneItems.push(stoneItem);
+        });
+      }
+
+      // Add items from inventory_items that are stone type
+      if (inventoryData && Array.isArray(inventoryData)) {
+        inventoryData.forEach((item: any) => {
+          if (!item || !item.id || processedIds.has(item.id)) return;
+          if (item.item_type === 'stone' || item.category === 'stone' || item.type === 'Gemstone') {
+            processedIds.add(item.id);
+            const stoneItem = {
+              id: item.id,
+              name: item.name || 'Unknown Stone',
+              carat: item.attributes?.carat || item.carat || '',
+              clarity: item.attributes?.clarity || item.clarity || '',
+              cut: item.attributes?.cut || item.cut || '',
+              price: item.price || 0,
+              stock: item.stock ?? item.inStock ?? 10,
+              image: item.image || item.image_url || '',
+            };
+            allStoneItems.push(stoneItem);
+          }
+        });
+      }
+
+      // Always update state to ensure latest data is shown
+      setStones(allStoneItems);
+    } catch (error) {
+      console.error('Error loading stone items:', error);
+    }
+  }, [setStones]);
+
+  // Load stones on mount only
+  useEffect(() => {
+    loadStoneItems();
+  }, []); // Empty dependency array - run only once on mount
 
   const filteredItems = stones.filter(item =>
     item.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   const handleAddItem = async () => {
-    if (!formData.name || !formData.carat || !formData.clarity || !formData.cut || !formData.price) {
-      toast({
-        title: "Missing Information",
-        description: "Please fill in all required fields.",
-        variant: "destructive"
-      });
-      return;
-    }
+    try {
+      if (!formData.name || !formData.carat || !formData.clarity || !formData.cut || !formData.price || !formData.stock) {
+        toast({
+          title: "Missing Information",
+          description: "Please fill in all required fields.",
+          variant: "destructive"
+        });
+        return;
+      }
 
-    // Get current user ID
-    const { getCurrentUserId } = await import('@/lib/userStorage');
-    const userId = await getCurrentUserId();
-    
-    if (!userId) {
+      // Get current user ID
+      const { getCurrentUserId } = await import('@/lib/userStorage');
+      const userId = await getCurrentUserId();
+      
+      if (!userId) {
+        toast({
+          title: "Error",
+          description: "User not logged in. Please log in again.",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      const newItem: StoneItem & { user_id?: string } = {
+        id: Date.now().toString(),
+        name: formData.name,
+        carat: formData.carat,
+        clarity: formData.clarity,
+        cut: formData.cut,
+        price: parseFloat(formData.price) || 0,
+        stock: parseInt(formData.stock) || 0,
+        image: formData.image || "https://images.unsplash.com/photo-1631832724508-ea8df04ad455?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3wzNzg4OTl8MHwxfHNlYXJjaHwxfHxwcmVjaW91cy1zdG9uZXN8ZW58MXwwfHx8MTc1Mzc2NjkyMHww&ixlib=rb-4.1.0&q=80&w=1080",
+        user_id: userId, // CRITICAL: Include user_id for data isolation
+      };
+
+      setStones(prev => [...prev, newItem]);
+      enqueueChange('inventory_items', 'upsert', {
+        id: newItem.id,
+        user_id: userId, // CRITICAL: Include user_id for data isolation
+        item_type: 'stone',
+        name: newItem.name,
+        attributes: { carat: newItem.carat, clarity: newItem.clarity, cut: newItem.cut },
+        price: newItem.price,
+        inStock: newItem.stock,
+        stock: newItem.stock,
+        image: newItem.image,
+        updated_at: new Date().toISOString(),
+      });
+      
+      // Reload stones to show the new item
+      await loadStoneItems();
+      
+      setFormData({ name: "", carat: "", clarity: "", cut: "", price: "", stock: "", image: "" });
+      setShowAddDialog(false);
+      toast({
+        title: "Item Added",
+        description: `${newItem.name} has been added to the collection.`
+      });
+    } catch (error) {
+      console.error('Error adding stone item:', error);
       toast({
         title: "Error",
-        description: "User not logged in. Please log in again.",
+        description: "Failed to add item. Please try again.",
         variant: "destructive"
       });
-      return;
     }
-
-    const newItem: StoneItem & { user_id?: string } = {
-      id: Date.now().toString(),
-      ...formData,
-      price: parseFloat(formData.price) || 0,
-      image: formData.image || "https://images.unsplash.com/photo-1631832724508-ea8df04ad455?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3wzNzg4OTl8MHwxfHNlYXJjaHwxfHxwcmVjaW91cy1zdG9uZXN8ZW58MXwwfHx8MTc1Mzc2NjkyMHww&ixlib=rb-4.1.0&q=80&w=1080",
-      user_id: userId, // CRITICAL: Include user_id for data isolation
-    };
-
-    setStones(prev => [...prev, newItem]);
-    enqueueChange('inventory_items', 'upsert', {
-      id: newItem.id,
-      user_id: userId, // CRITICAL: Include user_id for data isolation
-      item_type: 'stone',
-      name: newItem.name,
-      attributes: { carat: newItem.carat, clarity: newItem.clarity, cut: newItem.cut },
-      price: newItem.price,
-      image: newItem.image,
-      updated_at: new Date().toISOString(),
-    });
-    setFormData({ name: "", carat: "", clarity: "", cut: "", price: "", image: "" });
-    setShowAddDialog(false);
-    toast({
-      title: "Item Added",
-      description: `${newItem.name} has been added to the collection.`
-    });
   };
 
   const handleEditItem = (item: StoneItem) => {
@@ -109,44 +199,65 @@ const PreciousStones = () => {
       clarity: item.clarity,
       cut: item.cut,
       price: item.price.toString(),
+      stock: item.stock.toString(),
       image: item.image
     });
     setShowEditDialog(true);
   };
 
-  const handleUpdateItem = () => {
-    if (!selectedItem || !formData.name || !formData.carat || !formData.clarity || !formData.cut || !formData.price) {
+  const handleUpdateItem = async () => {
+    try {
+      if (!selectedItem || !formData.name || !formData.carat || !formData.clarity || !formData.cut || !formData.price || !formData.stock) {
+        toast({
+          title: "Missing Information",
+          description: "Please fill in all required fields.",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      const updatedItem: StoneItem = {
+        ...selectedItem,
+        name: formData.name,
+        carat: formData.carat,
+        clarity: formData.clarity,
+        cut: formData.cut,
+        price: parseFloat(formData.price) || 0,
+        stock: parseInt(formData.stock) || 0,
+        image: formData.image
+      };
+
+      setStones(prev => prev.map(item => item.id === selectedItem.id ? updatedItem : item));
+      enqueueChange('inventory_items', 'upsert', {
+        id: updatedItem.id,
+        item_type: 'stone',
+        name: updatedItem.name,
+        attributes: { carat: updatedItem.carat, clarity: updatedItem.clarity, cut: updatedItem.cut },
+        price: updatedItem.price,
+        inStock: updatedItem.stock,
+        stock: updatedItem.stock,
+        image: updatedItem.image,
+        updated_at: new Date().toISOString(),
+      });
+      
+      // Reload stones to show the updated item
+      await loadStoneItems();
+      
+      setFormData({ name: "", carat: "", clarity: "", cut: "", price: "", stock: "", image: "" });
+      setSelectedItem(null);
+      setShowEditDialog(false);
       toast({
-        title: "Missing Information",
-        description: "Please fill in all required fields.",
+        title: "Item Updated",
+        description: `${updatedItem.name} has been updated.`
+      });
+    } catch (error) {
+      console.error('Error updating stone item:', error);
+      toast({
+        title: "Error",
+        description: "Failed to update item. Please try again.",
         variant: "destructive"
       });
-      return;
     }
-
-    const updatedItem: StoneItem = {
-      ...selectedItem,
-      ...formData,
-      price: parseFloat(formData.price) || 0
-    };
-
-    setStones(prev => prev.map(item => item.id === selectedItem.id ? updatedItem : item));
-    enqueueChange('inventory_items', 'upsert', {
-      id: updatedItem.id,
-      item_type: 'stone',
-      name: updatedItem.name,
-      attributes: { carat: updatedItem.carat, clarity: updatedItem.clarity, cut: updatedItem.cut },
-      price: updatedItem.price,
-      image: updatedItem.image,
-      updated_at: new Date().toISOString(),
-    });
-    setFormData({ name: "", carat: "", clarity: "", cut: "", price: "", image: "" });
-    setSelectedItem(null);
-    setShowEditDialog(false);
-    toast({
-      title: "Item Updated",
-      description: `${updatedItem.name} has been updated.`
-    });
   };
 
   const handleDeleteClick = (item: StoneItem) => {
@@ -305,14 +416,14 @@ const PreciousStones = () => {
         </div>
 
         {/* Precious Stones */}
-        <div className={`grid gap-8 ${viewMode === 'grid' ? 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4' : 'grid-cols-1'}`}>
+        <div className={`grid gap-4 ${viewMode === 'grid' ? 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4' : 'grid-cols-1'}`}>
           {filteredItems.map(item => (
             <div 
               key={`${item.id}-${item.image || 'no-image'}-${item.name}`}
               className="group relative bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden transition-all duration-300 hover:shadow-2xl hover:-translate-y-1 hover:border-purple-300"
             >
               {/* Premium Image Section - Fixed Height */}
-              <div className="relative w-full overflow-hidden bg-gradient-to-br from-purple-50 via-pink-50 to-blue-50 flex-shrink-0" style={{ height: '256px', minHeight: '256px', maxHeight: '256px' }}>
+              <div className="relative w-full overflow-hidden bg-gradient-to-br from-purple-50 via-pink-50 to-blue-50 flex-shrink-0" style={{ height: '160px', minHeight: '160px', maxHeight: '160px' }}>
                 {item.image && item.image.trim() !== '' ? (
                   <>
                     <img 
@@ -323,9 +434,9 @@ const PreciousStones = () => {
                       style={{ 
                         objectFit: 'cover', 
                         objectPosition: 'center',
-                        minHeight: '256px',
-                        maxHeight: '256px',
-                        height: '256px'
+                        minHeight: '160px',
+                        maxHeight: '160px',
+                        height: '160px'
                       }}
                       loading="lazy"
                       onError={(e) => {
@@ -338,8 +449,8 @@ const PreciousStones = () => {
                 ) : (
                   <div className="absolute inset-0 w-full h-full flex items-center justify-center">
                     <div className="text-center">
-                      <div className="w-20 h-20 mx-auto mb-3 rounded-full bg-gradient-to-br from-purple-400 via-pink-400 to-blue-400 flex items-center justify-center shadow-xl">
-                        <Gem className="h-10 w-10 text-white" />
+                      <div className="w-12 h-12 mx-auto mb-2 rounded-full bg-gradient-to-br from-purple-400 via-pink-400 to-blue-400 flex items-center justify-center shadow-xl">
+                        <Gem className="h-6 w-6 text-white" />
                       </div>
                       <p className="text-xs text-gray-600 font-medium">Precious Stone</p>
                     </div>
@@ -348,44 +459,48 @@ const PreciousStones = () => {
               </div>
 
               {/* Content Section */}
-              <div className="p-6 bg-gradient-to-b from-white to-gray-50/50 flex flex-col min-h-[280px]">
+              <div className="p-4 bg-gradient-to-b from-white to-gray-50/50 flex flex-col min-h-[200px]">
                 {/* Product Header */}
-                <div className="mb-4">
-                  <h3 className="text-xl font-bold text-gray-900 mb-1.5 group-hover:text-purple-600 transition-colors duration-300">
+                <div className="mb-3">
+                  <h3 className="text-lg font-bold text-gray-900 mb-1 group-hover:text-purple-600 transition-colors duration-300 line-clamp-1">
                     {item.name}
                   </h3>
-                  <p className="text-sm font-medium text-purple-600 uppercase tracking-wide">
+                  <p className="text-xs font-medium text-purple-600 uppercase tracking-wide">
                     Precious Stone
                   </p>
                 </div>
 
-                {/* Premium Details Grid */}
-                <div className="grid grid-cols-2 gap-2.5 mb-5 flex-grow">
-                  <div className="col-span-2 py-2.5 px-3.5 rounded-xl bg-gradient-to-r from-purple-50 to-pink-50 border border-purple-100 min-h-[48px] flex items-center">
+                {/* Premium Details Grid - Compact */}
+                <div className="grid grid-cols-2 gap-2 mb-3 flex-grow">
+                  <div className="col-span-2 py-1 px-2 rounded-lg bg-gradient-to-r from-purple-50 to-pink-50 border border-purple-100 min-h-[32px] flex items-center">
                     <div className="flex items-center justify-between w-full">
                       <span className="text-xs font-semibold text-purple-700 uppercase tracking-wide">Carat</span>
-                      <span className="text-sm font-bold text-gray-900">{item.carat}</span>
+                      <span className="text-xs font-bold text-gray-900 truncate ml-2">{item.carat}</span>
                     </div>
                   </div>
                   
-                  <div className="py-2.5 px-3.5 rounded-xl bg-gradient-to-r from-blue-50 to-cyan-50 border border-blue-100 min-h-[72px] flex flex-col justify-center">
-                    <span className="text-xs font-semibold text-blue-700 uppercase tracking-wide mb-1">Clarity</span>
-                    <span className="text-sm font-bold text-gray-900">{item.clarity}</span>
+                  <div className="py-1 px-2 rounded-lg bg-gradient-to-r from-blue-50 to-cyan-50 border border-blue-100 min-h-[32px] flex items-center">
+                    <div className="flex items-center justify-between w-full">
+                      <span className="text-xs font-semibold text-blue-700 uppercase tracking-wide">Clarity</span>
+                      <span className="text-xs font-bold text-gray-900 truncate ml-2">{item.clarity}</span>
+                    </div>
                   </div>
                   
-                  <div className="py-2.5 px-3.5 rounded-xl bg-gradient-to-r from-amber-50 to-yellow-50 border border-amber-100 min-h-[72px] flex flex-col justify-center">
-                    <span className="text-xs font-semibold text-amber-700 uppercase tracking-wide mb-1">Cut</span>
-                    <span className="text-sm font-bold text-gray-900">{item.cut}</span>
+                  <div className="py-1 px-2 rounded-lg bg-gradient-to-r from-amber-50 to-yellow-50 border border-amber-100 min-h-[32px] flex items-center">
+                    <div className="flex items-center justify-between w-full">
+                      <span className="text-xs font-semibold text-amber-700 uppercase tracking-wide">Cut</span>
+                      <span className="text-xs font-bold text-gray-900 truncate ml-2">{item.cut}</span>
+                    </div>
                   </div>
                 </div>
 
                 {/* Price Section */}
-                <div className="mb-5 pb-5 border-b border-gray-200">
+                <div className="mb-3 pb-3 border-b border-gray-200">
                   <div className="flex items-baseline gap-2">
-                    <span className="text-xs font-medium text-gray-500">Price</span>
+                    <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">Price</span>
                   </div>
-                  <div className="flex items-center gap-2 mt-1">
-                    <span className="text-2xl font-bold bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent">
+                  <div className="flex items-center gap-2 mt-0.5">
+                    <span className="text-xl font-bold bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent">
                       ₹{item.price.toLocaleString()}
                     </span>
                   </div>
@@ -399,9 +514,10 @@ const PreciousStones = () => {
                       e.stopPropagation();
                       handleOrderNow(item);
                     }}
-                    className="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-semibold py-2.5 shadow-lg hover:shadow-xl transition-all duration-300 rounded-xl"
+                    size="sm"
+                    className="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-semibold py-2 shadow-md hover:shadow-lg transition-all duration-300 rounded-lg text-xs"
                   >
-                    <ShoppingCart className="h-4 w-4 mr-2" />
+                    <ShoppingCart className="h-3.5 w-3.5 mr-1.5" />
                     Order Now
                   </Button>
 
@@ -414,7 +530,7 @@ const PreciousStones = () => {
                       }}
                       size="sm"
                       variant="outline"
-                      className="flex-1 border-blue-200 text-blue-600 hover:bg-blue-50 hover:border-blue-300 font-medium rounded-lg transition-all duration-200"
+                      className="flex-1 border-blue-200 text-blue-600 hover:bg-blue-50 hover:border-blue-300 font-medium rounded-lg transition-all duration-200 text-xs"
                     >
                       <Edit className="h-3.5 w-3.5 mr-1.5" />
                       Edit
@@ -426,7 +542,7 @@ const PreciousStones = () => {
                       }}
                       size="sm"
                       variant="outline"
-                      className="flex-1 border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300 font-medium rounded-lg transition-all duration-200"
+                      className="flex-1 border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300 font-medium rounded-lg transition-all duration-200 text-xs"
                     >
                       <Trash2 className="h-3.5 w-3.5 mr-1.5" />
                       Delete
@@ -474,32 +590,52 @@ const PreciousStones = () => {
               </div>
               <div>
                 <Label htmlFor="clarity">Clarity *</Label>
-                <Input
-                  id="clarity"
-                  value={formData.clarity}
-                  onChange={(e) => setFormData(prev => ({ ...prev, clarity: e.target.value }))}
-                  placeholder="e.g., VVS1"
-                />
+                <Select value={formData.clarity} onValueChange={(value) => setFormData(prev => ({ ...prev, clarity: value }))}>
+                  <SelectTrigger id="clarity">
+                    <SelectValue placeholder="e.g., VVS1" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {clarityOptions.map((clarity) => (
+                      <SelectItem key={clarity} value={clarity}>{clarity}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
             </div>
             <div>
               <Label htmlFor="cut">Cut *</Label>
-              <Input
-                id="cut"
-                value={formData.cut}
-                onChange={(e) => setFormData(prev => ({ ...prev, cut: e.target.value }))}
-                placeholder="e.g., Round Brilliant"
-              />
+              <Select value={formData.cut} onValueChange={(value) => setFormData(prev => ({ ...prev, cut: value }))}>
+                <SelectTrigger id="cut">
+                  <SelectValue placeholder="e.g., Round Brilliant" />
+                </SelectTrigger>
+                <SelectContent>
+                  {cutOptions.map((cut) => (
+                    <SelectItem key={cut} value={cut}>{cut}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
-            <div>
-              <Label htmlFor="price">Price (₹) *</Label>
-              <Input
-                id="price"
-                type="number"
-                value={formData.price}
-                onChange={(e) => setFormData(prev => ({ ...prev, price: e.target.value }))}
-                placeholder="e.g., 850000"
-              />
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="price">Price (₹) *</Label>
+                <Input
+                  id="price"
+                  type="number"
+                  value={formData.price}
+                  onChange={(e) => setFormData(prev => ({ ...prev, price: e.target.value }))}
+                  placeholder="250000"
+                />
+              </div>
+              <div>
+                <Label htmlFor="stock">Stock Quantity *</Label>
+                <Input
+                  id="stock"
+                  type="number"
+                  value={formData.stock}
+                  onChange={(e) => setFormData(prev => ({ ...prev, stock: e.target.value }))}
+                  placeholder="0"
+                />
+              </div>
             </div>
             <div>
               <Label>Item Image</Label>
@@ -587,32 +723,52 @@ const PreciousStones = () => {
               </div>
               <div>
                 <Label htmlFor="edit-clarity">Clarity *</Label>
-                <Input
-                  id="edit-clarity"
-                  value={formData.clarity}
-                  onChange={(e) => setFormData(prev => ({ ...prev, clarity: e.target.value }))}
-                  placeholder="e.g., VVS1"
-                />
+                <Select value={formData.clarity} onValueChange={(value) => setFormData(prev => ({ ...prev, clarity: value }))}>
+                  <SelectTrigger id="edit-clarity">
+                    <SelectValue placeholder="e.g., VVS1" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {clarityOptions.map((clarity) => (
+                      <SelectItem key={clarity} value={clarity}>{clarity}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
             </div>
             <div>
               <Label htmlFor="edit-cut">Cut *</Label>
-              <Input
-                id="edit-cut"
-                value={formData.cut}
-                onChange={(e) => setFormData(prev => ({ ...prev, cut: e.target.value }))}
-                placeholder="e.g., Round Brilliant"
-              />
+              <Select value={formData.cut} onValueChange={(value) => setFormData(prev => ({ ...prev, cut: value }))}>
+                <SelectTrigger id="edit-cut">
+                  <SelectValue placeholder="e.g., Round Brilliant" />
+                </SelectTrigger>
+                <SelectContent>
+                  {cutOptions.map((cut) => (
+                    <SelectItem key={cut} value={cut}>{cut}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
-            <div>
-              <Label htmlFor="edit-price">Price (₹) *</Label>
-              <Input
-                id="edit-price"
-                type="number"
-                value={formData.price}
-                onChange={(e) => setFormData(prev => ({ ...prev, price: e.target.value }))}
-                placeholder="e.g., 850000"
-              />
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="edit-price">Price (₹) *</Label>
+                <Input
+                  id="edit-price"
+                  type="number"
+                  value={formData.price}
+                  onChange={(e) => setFormData(prev => ({ ...prev, price: e.target.value }))}
+                  placeholder="250000"
+                />
+              </div>
+              <div>
+                <Label htmlFor="edit-stock">Stock Quantity *</Label>
+                <Input
+                  id="edit-stock"
+                  type="number"
+                  value={formData.stock}
+                  onChange={(e) => setFormData(prev => ({ ...prev, stock: e.target.value }))}
+                  placeholder="0"
+                />
+              </div>
             </div>
             <div>
               <Label>Item Image</Label>

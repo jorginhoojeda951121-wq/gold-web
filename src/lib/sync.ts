@@ -28,6 +28,17 @@ const WEB_TO_SUPABASE_MAPPING: Record<string, string> = {
 	'projects': 'projects',
 	'transactions': 'transactions',
 	'settings': 'settings',
+	// Vendor management tables
+	'vendors': 'vendors',
+	'purchase_orders': 'purchase_orders',
+	'purchase_order_items': 'purchase_order_items',
+	'supplier_invoices': 'supplier_invoices',
+	'vendor_payments': 'vendor_payments',
+	// Reservations tables
+	'reservations': 'reservations',
+	'reservation_items': 'reservation_items',
+	// Google Calendar settings
+	'google_calendar_settings': 'google_calendar_settings',
 };
 
 // Map Supabase table names to web app IndexedDB table names
@@ -54,6 +65,17 @@ const SUPABASE_TO_WEB_MAPPING: Record<string, string> = {
 	'projects': 'projects',
 	'transactions': 'transactions',
 	'settings': 'settings',
+	// Vendor management tables
+	'vendors': 'vendors',
+	'purchase_orders': 'purchase_orders',
+	'purchase_order_items': 'purchase_order_items',
+	'supplier_invoices': 'supplier_invoices',
+	'vendor_payments': 'vendor_payments',
+	// Reservations tables
+	'reservations': 'reservations',
+	'reservation_items': 'reservation_items',
+	// Google Calendar settings
+	'google_calendar_settings': 'google_calendar_settings',
 };
 
 async function syncTable<T>(
@@ -73,7 +95,8 @@ async function syncTable<T>(
 	const lastSyncAt = (await getUserData<string>(lastKey)) ?? '1970-01-01T00:00:00Z';
 	const nowIso = new Date().toISOString();
 
-	// Get pending deletions from changeQueue to avoid restoring deleted items
+	// CRITICAL FIX: Get ALL pending changes from changeQueue to avoid overwriting local modifications
+	// This prevents data loss when user makes local changes and then pulls server data
 	const db = await getDB();
 	const tx = db.transaction('changeQueue', 'readonly');
 	const store = tx.objectStore('changeQueue');
@@ -85,18 +108,33 @@ async function syncTable<T>(
 	const webTableName = SUPABASE_TO_WEB_MAPPING[supabaseTable] || supabaseTable;
 	const possibleTableNames = [webTableName, supabaseTable];
 	const pendingDeletions = new Set<string>();
+	const pendingModifications = new Set<string>(); // Track ALL pending changes (insert/update/delete)
 	
 	for (const tableName of possibleTableNames) {
 		let cursor = await index.openCursor(IDBKeyRange.only(tableName));
 		while (cursor) {
 			const change = cursor.value as any;
-			if (change.action === 'delete' && change.payload?.id) {
-				pendingDeletions.add(String(change.payload.id));
+			const itemId = change.payload?.id;
+			
+			if (itemId) {
+				const idStr = String(itemId);
+				
+				// Track deletions separately (these should never be restored)
+				if (change.action === 'delete') {
+					pendingDeletions.add(idStr);
+				}
+				
+				// Track ALL modifications (insert/update/delete) to prevent overwriting
+				// This ensures local changes are NEVER lost during sync
+				pendingModifications.add(idStr);
 			}
+			
 			cursor = await cursor.continue();
 		}
 	}
 	await tx.done;
+	
+
 
 	const supabase = getSupabase();
 	const schema = ((import.meta as any).env?.VITE_SUPABASE_SCHEMA as string) || 'public';
@@ -132,17 +170,22 @@ async function syncTable<T>(
 	}
 
 	const rows = (updatedRows as T[] | null) ?? [];
-	console.log(`📦 ${supabaseTable}: Found ${rows.length} updated rows for user ${userId} since ${lastSyncAt}`);
 	
 	let syncedCount = 0;
+	let skippedModifiedCount = 0;
 	let skippedDeletedCount = 0;
+	
 	for (const row of rows) {
 		const rowId = String((row as any).id);
 		
-		// Skip rows that have pending deletions - don't restore deleted items
-		if (pendingDeletions.has(rowId)) {
-			console.log(`⏭️ Skipping ${supabaseTable} row ${rowId} - pending deletion`);
-			skippedDeletedCount++;
+		// CRITICAL: Skip rows that have ANY pending changes (insert/update/delete)
+		// This prevents overwriting local modifications that haven't been synced yet
+		if (pendingModifications.has(rowId)) {
+			if (pendingDeletions.has(rowId)) {
+				skippedDeletedCount++;
+			} else {
+				skippedModifiedCount++;
+			}
 			continue;
 		}
 		
@@ -163,10 +206,10 @@ async function syncTable<T>(
 	}
 
 	if (syncedCount > 0) {
-		console.log(`✅ ${supabaseTable}: Synced ${syncedCount} rows to IndexedDB for user ${userId}`);
+	}
+	if (skippedModifiedCount > 0) {
 	}
 	if (skippedDeletedCount > 0) {
-		console.log(`⏭️ ${supabaseTable}: Skipped ${skippedDeletedCount} rows with pending deletions`);
 	}
 
 	// Note: deleted_at column doesn't exist in schema, so we skip soft deletes
@@ -177,7 +220,6 @@ async function syncTable<T>(
 }
 
 export async function syncAll() {
-	console.log('🔄 Starting syncAll...');
 	// First push local queued changes, then pull latest
 	await pushQueue();
 	
@@ -185,10 +227,8 @@ export async function syncAll() {
 	
 	const run = async (tableName: string, fn: () => Promise<void>) => {
 		try { 
-			console.log(`📥 Syncing table: ${tableName}`);
 			await fn(); 
 			syncResults[tableName] = { success: true };
-			console.log(`✅ Successfully synced: ${tableName}`);
 		} catch (e: any) {
 			const msg = e?.message || '';
 			// Ignore missing table/schema cache errors so app still works if a table isn't set up yet
@@ -254,9 +294,21 @@ export async function syncAll() {
 			status: row.status || existingItem.status || 'available',
 			rating: row.rating ?? existingItem.rating ?? 0.0,
 			hourly_rate: row.hourly_rate ?? existingItem.hourly_rate,
+			// Firm type fields from Supabase
+			type: row.type || existingItem.type || 'individual',
+			firmName: row.firm_name || existingItem.firmName,
+			firmContact: row.firm_contact || existingItem.firmContact,
+			firmAddress: row.firm_address || existingItem.firmAddress,
+			firmGSTNumber: row.firm_gst_number || existingItem.firmGSTNumber,
+			contactPerson: row.contact_person || existingItem.contactPerson,
+			// Payment tracking fields from Supabase
+			totalAmountDue: row.total_amount_due ?? existingItem.totalAmountDue ?? 0,
+			totalAmountPaid: row.total_amount_paid ?? existingItem.totalAmountPaid ?? 0,
+			pendingAmount: row.pending_amount ?? existingItem.pendingAmount ?? 0,
 			// Preserve local-only fields that don't exist in Supabase
 			currentProjects: existingItem.currentProjects ?? 0,
 			assignedMaterials: existingItem.assignedMaterials ?? [],
+			paymentHistory: existingItem.paymentHistory ?? [],
 			is_active: row.is_active ?? existingItem.is_active ?? 1,
 			created_at: row.created_at || existingItem.created_at || new Date().toISOString(),
 			updated_at: row.updated_at || new Date().toISOString(),
@@ -284,7 +336,6 @@ export async function syncAll() {
 			
 			// If local has more recent update, keep local and merge only non-critical fields
 			if (localUpdatedAt > serverUpdatedAt && localItem.inStock !== undefined) {
-				console.log(`🔄 Preserving local inventory change for ${row.id} (local: ${localItem.inStock}, server: ${row.stock})`);
 			// Merge server data but keep local inStock and timestamp
 			const mergedItem: any = {
 				...row,
@@ -411,6 +462,10 @@ export async function syncAll() {
 			supplier: row.supplier,
 			description: row.description,
 			image: (row.image_url && row.image_url.trim()) || (row.image && row.image.trim()) || '',
+			// Tax rate fields
+			taxRate: row.tax_rate ?? 3,
+			taxIncluded: row.tax_included ?? false,
+			taxCategory: row.tax_category ?? 'jewelry',
 			created_at: row.created_at,
 			updated_at: row.updated_at,
 		};
@@ -447,6 +502,10 @@ export async function syncAll() {
 			is_artificial: row.is_artificial === 1 || row.is_artificial === true,
 			description: row.description,
 			image: (row.image_url && row.image_url.trim()) || (row.image && row.image.trim()) || '',
+			// Tax rate fields
+			taxRate: row.tax_rate ?? 3,
+			taxIncluded: row.tax_included ?? false,
+			taxCategory: row.tax_category ?? 'jewelry',
 			created_at: row.created_at,
 			updated_at: row.updated_at,
 		};
@@ -487,6 +546,10 @@ export async function syncAll() {
 			image: (row.image_url && row.image_url.trim()) || (row.image && row.image.trim()) || '',
 			status: row.is_active === 1 ? 'active' : 'inactive',
 			is_active: row.is_active,
+			// Tax rate fields
+			taxRate: row.tax_rate ?? 5,  // Default 5% for stones
+			taxIncluded: row.tax_included ?? false,
+			taxCategory: row.tax_category ?? 'gemstones',
 			created_at: row.created_at,
 			updated_at: row.updated_at,
 		};
@@ -871,12 +934,59 @@ export async function syncAll() {
 		const filtered = list.filter((e) => e.key !== key);
 		await setUserData('settings', filtered);
 	}));
+
+	// Gold Rates (current rates and making charges)
+	await run('gold_rates', () => syncTable('gold_rates', async (row: any) => {
+		if (!row.is_active) return; // Only sync active rates
+		
+		const goldSettings = (await getUserData<any>('gold_rate_settings')) || {
+			currentRates: {},
+			makingCharges: {},
+			rateHistory: [],
+		};
+		
+		// Update current rates
+		goldSettings.currentRates = {
+			rate24K: row.rate_24k ?? 6800,
+			rate22K: row.rate_22k ?? 6200,
+			rate18K: row.rate_18k ?? 5100,
+			rate14K: row.rate_14k ?? 4000,
+			lastUpdated: row.updated_at || new Date().toISOString(),
+			updatedBy: row.updated_by,
+		};
+		
+		// Update making charges
+		goldSettings.makingCharges = {
+			gold24K: {
+				type: 'per_gram',
+				value: row.making_24k ?? 600,
+				minimumCharge: row.min_making_24k ?? 500,
+			},
+			gold22K: {
+				type: 'per_gram',
+				value: row.making_22k ?? 550,
+				minimumCharge: row.min_making_22k ?? 450,
+			},
+			gold18K: {
+				type: 'per_gram',
+				value: row.making_18k ?? 500,
+				minimumCharge: row.min_making_18k ?? 400,
+			},
+			gold14K: {
+				type: 'per_gram',
+				value: row.making_14k ?? 450,
+				minimumCharge: row.min_making_14k ?? 350,
+			},
+		};
+		
+		await setUserData('gold_rate_settings', goldSettings);
+	}, async (id: string) => {
+		// Don't delete gold rates, just mark as inactive
+	}));
 	
 	// Log sync results
-	console.log('📊 Sync Results:', syncResults);
 	const successful = Object.values(syncResults).filter(r => r.success).length;
 	const failed = Object.values(syncResults).filter(r => !r.success).length;
-	console.log(`✅ Sync completed: ${successful} successful, ${failed} failed/skipped`);
 }
 
 type ChangeOp = {
@@ -901,7 +1011,25 @@ export async function enqueueChange(table: string, action: 'upsert' | 'delete', 
 }
 
 // One-time backfill: push current IndexedDB datasets into Supabase (server-wins on conflict)
+// OPTIMIZED: Smart push that only uploads changed data, not everything
+export async function pushLocalChanges() {
+	
+	// Get current user ID - CRITICAL for data isolation
+	const userId = await getCurrentUserId();
+	if (!userId) {
+		console.warn('⚠️ No user ID found, skipping push');
+		return;
+	}
+
+	// First, push pending changes from changeQueue (most efficient)
+	await pushQueue();
+
+	// Done! Changed data is now synced
+}
+
+// LEGACY: Full backfill (uploads ALL data) - USE ONLY FOR INITIAL SETUP
 export async function backfillAllFromIdb() {
+	
 	// Get current user ID - CRITICAL for data isolation
 	const userId = await getCurrentUserId();
 	if (!userId) {
@@ -912,6 +1040,9 @@ export async function backfillAllFromIdb() {
 	const supabase = getSupabase();
 	const schema = ((import.meta as any).env?.VITE_SUPABASE_SCHEMA as string) || 'public';
 	const sb = (supabase as any).schema ? (supabase as any).schema(schema) : supabase;
+
+	let totalUploaded = 0;
+	const startTime = Date.now();
 
 	// Staff (map to Supabase 'staff' table)
 	const employees = (await getUserData<any[]>('staff_employees')) ?? [];
@@ -935,6 +1066,7 @@ export async function backfillAllFromIdb() {
 			})),
 			{ onConflict: 'id' }
 		);
+		totalUploaded += employees.length;
 	}
 
 	// Inventory (map to Supabase 'inventory' table)
@@ -1052,6 +1184,7 @@ export async function backfillAllFromIdb() {
 				console.error('❌ Error details:', error.message, error.details, error.hint);
 				throw error;
 			}
+			totalUploaded += inventoryDataArray.length;
 		}
 	}
 
@@ -1071,11 +1204,16 @@ export async function backfillAllFromIdb() {
 				in_stock: parseInt(String(item.inStock ?? item.stock ?? 0), 10),
 				supplier: item.supplier || null,
 				description: item.description || null,
+				// Tax rate fields
+				tax_rate: parseFloat(String(item.taxRate ?? 3)),
+				tax_included: item.taxIncluded ?? false,
+				tax_category: item.taxCategory ?? 'jewelry',
 				updated_at: new Date().toISOString(),
 			};
 		});
 		if (goldDataArray.length > 0) {
 			await sb.from('gold').upsert(goldDataArray, { onConflict: 'id' });
+			totalUploaded += goldDataArray.length;
 		}
 	}
 
@@ -1096,11 +1234,16 @@ export async function backfillAllFromIdb() {
 				in_stock: parseInt(String(item.inStock ?? item.stock ?? 0), 10),
 				is_artificial: (item.isArtificial === true || item.is_artificial === 1) ? 1 : 0,
 				description: item.description || null,
+				// Tax rate fields
+				tax_rate: parseFloat(String(item.taxRate ?? 3)),
+				tax_included: item.taxIncluded ?? false,
+				tax_category: item.taxCategory ?? 'jewelry',
 				updated_at: new Date().toISOString(),
 			};
 		});
 		if (jewelryDataArray.length > 0) {
 			await sb.from('jewelry').upsert(jewelryDataArray, { onConflict: 'id' });
+			totalUploaded += jewelryDataArray.length;
 		}
 	}
 
@@ -1124,11 +1267,16 @@ export async function backfillAllFromIdb() {
 				supplier: item.supplier || null,
 				certificate_number: item.certificateNumber ?? item.certificate_number ?? null,
 				is_active: (item.is_active === 1 || item.status === 'active') ? 1 : 1,
+				// Tax rate fields
+				tax_rate: parseFloat(String(item.taxRate ?? 5)),  // Default 5% for stones
+				tax_included: item.taxIncluded ?? false,
+				tax_category: item.taxCategory ?? 'gemstones',
 				updated_at: new Date().toISOString(),
 			};
 		});
 		if (stonesDataArray.length > 0) {
 			await sb.from('stones').upsert(stonesDataArray, { onConflict: 'id' });
+			totalUploaded += stonesDataArray.length;
 		}
 	}
 
@@ -1383,7 +1531,6 @@ export async function backfillAllFromIdb() {
 					console.error('❌ Error details:', error.message, error.details, error.hint);
 					throw error;
 				}
-				console.log(`✅ Backfilled ${ledgerDataArray.length} customer ledger transactions`);
 			} catch (error: any) {
 				console.error('❌ Error upserting customer_ledger:', error);
 				// Continue with other tables instead of failing completely
@@ -1506,10 +1653,54 @@ export async function backfillAllFromIdb() {
 			});
 		}
 	});
+
+	// Upload gold rate settings
+	const goldRateSettings = (await getUserData<any>('gold_rate_settings'));
+	if (goldRateSettings && goldRateSettings.currentRates) {
+		const rates = goldRateSettings.currentRates;
+		const making = goldRateSettings.makingCharges;
+		
+		const goldRateData = {
+			user_id: userId,
+			rate_24k: parseFloat(String(rates.rate24K ?? 6800)),
+			rate_22k: parseFloat(String(rates.rate22K ?? 6200)),
+			rate_18k: parseFloat(String(rates.rate18K ?? 5100)),
+			rate_14k: parseFloat(String(rates.rate14K ?? 4000)),
+			making_24k: parseFloat(String(making.gold24K?.value ?? 600)),
+			making_22k: parseFloat(String(making.gold22K?.value ?? 550)),
+			making_18k: parseFloat(String(making.gold18K?.value ?? 500)),
+			making_14k: parseFloat(String(making.gold14K?.value ?? 450)),
+			min_making_24k: parseFloat(String(making.gold24K?.minimumCharge ?? 500)),
+			min_making_22k: parseFloat(String(making.gold22K?.minimumCharge ?? 450)),
+			min_making_18k: parseFloat(String(making.gold18K?.minimumCharge ?? 400)),
+			min_making_14k: parseFloat(String(making.gold14K?.minimumCharge ?? 350)),
+			is_active: true,
+			updated_by: rates.updatedBy || null,
+			updated_at: rates.lastUpdated || new Date().toISOString(),
+		};
+		
+		try {
+			// First, deactivate all existing rates for this user
+			await sb.from('gold_rates').update({ is_active: false }).eq('user_id', userId).eq('is_active', true);
+			
+			// Then insert new rate
+			const { error } = await sb.from('gold_rates').insert(goldRateData);
+			if (error) {
+				console.error('❌ Gold rate upload error:', error);
+			} else {
+				totalUploaded++;
+			}
+		} catch (e) {
+			console.error('❌ Error uploading gold rates:', e);
+		}
+	}
 	
 	if (settingsArray.length > 0) {
 		await sb.from('settings').upsert(settingsArray, { onConflict: 'key,user_id' });
 	}
+
+	// Final summary
+	const duration = ((Date.now() - startTime) / 1000).toFixed(2);
 }
 
 async function pushQueue() {
@@ -2014,19 +2205,30 @@ async function pushQueue() {
 						}
 					}
 					
-					const craftsmanData = {
-						id: String(craftsman.id),
-						name: String(craftsman.name || ''),
-						specialty: String(craftsman.specialty || ''),
-						experience: experience,
-						phone: String(craftsman.phone || craftsman.contact || ''),
-						email: String(craftsman.email || ''),
-						address: String(craftsman.address || ''),
-						status: status,
-						rating: parseFloat(String(craftsman.rating || 0.0)) || 0.0,
-						created_at: craftsman.created_at || new Date().toISOString(),
-						updated_at: new Date().toISOString(),
-					};
+				const craftsmanData = {
+					id: String(craftsman.id),
+					name: String(craftsman.name || ''),
+					specialty: String(craftsman.specialty || ''),
+					experience: experience,
+					phone: String(craftsman.phone || craftsman.contact || ''),
+					email: String(craftsman.email || ''),
+					address: String(craftsman.address || ''),
+					status: status,
+					rating: parseFloat(String(craftsman.rating || 0.0)) || 0.0,
+					// Firm type fields
+					type: craftsman.type || 'individual',
+					firm_name: craftsman.firmName || null,
+					firm_contact: craftsman.firmContact || null,
+					firm_address: craftsman.firmAddress || null,
+					firm_gst_number: craftsman.firmGSTNumber || null,
+					contact_person: craftsman.contactPerson || null,
+					// Payment tracking fields
+					total_amount_due: parseFloat(String(craftsman.totalAmountDue || 0)) || 0,
+					total_amount_paid: parseFloat(String(craftsman.totalAmountPaid || 0)) || 0,
+					pending_amount: parseFloat(String(craftsman.pendingAmount || 0)) || 0,
+					created_at: craftsman.created_at || new Date().toISOString(),
+					updated_at: new Date().toISOString(),
+				};
 					
 					// Add user_id to craftsman data
 					const craftsmanDataWithUserId = {
@@ -2042,7 +2244,6 @@ async function pushQueue() {
 						// Don't throw - continue with other items
 						continue;
 					}
-					console.log('✅ Craftsman synced:', craftsmanData.id, craftsmanData.name);
 					successfulChanges.push(change.id);
 				} else if (change.table === 'customers') {
 					// Transform customers to Supabase format - handle both camelCase and snake_case

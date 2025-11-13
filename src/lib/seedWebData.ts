@@ -2,7 +2,6 @@ import { idbSet } from './indexedDb';
 
 export async function seedWebData() {
   try {
-    console.log('Seeding web application data...');
 
     // Seed jewelry items (with all required fields for JewelryItem interface)
     const jewelryItems = [
@@ -260,8 +259,6 @@ export async function seedWebData() {
     await idbSet('customers', customers);
     await idbSet('pos_recentInvoices', posInvoices);
 
-    console.log('✅ Web application data seeded successfully!');
-    console.log(`📊 Seeded: ${jewelryItems.length} jewelry, ${goldItems.length} gold, ${stonesItems.length} stones, ${craftsmen.length} craftsmen, ${staffEmployees.length} staff, ${customers.length} customers, ${posInvoices.length} invoices`);
     return true;
   } catch (error) {
     console.error('❌ Error seeding web data:', error);
@@ -290,20 +287,17 @@ if (typeof window !== 'undefined') {
       for (const collection of requiredCollections) {
         const data = await idbGet(collection);
         if (!data || (Array.isArray(data) && data.length === 0)) {
-          console.log(`⚠️ Missing or empty collection: ${collection}`);
           missingCollections.push(collection);
           needsSeeding = true;
         }
       }
       
       if (needsSeeding) {
-        console.log(`🌱 Starting automatic data seeding for: ${missingCollections.join(', ')}...`);
         await seedWebData();
         // Verify seeds were created
         for (const collection of missingCollections) {
           const verifyData = await idbGet(collection);
           if (verifyData && Array.isArray(verifyData) && verifyData.length > 0) {
-            console.log(`✅ Seeded ${collection}: ${verifyData.length} items`);
           } else {
             console.warn(`⚠️ Failed to seed ${collection} - will retry on next load`);
             // If craftsmen specifically failed, ensure it gets created
@@ -335,12 +329,10 @@ if (typeof window !== 'undefined') {
                 },
               ];
               await idbSet('craftsmen', craftsmenSeed);
-              console.log(`✅ Manually seeded craftsmen with ${craftsmenSeed.length} items`);
             }
           }
         }
       } else {
-        console.log('✅ All IndexedDB collections already populated');
       }
     } catch (error) {
       console.error('Error checking IndexedDB:', error);

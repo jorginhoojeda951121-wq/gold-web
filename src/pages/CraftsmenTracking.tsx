@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Search, Plus, Hammer, ArrowLeft, Package, Database, TableIcon, Users } from "lucide-react";
+import { Search, Plus, Hammer, ArrowLeft, Package, Database, TableIcon, Users, Building2, User } from "lucide-react";
 import { Navigation } from "@/components/Navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -7,9 +7,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Table as UITable, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Link } from "react-router-dom";
-import { AddCraftsmanDialog, Craftsman, RawMaterial } from "@/components/AddCraftsmanDialog";
+import { AddCraftsmanDialog, Craftsman, RawMaterial, PaymentRecord } from "@/components/AddCraftsmanDialog";
 import { MaterialAssignDialog } from "@/components/MaterialAssignDialog";
 import { CraftsmanDetailsDialog } from "@/components/CraftsmanDetailsDialog";
+import { CraftsmanPaymentDialog } from "@/components/CraftsmanPaymentDialog";
 import { useToast } from "@/hooks/use-toast";
 import { useOfflineStorage } from "@/hooks/useOfflineStorage";
 import { useUserStorage } from "@/hooks/useUserStorage";
@@ -20,6 +21,7 @@ const CraftsmenTracking = () => {
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [showMaterialDialog, setShowMaterialDialog] = useState(false);
   const [showDetailsDialog, setShowDetailsDialog] = useState(false);
+  const [showPaymentDialog, setShowPaymentDialog] = useState(false);
   const [selectedCraftsman, setSelectedCraftsman] = useState<Craftsman | null>(null);
 
   // CRITICAL: Use useUserStorage for user-scoped data isolation
@@ -145,11 +147,21 @@ const CraftsmenTracking = () => {
       completed: false
     };
 
-    setCraftsmen(prev => prev.map(craftsman => 
-      craftsman.id === selectedCraftsman.id
-        ? { ...craftsman, assignedMaterials: [...craftsman.assignedMaterials, newMaterial] }
-        : craftsman
-    ));
+    setCraftsmen(prev => prev.map(craftsman => {
+      if (craftsman.id === selectedCraftsman.id) {
+        // Update payment tracking if agreed amount is set
+        const updatedDue = (craftsman.totalAmountDue || 0) + (material.agreedAmount || 0);
+        const updatedPending = (craftsman.pendingAmount || 0) + (material.agreedAmount || 0);
+        
+        return { 
+          ...craftsman, 
+          assignedMaterials: [...craftsman.assignedMaterials, newMaterial],
+          totalAmountDue: updatedDue,
+          pendingAmount: updatedPending
+        };
+      }
+      return craftsman;
+    }));
 
     toast({
       title: "Material Assigned",
@@ -157,10 +169,18 @@ const CraftsmenTracking = () => {
     });
     
     // Update selected craftsman for the details dialog
-    setSelectedCraftsman(prev => prev ? {
-      ...prev,
-      assignedMaterials: [...prev.assignedMaterials, newMaterial]
-    } : null);
+    setSelectedCraftsman(prev => {
+      if (!prev) return null;
+      const updatedDue = (prev.totalAmountDue || 0) + (material.agreedAmount || 0);
+      const updatedPending = (prev.pendingAmount || 0) + (material.agreedAmount || 0);
+      
+      return {
+        ...prev,
+        assignedMaterials: [...prev.assignedMaterials, newMaterial],
+        totalAmountDue: updatedDue,
+        pendingAmount: updatedPending
+      };
+    });
   };
 
   const handleViewDetails = (craftsman: Craftsman) => {
@@ -208,6 +228,95 @@ const CraftsmenTracking = () => {
       title: "Project Completed",
       description: "Project has been marked as completed with notes."
     });
+  };
+
+  const handleRecordPayment = (payment: Omit<PaymentRecord, 'id' | 'craftsmanId'>) => {
+    if (!selectedCraftsman) return;
+
+    const newPayment: PaymentRecord = {
+      ...payment,
+      id: Date.now().toString(),
+      craftsmanId: selectedCraftsman.id
+    };
+
+    setCraftsmen(prev => prev.map(craftsman => {
+      if (craftsman.id === selectedCraftsman.id) {
+        const updatedPaid = (craftsman.totalAmountPaid || 0) + payment.amount;
+        const updatedPending = (craftsman.pendingAmount || 0) - payment.amount;
+        const paymentHistory = [...(craftsman.paymentHistory || []), newPayment];
+
+        // Update material payment status if linked to a project
+        let updatedMaterials = craftsman.assignedMaterials;
+        if (payment.projectId) {
+          updatedMaterials = craftsman.assignedMaterials.map(material => {
+            if (material.projectId === payment.projectId && material.agreedAmount) {
+              const newAmountPaid = (material.amountPaid || 0) + payment.amount;
+              const paymentStatus: 'unpaid' | 'partial' | 'paid' = 
+                newAmountPaid >= material.agreedAmount ? 'paid' :
+                newAmountPaid > 0 ? 'partial' : 'unpaid';
+              
+              return {
+                ...material,
+                amountPaid: newAmountPaid,
+                paymentStatus
+              };
+            }
+            return material;
+          });
+        }
+
+        return {
+          ...craftsman,
+          totalAmountPaid: updatedPaid,
+          pendingAmount: Math.max(0, updatedPending),
+          paymentHistory,
+          assignedMaterials: updatedMaterials
+        };
+      }
+      return craftsman;
+    }));
+
+    // Update selected craftsman
+    setSelectedCraftsman(prev => {
+      if (!prev) return null;
+      const updatedPaid = (prev.totalAmountPaid || 0) + payment.amount;
+      const updatedPending = (prev.pendingAmount || 0) - payment.amount;
+      const paymentHistory = [...(prev.paymentHistory || []), newPayment];
+
+      let updatedMaterials = prev.assignedMaterials;
+      if (payment.projectId) {
+        updatedMaterials = prev.assignedMaterials.map(material => {
+          if (material.projectId === payment.projectId && material.agreedAmount) {
+            const newAmountPaid = (material.amountPaid || 0) + payment.amount;
+            const paymentStatus: 'unpaid' | 'partial' | 'paid' = 
+              newAmountPaid >= material.agreedAmount ? 'paid' :
+              newAmountPaid > 0 ? 'partial' : 'unpaid';
+            
+            return {
+              ...material,
+              amountPaid: newAmountPaid,
+              paymentStatus
+            };
+          }
+          return material;
+        });
+      }
+
+      return {
+        ...prev,
+        totalAmountPaid: updatedPaid,
+        pendingAmount: Math.max(0, updatedPending),
+        paymentHistory,
+        assignedMaterials: updatedMaterials
+      };
+    });
+
+    toast({
+      title: "Payment Recorded",
+      description: `Payment of ₹${payment.amount.toLocaleString()} has been recorded for ${selectedCraftsman.name}.`
+    });
+
+    setShowPaymentDialog(false);
   };
 
   const getStatusColor = (status: string) => {
@@ -378,7 +487,20 @@ const CraftsmenTracking = () => {
                         <div className="p-1 bg-green-100 rounded-full">
                           <Hammer className="h-4 w-4 text-green-600" />
                         </div>
-                        <span className="font-medium">{craftsman.name}</span>
+                        <div className="flex flex-col">
+                          <div className="flex items-center space-x-2">
+                            <span className="font-medium">{craftsman.name}</span>
+                            {craftsman.type === 'firm' && (
+                              <Badge variant="outline" className="bg-blue-100 text-blue-700 border-blue-300 text-xs">
+                                <Building2 className="h-3 w-3 mr-1" />
+                                Firm
+                              </Badge>
+                            )}
+                          </div>
+                          {craftsman.type === 'firm' && craftsman.contactPerson && (
+                            <span className="text-xs text-gray-500">Contact: {craftsman.contactPerson}</span>
+                          )}
+                        </div>
                       </div>
                     </TableCell>
                     <TableCell>{craftsman.specialty}</TableCell>
@@ -454,6 +576,19 @@ const CraftsmenTracking = () => {
         }}
         onCompleteTask={handleCompleteTask}
         onCompleteProject={handleCompleteProject}
+        onRecordPayment={() => {
+          setShowDetailsDialog(false);
+          setShowPaymentDialog(true);
+        }}
+      />
+
+      <CraftsmanPaymentDialog
+        open={showPaymentDialog}
+        onOpenChange={setShowPaymentDialog}
+        craftsmanId={selectedCraftsman?.id || ''}
+        craftsmanName={selectedCraftsman?.name || ''}
+        pendingAmount={selectedCraftsman?.pendingAmount || 0}
+        onRecordPayment={handleRecordPayment}
       />
     </div>
   );

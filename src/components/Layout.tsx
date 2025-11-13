@@ -23,64 +23,106 @@ export const Layout = () => {
   const countdownIntervalRef = useRef<number | null>(null);
   const businessName = useBusinessName();
 
-  // Background auto-sync: on load, every 30 minutes
-  // Note: Sync only occurs on initial mount (project start/reload) and periodic intervals
-  // Manual sync can be triggered via the sync button
+  // Cache user ID immediately on mount to ensure data loading works
+  useEffect(() => {
+    if (isAuthRoute) return;
+    
+    (async () => {
+      try {
+        const { data } = await supabase.auth.getSession();
+        if (data.session?.user?.id) {
+          // Cache user ID immediately so data loading can work
+          const { getCurrentUserId } = await import('@/lib/userStorage');
+          await getCurrentUserId(); // This will cache the user ID
+        }
+      } catch (e) {
+        console.error('Error caching user ID on mount:', e);
+      }
+    })();
+  }, [isAuthRoute, supabase]);
+
+  // Auto-sync on page load and every 30 minutes
   useEffect(() => {
     let cancelled = false;
     const SYNC_INTERVAL = 30 * 60 * 1000; // 30 minutes in milliseconds
 
-    const runSync = async () => {
+    const runSync = async (skipRecentCheck = false) => {
+      // Check if we should skip sync
+      if (isAuthRoute) return;
+      if (cancelled) return;
+      
+      // Skip if synced recently (within last 5 minutes) unless forced
+      if (!skipRecentCheck && lastSyncTime) {
+        const timeSinceLastSync = Date.now() - lastSyncTime.getTime();
+        const fiveMinutes = 5 * 60 * 1000;
+        if (timeSinceLastSync < fiveMinutes) {
+          return;
+        }
+      }
+      
       try {
-        if (isAuthRoute) return;
+        // Verify user is authenticated
         const { data } = await supabase.auth.getSession();
-        if (!data.session) return;
+        if (!data.session) {
+          return;
+        }
         
+        setIsSyncing(true);
+        setTimeUntilNextSync(30 * 60);
+        
+        // Show sync notification
+        toast({
+          title: "Syncing...",
+          description: "Synchronizing data with server",
+        });
+
+        const startTime = Date.now();
+        await syncAll();
+        const duration = Math.round((Date.now() - startTime) / 1000);
+
         if (!cancelled) {
-          setIsSyncing(true);
-          setTimeUntilNextSync(30 * 60); // Reset countdown
-          
-          // Show sync started notification
-          toast({
-            title: "Sync Started",
-            description: "Syncing data with Supabase...",
-          });
-
-          const startTime = Date.now();
-          await syncAll();
-          const duration = Math.round((Date.now() - startTime) / 1000);
-
           setLastSyncTime(new Date());
           setIsSyncing(false);
-          setTimeUntilNextSync(30 * 60); // Reset countdown after sync completes
+          setTimeUntilNextSync(30 * 60);
           
-          // Show sync completed notification
+          // Show success notification
           toast({
-            title: "Sync Completed",
-            description: `Data synced successfully in ${duration}s`,
+            title: "✓ Sync Complete",
+            description: `Data synced in ${duration}s`,
           });
+          
+          // Trigger custom event that pages can listen to for reloading data
+          window.dispatchEvent(new CustomEvent('data-synced'));
         }
       } catch (e: any) {
-        setIsSyncing(false);
-        setTimeUntilNextSync(30 * 60); // Reset countdown even on failure
-        const msg = e?.message || 'Unknown error';
-        // Show sync failed notification
-        toast({
-          title: "Sync Failed",
-          description: msg,
-          variant: "destructive",
-        });
+        if (!cancelled) {
+          setIsSyncing(false);
+          setTimeUntilNextSync(30 * 60);
+          const msg = e?.message || 'Unknown error';
+          console.error('Sync error:', e);
+          
+          // Show error notification
+          toast({
+            title: "Sync Failed",
+            description: msg,
+            variant: "destructive",
+          });
+        }
       }
     };
 
-    // initial sync (runs on project start and page reload)
-    runSync();
+    // Run sync after a longer delay to let the page load first and display local data
+    // This prevents blocking the UI on initial load
+    const initialSyncTimer = setTimeout(() => {
+      runSync();
+    }, 5000); // 5 seconds delay - enough time for page to load and display local data
 
-    // periodic sync every 30 minutes (30, 60, 90, 120...)
-    syncIntervalRef.current = window.setInterval(runSync, SYNC_INTERVAL);
+    // Set up periodic sync every 30 minutes (force sync on interval)
+    syncIntervalRef.current = window.setInterval(() => runSync(true), SYNC_INTERVAL);
 
     return () => {
       cancelled = true;
+      clearTimeout(initialSyncTimer);
       if (syncIntervalRef.current) {
         window.clearInterval(syncIntervalRef.current);
       }
@@ -124,30 +166,51 @@ export const Layout = () => {
     setMobileSidebarOpen(!mobileSidebarOpen);
   };
 
-  const handleLogout = async () => {
-    try {
-      // Clear user data before signing out
-      const { clearUserData, clearUserIdCache } = await import('@/lib/userStorage');
-      await clearUserData();
-      clearUserIdCache();
-      
-      await supabase.auth.signOut();
-    } catch (e) {
-      // ignore
-    } finally {
-      try { toast({ title: "Signed out", description: "You have been logged out." }); } catch {}
+  const handleLogout = () => {
+    // Show immediate feedback
+    toast({ 
+      title: "Logging out...", 
+      description: "Please wait while we sign you out." 
+    });
+
+    // Perform logout asynchronously but don't wait for it
+    (async () => {
+      try {
+        // 1. Sign out from Supabase
+        await supabase.auth.signOut({ scope: 'global' }).catch(() => {});
+        
+        // 2. Clear user ID cache only (keep IndexedDB data for offline use)
+        try {
+          const { clearUserIdCache } = await import('@/lib/userStorage');
+          clearUserIdCache();
+        } catch {}
+        
+        // 3. Clear auth tokens from storage
+        try {
+          localStorage.removeItem('supabase.auth.token');
+          sessionStorage.clear();
+        } catch {}
+      } catch (e) {
+        console.error('Logout cleanup error:', e);
+      }
+    })();
+
+    // Immediately redirect (don't wait for cleanup)
+    setTimeout(() => {
       window.location.href = "/auth";
-    }
+    }, 300);
   };
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Desktop Sidebar */}
+      {/* Desktop Sidebar - Hidden on mobile, visible on lg+ */}
       {!isAuthRoute && (
-        <Sidebar 
-          isCollapsed={sidebarCollapsed} 
-          onToggle={toggleSidebar} 
-        />
+        <div className="hidden lg:block">
+          <Sidebar 
+            isCollapsed={sidebarCollapsed} 
+            onToggle={toggleSidebar} 
+          />
+        </div>
       )}
       
       {/* Mobile Sidebar */}
@@ -159,7 +222,11 @@ export const Layout = () => {
       )}
 
       {/* Main Content */}
-      <div className={`transition-all duration-300 ease-in-out ${!isAuthRoute ? (sidebarCollapsed ? 'lg:ml-16' : 'lg:ml-64') : ''} ml-0`}>
+      <div className={`transition-all duration-300 ease-in-out ${
+        !isAuthRoute 
+          ? (sidebarCollapsed ? 'lg:ml-20' : 'lg:ml-[272px]') 
+          : ''
+      }`}>
         {/* Top Bar */}
         {!isAuthRoute && (
         <div className="sticky top-0 z-30 bg-white/80 backdrop-blur-md border-b border-gray-200/60 shadow-sm">
@@ -227,6 +294,7 @@ export const Layout = () => {
                 variant="destructive"
                 size="sm"
                 className="flex items-center gap-2"
+                data-logout-btn
               >
                 <LogOut className="h-4 w-4" />
                 <span className="hidden sm:inline">Logout</span>
@@ -242,7 +310,7 @@ export const Layout = () => {
             <Outlet />
           </main>
         ) : (
-          <main className="p-4 lg:p-8 bg-gradient-to-br from-gray-50 to-white min-h-screen">
+          <main className="p-4 lg:p-6 xl:p-8 bg-gradient-to-br from-gray-50 to-white min-h-screen">
             <div className="max-w-7xl mx-auto">
               <Outlet />
             </div>

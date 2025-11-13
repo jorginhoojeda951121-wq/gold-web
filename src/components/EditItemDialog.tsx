@@ -157,7 +157,6 @@ export const EditItemDialog = ({ open, onOpenChange, onSave, item }: EditItemDia
       image: formData.image || "",
     };
     
-    console.log("Saving updated item:", updatedItem);
     onSave(updatedItem);
     onOpenChange(false);
   };

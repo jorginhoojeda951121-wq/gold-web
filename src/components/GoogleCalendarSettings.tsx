@@ -26,6 +26,7 @@ export function GoogleCalendarSettings() {
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
   const [isInitializing, setIsInitializing] = useState(true);
+  const [initError, setInitError] = useState<string | null>(null);
   const [calendarStatus, setCalendarStatus] = useState({
     isInitialized: false,
     isSignedIn: false,
@@ -40,27 +41,82 @@ export function GoogleCalendarSettings() {
     google_account_email: null,
   });
 
-  // Initialize Google Calendar on mount
+  // Initialize Google Calendar on mount with timeout
   useEffect(() => {
+    let timeoutId: NodeJS.Timeout;
+    let isMounted = true;
+
     const init = async () => {
       setIsInitializing(true);
+      
+      // Set a timeout to prevent infinite loading
+      timeoutId = setTimeout(() => {
+        if (isMounted) {
+          console.warn("Google Calendar initialization timeout - this may indicate a configuration issue");
+          setIsInitializing(false);
+        }
+      }, 10000); // 10 second timeout
+
       try {
-        await initializeGoogleCalendar();
-        updateStatus();
-        await loadSettings();
-      } catch (error) {
+        // Check if API keys are configured
+        const apiKey = import.meta.env.VITE_GOOGLE_CALENDAR_API_KEY;
+        const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+        
+        if (!apiKey || !clientId) {
+          console.warn("Google Calendar API keys not configured. Please set VITE_GOOGLE_CALENDAR_API_KEY and VITE_GOOGLE_CLIENT_ID in your .env file");
+          if (isMounted) {
+            clearTimeout(timeoutId);
+            setIsInitializing(false);
+          }
+          return;
+        }
+
+        const initialized = await initializeGoogleCalendar();
+        if (isMounted) {
+          if (initialized) {
+            updateStatus();
+            await loadSettings();
+            setInitError(null);
+          } else {
+            const errorMsg = "Google Calendar initialization failed. Please check your API keys and try again.";
+            console.warn(errorMsg);
+            setInitError(errorMsg);
+          }
+        }
+      } catch (error: any) {
         console.error("Failed to initialize Google Calendar:", error);
+        console.error("Error details:", error?.message, error?.stack);
+        if (isMounted) {
+          setInitError(error?.message || "Failed to initialize Google Calendar. Please check the console for details.");
+        }
       } finally {
-        setIsInitializing(false);
+        if (isMounted) {
+          clearTimeout(timeoutId);
+          setIsInitializing(false);
+        }
       }
     };
 
     init();
+
+    return () => {
+      isMounted = false;
+      clearTimeout(timeoutId);
+    };
   }, []);
 
   const updateStatus = () => {
-    const status = getGoogleCalendarStatus();
-    setCalendarStatus(status);
+    try {
+      const status = getGoogleCalendarStatus();
+      setCalendarStatus(status);
+    } catch (error) {
+      console.error('Failed to update calendar status:', error);
+      setCalendarStatus({
+        isInitialized: false,
+        isSignedIn: false,
+        userEmail: null,
+      });
+    }
   };
 
   const loadSettings = async () => {
@@ -186,6 +242,11 @@ export function GoogleCalendarSettings() {
     }
   };
 
+  // Check if API keys are configured
+  const apiKey = import.meta.env.VITE_GOOGLE_CALENDAR_API_KEY;
+  const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+  const isConfigured = !!(apiKey && clientId);
+
   if (isInitializing) {
     return (
       <Card>
@@ -204,6 +265,42 @@ export function GoogleCalendarSettings() {
     );
   }
 
+  if (!isConfigured) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Calendar className="h-5 w-5" />
+            Google Calendar Integration
+          </CardTitle>
+          <CardDescription>
+            Automatically sync reservations to your Google Calendar with reminders
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="rounded-lg border border-amber-200 bg-amber-50 p-4">
+            <div className="flex items-start gap-3">
+              <Settings className="h-5 w-5 text-amber-600 mt-0.5" />
+              <div className="flex-1">
+                <h4 className="font-medium text-amber-900 mb-1">Configuration Required</h4>
+                <p className="text-sm text-amber-800 mb-3">
+                  To enable Google Calendar integration, please configure the following environment variables:
+                </p>
+                <div className="space-y-1 text-xs font-mono bg-white p-2 rounded border border-amber-200">
+                  <div>VITE_GOOGLE_CALENDAR_API_KEY=your_api_key</div>
+                  <div>VITE_GOOGLE_CLIENT_ID=your_client_id</div>
+                </div>
+                <p className="text-xs text-amber-700 mt-2">
+                  Contact your administrator or check the documentation for setup instructions.
+                </p>
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
   return (
     <Card>
       <CardHeader>
@@ -216,6 +313,47 @@ export function GoogleCalendarSettings() {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
+        {/* Initialization Error */}
+        {initError && (
+          <div className="rounded-lg border border-red-200 bg-red-50 p-4">
+            <div className="flex items-start gap-3">
+              <XCircle className="h-5 w-5 text-red-600 mt-0.5" />
+              <div className="flex-1">
+                <h4 className="font-medium text-red-900 mb-1">Initialization Error</h4>
+                <p className="text-sm text-red-800">{initError}</p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="mt-2"
+                  onClick={() => {
+                    setInitError(null);
+                    setIsInitializing(true);
+                    // Retry initialization
+                    const retry = async () => {
+                      try {
+                        const initialized = await initializeGoogleCalendar();
+                        if (initialized) {
+                          updateStatus();
+                          await loadSettings();
+                          setInitError(null);
+                        }
+                      } catch (error: any) {
+                        setInitError(error?.message || "Retry failed");
+                      } finally {
+                        setIsInitializing(false);
+                      }
+                    };
+                    retry();
+                  }}
+                >
+                  <RefreshCw className="h-4 w-4 mr-2" />
+                  Retry
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Connection Status */}
         <div className="rounded-lg border p-4 space-y-3">
           <div className="flex items-center justify-between">

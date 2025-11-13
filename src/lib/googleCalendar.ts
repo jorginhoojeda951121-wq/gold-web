@@ -5,6 +5,28 @@
 
 import { getSupabase } from './supabase';
 
+// TypeScript declarations for Google Identity Services
+declare global {
+  interface Window {
+    gapi: any;
+    google: {
+      accounts: {
+        oauth2: {
+          initTokenClient: (config: {
+            client_id: string;
+            scope: string;
+            callback: (response: any) => void;
+          }) => {
+            requestAccessToken: (options?: { prompt?: string }) => void;
+            callback: (response: any) => void;
+          };
+          revoke: (token: string, callback: () => void) => void;
+        };
+      };
+    };
+  }
+}
+
 // Google Calendar API configuration
 const GOOGLE_CALENDAR_API_KEY = import.meta.env.VITE_GOOGLE_CALENDAR_API_KEY || '';
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
@@ -76,77 +98,216 @@ const STATUS_COLORS = {
   cancelled: '11', // Red
 };
 
+// Store access token in memory
+let accessToken: string | null = null;
+let tokenClient: any = null;
+
 /**
- * Initialize Google Calendar API
+ * Load Google Identity Services and API scripts
+ */
+async function loadGoogleScripts(): Promise<void> {
+  // Load Google Identity Services (GIS) - NEW method
+  if (typeof window.google === 'undefined' || !window.google.accounts) {
+    await new Promise<void>((resolve, reject) => {
+      // Check if script already exists
+      const existingScript = document.querySelector('script[src="https://accounts.google.com/gsi/client"]');
+      if (existingScript) {
+        // Wait a bit for it to load
+        const checkInterval = setInterval(() => {
+          if (typeof window.google !== 'undefined' && window.google.accounts) {
+            clearInterval(checkInterval);
+            resolve();
+          }
+        }, 100);
+        
+        // Timeout after 5 seconds
+        setTimeout(() => {
+          clearInterval(checkInterval);
+          if (typeof window.google !== 'undefined' && window.google.accounts) {
+            resolve();
+          } else {
+            reject(new Error('Google Identity Services script loaded but not initialized'));
+          }
+        }, 5000);
+        return;
+      }
+
+      const script = document.createElement('script');
+      script.src = 'https://accounts.google.com/gsi/client';
+      script.async = true;
+      script.defer = true;
+      script.onload = () => {
+        // Wait a bit for google object to be available
+        setTimeout(() => {
+          if (typeof window.google !== 'undefined' && window.google.accounts) {
+            resolve();
+          } else {
+            reject(new Error('Google Identity Services loaded but google.accounts not available'));
+          }
+        }, 500);
+      };
+      script.onerror = () => reject(new Error('Failed to load Google Identity Services'));
+      document.head.appendChild(script);
+    });
+  }
+
+  // Load Google API client library
+  if (typeof window.gapi === 'undefined') {
+    await new Promise<void>((resolve, reject) => {
+      // Check if script already exists
+      const existingScript = document.querySelector('script[src="https://apis.google.com/js/api.js"]');
+      if (existingScript) {
+        // Wait a bit for it to load
+        const checkInterval = setInterval(() => {
+          if (typeof window.gapi !== 'undefined') {
+            clearInterval(checkInterval);
+            resolve();
+          }
+        }, 100);
+        
+        // Timeout after 5 seconds
+        setTimeout(() => {
+          clearInterval(checkInterval);
+          if (typeof window.gapi !== 'undefined') {
+            resolve();
+          } else {
+            reject(new Error('Google API script loaded but gapi not available'));
+          }
+        }, 5000);
+        return;
+      }
+
+      const script = document.createElement('script');
+      script.src = 'https://apis.google.com/js/api.js';
+      script.async = true;
+      script.defer = true;
+      script.onload = () => {
+        // Wait a bit for gapi object to be available
+        setTimeout(() => {
+          if (typeof window.gapi !== 'undefined') {
+            resolve();
+          } else {
+            reject(new Error('Google API loaded but gapi not available'));
+          }
+        }, 500);
+      };
+      script.onerror = () => reject(new Error('Failed to load Google API'));
+      document.head.appendChild(script);
+    });
+  }
+}
+
+/**
+ * Initialize Google Calendar API with new Google Identity Services
  */
 export async function initializeGoogleCalendar(): Promise<boolean> {
   try {
-    // Load the Google API client library
-    await loadGoogleAPI();
+    // Check if API keys are configured
+    if (!GOOGLE_CALENDAR_API_KEY || !GOOGLE_CLIENT_ID) {
+      console.warn('Google Calendar API keys not configured');
+      return false;
+    }
+
+    // Load required scripts
+    await loadGoogleScripts();
+
+    // Verify scripts loaded correctly
+    if (typeof window.google === 'undefined' || !window.google.accounts) {
+      throw new Error('Google Identity Services not loaded');
+    }
     
-    // Initialize the client
-    await new Promise<void>((resolve, reject) => {
-      gapi.load('client:auth2', async () => {
-        try {
-          await gapi.client.init({
-            apiKey: GOOGLE_CALENDAR_API_KEY,
-            clientId: GOOGLE_CLIENT_ID,
-            discoveryDocs: GOOGLE_API_DISCOVERY_DOCS,
-            scope: GOOGLE_SCOPES,
-          });
-          resolve();
-        } catch (error) {
-          reject(error);
-        }
+    if (typeof window.gapi === 'undefined') {
+      throw new Error('Google API not loaded');
+    }
+
+    // Initialize gapi client first (without auth2)
+    await initializeGapiClient();
+
+    // Initialize Google Identity Services token client
+    if (GOOGLE_CLIENT_ID) {
+      tokenClient = window.google.accounts.oauth2.initTokenClient({
+        client_id: GOOGLE_CLIENT_ID,
+        scope: GOOGLE_SCOPES,
+        callback: (response: any) => {
+          if (response.access_token) {
+            accessToken = response.access_token;
+            setAccessToken(response.access_token);
+          } else if (response.error) {
+            console.error('Google OAuth error:', response.error);
+          }
+        },
       });
-    });
+    }
 
     return true;
-  } catch (error) {
+  } catch (error: any) {
     console.error('Failed to initialize Google Calendar API:', error);
+    console.error('Error details:', {
+      message: error?.message,
+      stack: error?.stack,
+      googleLoaded: typeof window.google !== 'undefined',
+      gapiLoaded: typeof window.gapi !== 'undefined',
+      hasApiKey: !!GOOGLE_CALENDAR_API_KEY,
+      hasClientId: !!GOOGLE_CLIENT_ID,
+    });
     return false;
   }
 }
 
 /**
- * Load Google API script dynamically
+ * Initialize gapi client for Calendar API
  */
-function loadGoogleAPI(): Promise<void> {
-  return new Promise((resolve, reject) => {
-    // Check if already loaded
-    if (typeof gapi !== 'undefined') {
-      resolve();
-      return;
-    }
-
-    const script = document.createElement('script');
-    script.src = 'https://apis.google.com/js/api.js';
-    script.onload = () => resolve();
-    script.onerror = () => reject(new Error('Failed to load Google API'));
-    document.body.appendChild(script);
+async function initializeGapiClient(): Promise<void> {
+  return new Promise<void>((resolve, reject) => {
+    window.gapi.load('client', async () => {
+      try {
+        await window.gapi.client.init({
+          apiKey: GOOGLE_CALENDAR_API_KEY,
+          discoveryDocs: GOOGLE_API_DISCOVERY_DOCS,
+        });
+        resolve();
+      } catch (error) {
+        reject(error);
+      }
+    });
   });
 }
 
 /**
- * Sign in to Google Account
+ * Set access token for API requests
+ */
+function setAccessToken(token: string): void {
+  accessToken = token;
+  window.gapi.client.setToken({ access_token: token });
+}
+
+/**
+ * Sign in to Google Account using new Google Identity Services
  */
 export async function signInToGoogle(): Promise<boolean> {
   try {
-    if (!gapi?.auth2) {
+    if (!tokenClient) {
       await initializeGoogleCalendar();
     }
 
-    const auth = gapi.auth2.getAuthInstance();
-    if (!auth) {
-      throw new Error('Google Auth not initialized');
+    if (!tokenClient) {
+      throw new Error('Google Identity Services not initialized');
     }
 
-    if (auth.isSignedIn.get()) {
-      return true;
-    }
-
-    await auth.signIn();
-    return auth.isSignedIn.get();
+    // Request access token
+    return new Promise<boolean>((resolve) => {
+      tokenClient.callback = (response: any) => {
+        if (response.access_token) {
+          accessToken = response.access_token;
+          setAccessToken(response.access_token);
+          resolve(true);
+        } else if (response.error) {
+          console.error('Google sign-in error:', response.error);
+          resolve(false);
+        }
+      };
+      tokenClient.requestAccessToken({ prompt: 'consent' });
+    });
   } catch (error) {
     console.error('Failed to sign in to Google:', error);
     return false;
@@ -158,9 +319,13 @@ export async function signInToGoogle(): Promise<boolean> {
  */
 export async function signOutFromGoogle(): Promise<void> {
   try {
-    const auth = gapi.auth2.getAuthInstance();
-    if (auth) {
-      await auth.signOut();
+    if (accessToken && typeof window.google !== 'undefined' && window.google.accounts) {
+      window.google.accounts.oauth2.revoke(accessToken, () => {
+        accessToken = null;
+        if (window.gapi.client) {
+          window.gapi.client.setToken(null);
+        }
+      });
     }
   } catch (error) {
     console.error('Failed to sign out from Google:', error);
@@ -171,12 +336,7 @@ export async function signOutFromGoogle(): Promise<void> {
  * Check if user is signed in to Google
  */
 export function isGoogleSignedIn(): boolean {
-  try {
-    const auth = gapi?.auth2?.getAuthInstance();
-    return auth?.isSignedIn?.get() || false;
-  } catch {
-    return false;
-  }
+  return accessToken !== null && window.gapi.client?.getToken() !== null;
 }
 
 /**
@@ -193,7 +353,7 @@ export async function createCalendarEvent(reservation: Reservation): Promise<str
 
     const event = reservationToCalendarEvent(reservation);
 
-    const response = await gapi.client.calendar.events.insert({
+    const response = await window.gapi.client.calendar.events.insert({
       calendarId: 'primary',
       resource: event,
       sendUpdates: 'all',
@@ -225,7 +385,7 @@ export async function updateCalendarEvent(reservation: Reservation, calendarEven
 
     const event = reservationToCalendarEvent(reservation);
 
-    await gapi.client.calendar.events.update({
+    await window.gapi.client.calendar.events.update({
       calendarId: 'primary',
       eventId: calendarEventId,
       resource: event,
@@ -248,7 +408,7 @@ export async function deleteCalendarEvent(calendarEventId: string): Promise<bool
       return false;
     }
 
-    await gapi.client.calendar.events.delete({
+    await window.gapi.client.calendar.events.delete({
       calendarId: 'primary',
       eventId: calendarEventId,
       sendUpdates: 'all',
@@ -455,15 +615,19 @@ export function getGoogleCalendarStatus(): {
   userEmail: string | null;
 } {
   try {
-    const auth = gapi?.auth2?.getAuthInstance();
-    const isSignedIn = auth?.isSignedIn?.get() || false;
-    const user = auth?.currentUser?.get();
-    const profile = user?.getBasicProfile();
-
+    const isInitialized = typeof window.google !== 'undefined' && 
+                          window.google.accounts !== undefined && 
+                          typeof window.gapi !== 'undefined' && 
+                          window.gapi.client !== undefined;
+    const isSignedIn = isGoogleSignedIn();
+    
+    // With new GIS, we don't have direct access to user email from token
+    // We'll need to fetch it from the token or make an API call
+    // For now, return null and let the component handle it
     return {
-      isInitialized: !!auth,
+      isInitialized,
       isSignedIn,
-      userEmail: profile?.getEmail() || null,
+      userEmail: null, // Will be fetched separately if needed
     };
   } catch {
     return {
@@ -471,6 +635,24 @@ export function getGoogleCalendarStatus(): {
       isSignedIn: false,
       userEmail: null,
     };
+  }
+}
+
+/**
+ * Get user email from Google account (requires additional API call)
+ */
+export async function getGoogleUserEmail(): Promise<string | null> {
+  try {
+    if (!isGoogleSignedIn()) {
+      return null;
+    }
+
+    // Use Google People API to get user info
+    // First, we need to add People API scope
+    // For now, return null - can be enhanced later
+    return null;
+  } catch {
+    return null;
   }
 }
 

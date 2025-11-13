@@ -1,4 +1,4 @@
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Gem } from "lucide-react";
@@ -23,6 +23,9 @@ export const ItemDetailsDialog = ({ item, open, onClose, onEdit }: ItemDetailsDi
           <DialogTitle className="flex items-center gap-2">
             Jewelry Item Details
           </DialogTitle>
+          <DialogDescription>
+            View and manage jewelry item information
+          </DialogDescription>
         </DialogHeader>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">

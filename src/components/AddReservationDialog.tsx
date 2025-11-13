@@ -32,11 +32,14 @@ export function AddReservationDialog({ open, onOpenChange, onSuccess }: AddReser
     customer_email: '',
     event_type: 'wedding',
     event_description: '',
+    total_amount: '',
     advance_paid: '',
     special_requests: '',
     category_preferences: '',
     color_preferences: '',
     polish_quality: 'high',
+    polish_service: false,
+    polish_rate: '',
     notes: '',
   });
 
@@ -86,6 +89,9 @@ export function AddReservationDialog({ open, onOpenChange, onSuccess }: AddReser
         category_preferences: categoryPrefs.length > 0 ? JSON.stringify(categoryPrefs) : null,
         color_preferences: colorPrefs.length > 0 ? JSON.stringify(colorPrefs) : null,
         polish_quality: formData.polish_quality || null,
+        polish_service: formData.polish_service || false,
+        polish_rate: formData.polish_rate ? parseFloat(formData.polish_rate) : null,
+        total_amount: parseFloat(formData.total_amount) || 0,
         notes: formData.notes || null,
       });
 
@@ -144,11 +150,14 @@ export function AddReservationDialog({ open, onOpenChange, onSuccess }: AddReser
       customer_email: '',
       event_type: 'wedding',
       event_description: '',
+      total_amount: '',
       advance_paid: '',
       special_requests: '',
       category_preferences: '',
       color_preferences: '',
       polish_quality: 'high',
+      polish_service: false,
+      polish_rate: '',
       notes: '',
     });
     setEventDate(undefined);
@@ -336,11 +345,64 @@ export function AddReservationDialog({ open, onOpenChange, onSuccess }: AddReser
                 </SelectContent>
               </Select>
             </div>
+            
+            {/* Custom Polish Service */}
+            <div className="space-y-4 border-t pt-4 mt-4">
+              <div className="flex items-center space-x-2">
+                <input
+                  type="checkbox"
+                  id="polish_service"
+                  checked={formData.polish_service}
+                  onChange={(e) => setFormData({ ...formData, polish_service: e.target.checked })}
+                  className="w-4 h-4"
+                />
+                <Label htmlFor="polish_service" className="cursor-pointer">
+                  Add Custom Polish Service
+                </Label>
+              </div>
+              
+              {formData.polish_service && (
+                <div className="space-y-2 pl-6">
+                  <Label htmlFor="polish_rate">Custom Polish Rate (₹)</Label>
+                  <Input
+                    id="polish_rate"
+                    type="number"
+                    value={formData.polish_rate}
+                    onChange={(e) => setFormData({ ...formData, polish_rate: e.target.value })}
+                    placeholder="Enter custom polish rate"
+                    min="0"
+                    step="0.01"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Some stores have their own custom polish rates and services
+                  </p>
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Payment */}
           <div className="space-y-4">
             <h3 className="text-lg font-semibold">Payment Information</h3>
+            
+            {/* Total Invoice Amount */}
+            <div className="space-y-2">
+              <Label htmlFor="total_amount">Total Invoice Amount (₹) *</Label>
+              <Input
+                id="total_amount"
+                type="number"
+                value={formData.total_amount}
+                onChange={(e) => setFormData({ ...formData, total_amount: e.target.value })}
+                placeholder="Enter total bill amount"
+                min="0"
+                step="0.01"
+              />
+              <p className="text-xs text-muted-foreground">
+                Enter the total invoice/bill amount for this reservation
+              </p>
+            </div>
+            
+            {/* Advance Amount */}
             <div className="space-y-2">
               <Label htmlFor="advance_paid">Advance Amount Paid (₹)</Label>
               <Input
@@ -353,6 +415,28 @@ export function AddReservationDialog({ open, onOpenChange, onSuccess }: AddReser
                 step="0.01"
               />
             </div>
+            
+            {/* Balance Due Display */}
+            {formData.total_amount && (
+              <div className="p-4 border-2 border-primary/20 rounded-lg bg-primary/5">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-muted-foreground">Balance Due:</span>
+                  <span className="text-2xl font-bold text-primary">
+                    ₹{(parseFloat(formData.total_amount) - (parseFloat(formData.advance_paid) || 0)).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </span>
+                </div>
+                <div className="mt-2 pt-2 border-t text-xs text-muted-foreground">
+                  <div className="flex justify-between">
+                    <span>Total Amount:</span>
+                    <span>₹{parseFloat(formData.total_amount).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                  </div>
+                  <div className="flex justify-between mt-1">
+                    <span>Advance Paid:</span>
+                    <span>₹{(parseFloat(formData.advance_paid) || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Additional Information */}

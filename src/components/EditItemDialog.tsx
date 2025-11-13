@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -173,6 +174,9 @@ export const EditItemDialog = ({ open, onOpenChange, onSave, item }: EditItemDia
       <DialogContent className="sm:max-w-[500px] bg-card max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="text-foreground">Edit Jewelry Item</DialogTitle>
+          <DialogDescription>
+            Update item details, pricing, and images
+          </DialogDescription>
         </DialogHeader>
         
         {!item ? (

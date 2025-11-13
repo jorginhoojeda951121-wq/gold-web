@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -162,12 +163,16 @@ export const AddItemDialog = ({ open, onOpenChange, onAdd }: AddItemDialogProps)
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[500px] bg-card">
-        <DialogHeader>
+      <DialogContent className="sm:max-w-[500px] max-h-[90vh] bg-card flex flex-col">
+        <DialogHeader className="flex-shrink-0">
           <DialogTitle className="text-foreground">Add New Jewelry Item</DialogTitle>
+          <DialogDescription>
+            Add a new jewelry item to your inventory with images and pricing details
+          </DialogDescription>
         </DialogHeader>
         
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
+          <div className="space-y-4 overflow-y-auto pr-2 flex-1">
           {/* Image Upload Section */}
           <div className="space-y-2">
             <Label>Item Image</Label>
@@ -587,8 +592,10 @@ export const AddItemDialog = ({ open, onOpenChange, onAdd }: AddItemDialogProps)
               </div>
             )}
           </div>
+          </div>
 
-          <div className="flex justify-end space-x-2 pt-4">
+          {/* Sticky Footer with Buttons */}
+          <div className="flex justify-end space-x-2 pt-4 border-t mt-4 flex-shrink-0 bg-card">
             <Button
               type="button"
               variant="outline"

@@ -73,7 +73,7 @@ const GoldCollection = () => {
           
           // Fix corrupted image data (single characters, invalid strings)
           if (imageUrl && (imageUrl.length < 10 || imageUrl === '[' || imageUrl === '{')) {
-            console.warn(`⚠️ Corrupted image data detected for ${item.name}, clearing...`);
+            // Silently clean up corrupted image data
             imageUrl = '';
           }
           
@@ -102,7 +102,7 @@ const GoldCollection = () => {
             
             // Fix corrupted image data (single characters, invalid strings)
             if (imageUrl && (imageUrl.length < 10 || imageUrl === '[' || imageUrl === '{')) {
-              console.warn(`⚠️ Corrupted image data detected for ${item.name}, clearing...`);
+              // Silently clean up corrupted image data
               imageUrl = '';
             }
             

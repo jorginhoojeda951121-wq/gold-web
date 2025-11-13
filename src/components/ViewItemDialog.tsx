@@ -1,6 +1,7 @@
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -36,6 +37,9 @@ export const ViewItemDialog = ({ open, onOpenChange, onEdit, item }: ViewItemDia
             <Gem className="h-5 w-5" />
             Jewelry Item Details
           </DialogTitle>
+          <DialogDescription>
+            View complete details of this jewelry item
+          </DialogDescription>
         </DialogHeader>
         
         <div className="space-y-6">

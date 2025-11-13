@@ -11,6 +11,7 @@ import RequireAuth from "@/components/RequireAuth";
 import Index from "./pages/Index";
 import Landing from "./pages/Landing";
 import Staff from "./pages/Staff";
+import Payroll from "./pages/Payroll";
 import POS from "./pages/POS";
 import Analytics from "./pages/Analytics";
 import { ReportingDashboard } from "@/components/ReportingDashboard";
@@ -39,7 +40,7 @@ const App = () => {
     <TooltipProvider>
       <Toaster />
       <Sonner />
-      <BrowserRouter>
+      <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
         <Routes>
           {/* Landing page - no layout wrapper */}
           <Route path="/" element={<Landing />} />
@@ -56,7 +57,9 @@ const App = () => {
             <Route path="/jewelry-collection" element={<JewelryCollection />} />
             <Route path="/inventory" element={<Index />} />
             <Route path="/craftsmen" element={<CraftsmenTracking />} />
-            <Route path="/staff" element={<Staff />} />
+            {/* Staff route now redirects to Payroll (unified system) */}
+            <Route path="/staff" element={<RequireAuth><Payroll /></RequireAuth>} />
+            <Route path="/payroll" element={<RequireAuth><Payroll /></RequireAuth>} />
             <Route path="/pos" element={<RequireAuth><POS /></RequireAuth>} />
             <Route path="/analytics" element={<Analytics />} />
             <Route path="/reports" element={<ReportingDashboard />} />

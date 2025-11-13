@@ -8,6 +8,7 @@ import {
   Receipt,
   Hammer,
   Users,
+  DollarSign,
   BarChart3,
   FileText,
   CreditCard,
@@ -73,10 +74,10 @@ const navigationItems = [
     description: "Track craftsmen"
   },
   { 
-    name: "Staff", 
-    href: "/staff", 
-    icon: Users,
-    description: "Employee management"
+    name: "Payroll", 
+    href: "/payroll", 
+    icon: DollarSign,
+    description: "Employee & salary management"
   },
   { 
     name: "Analytics", 

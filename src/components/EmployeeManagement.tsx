@@ -5,14 +5,15 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
-import { useOfflineStorage } from "@/hooks/useOfflineStorage";
+import { useUserStorage } from "@/hooks/useUserStorage";
+import { enqueueChange } from "@/lib/sync";
 
 interface AttendanceRecord {
   id: string;
@@ -49,6 +50,7 @@ interface Employee {
   bankAccount: string;
   pfNumber?: string;
   esiNumber?: string;
+  appliedSalaryRules?: string[]; // Array of salary rule IDs that apply to this employee
 }
 
 interface SalarySummary {
@@ -77,7 +79,8 @@ export const EmployeeManagement = () => {
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
 
-  const { data: employees, updateData: setEmployees } = useOfflineStorage<Employee[]>('employees', [
+  // CRITICAL: Use useUserStorage with 'staff_employees' key to sync with Staff page and Supabase
+  const { data: rawEmployees, updateData: setEmployees, loaded: employeesLoaded } = useUserStorage<any[]>('staff_employees', [
     {
       id: "1",
       name: "Arjun Singh",
@@ -110,9 +113,42 @@ export const EmployeeManagement = () => {
     }
   ]);
 
-  const { data: attendanceRecords, updateData: setAttendanceRecords } = useOfflineStorage<AttendanceRecord[]>('attendance', []);
+  const { data: attendanceRecords, updateData: setAttendanceRecords } = useUserStorage<AttendanceRecord[]>('attendance_records', []);
 
-  const { data: salaryRules, updateData: setSalaryRules } = useOfflineStorage<SalaryRule[]>('salaryRules', [
+  // Normalize employee data - handle both 'salary' (from Staff page) and 'baseSalary' (from Payroll)
+  const employees: Employee[] = (rawEmployees || []).map((emp: any) => ({
+    ...emp,
+    // Map 'salary' field to 'baseSalary' for compatibility
+    baseSalary: emp.baseSalary ?? emp.salary ?? 0,
+    // Ensure all required fields exist
+    address: emp.address ?? '',
+    emergencyContact: emp.emergencyContact ?? '',
+    bankAccount: emp.bankAccount ?? '',
+    pfNumber: emp.pfNumber ?? '',
+    esiNumber: emp.esiNumber ?? '',
+    joinDate: emp.joinDate ?? emp.hireDate ?? new Date().toISOString(),
+    // Parse appliedSalaryRules if it's a JSON string from Supabase
+    appliedSalaryRules: (() => {
+      if (Array.isArray(emp.appliedSalaryRules)) return emp.appliedSalaryRules;
+      if (typeof emp.appliedSalaryRules === 'string' && emp.appliedSalaryRules) {
+        try {
+          return JSON.parse(emp.appliedSalaryRules);
+        } catch {
+          return [];
+        }
+      }
+      if (typeof emp.applied_salary_rules === 'string' && emp.applied_salary_rules) {
+        try {
+          return JSON.parse(emp.applied_salary_rules);
+        } catch {
+          return [];
+        }
+      }
+      return [];
+    })(),
+  }));
+
+  const { data: salaryRules, updateData: setSalaryRules } = useUserStorage<SalaryRule[]>('salary_rules', [
     {
       id: "1",
       name: "Provident Fund (PF)",
@@ -171,7 +207,8 @@ export const EmployeeManagement = () => {
     emergencyContact: "",
     bankAccount: "",
     pfNumber: "",
-    esiNumber: ""
+    esiNumber: "",
+    appliedSalaryRules: [] as string[]
   });
 
   const [newRule, setNewRule] = useState<Omit<SalaryRule, 'id' | 'isActive'>>({
@@ -206,8 +243,16 @@ export const EmployeeManagement = () => {
     let totalDeductions = 0;
     let totalAdditions = 0;
 
+    // CRITICAL: Only apply rules that are selected for this employee
+    const employeeRules = employee.appliedSalaryRules || [];
+    
     salaryRules.forEach(rule => {
       if (!rule.isActive) return;
+      
+      // Check if this rule applies to this employee (if no rules selected, apply all for backward compatibility)
+      if (employeeRules.length > 0 && !employeeRules.includes(rule.id)) {
+        return; // Skip this rule if not selected for this employee
+      }
 
       if (rule.type === 'deduction') {
         if (rule.calculation === 'percentage') {
@@ -255,7 +300,7 @@ export const EmployeeManagement = () => {
     };
   };
 
-  const handleAddEmployee = () => {
+  const handleAddEmployee = async () => {
     if (!newEmployee.name || !newEmployee.email || !newEmployee.role) {
       toast({
         title: "Missing Information",
@@ -265,33 +310,84 @@ export const EmployeeManagement = () => {
       return;
     }
 
-    const employee: Employee = {
-      ...newEmployee,
-      id: Date.now().toString(),
-      joinDate: new Date().toISOString(),
-      status: "active"
-    };
+    try {
+      // Get current user ID for data isolation
+      const { getCurrentUserId } = await import('@/lib/userStorage');
+      const userId = await getCurrentUserId();
+      
+      if (!userId) {
+        toast({
+          title: "Authentication Error",
+          description: "Please log in to add employees.",
+          variant: "destructive"
+        });
+        return;
+      }
 
-    setEmployees([...employees, employee]);
-    setNewEmployee({
-      name: "",
-      email: "",
-      phone: "",
-      role: "",
-      department: "",
-      baseSalary: 0,
-      address: "",
-      emergencyContact: "",
-      bankAccount: "",
-      pfNumber: "",
-      esiNumber: ""
-    });
-    setShowAddDialog(false);
+      const employee: Employee & { user_id?: string } = {
+        ...newEmployee,
+        id: Date.now().toString(),
+        joinDate: new Date().toISOString(),
+        status: "active",
+        user_id: userId, // CRITICAL: Include user_id
+      };
 
-    toast({
-      title: "Employee Added",
-      description: `${employee.name} has been added to the team.`
-    });
+      // Update local storage
+      await setEmployees([...employees, employee]);
+      
+      // Queue for Supabase sync
+      try {
+        await enqueueChange('staff', 'upsert', {
+          id: employee.id,
+          user_id: userId,
+          name: employee.name,
+          email: employee.email,
+          phone: employee.phone,
+          role: employee.role,
+          department: employee.department,
+          salary: employee.baseSalary,
+          status: employee.status,
+          hire_date: employee.joinDate,
+          address: employee.address,
+          emergency_contact: employee.emergencyContact,
+          bank_account: employee.bankAccount,
+          pf_number: employee.pfNumber,
+          esi_number: employee.esiNumber,
+          applied_salary_rules: JSON.stringify(employee.appliedSalaryRules || []),
+          updated_at: new Date().toISOString(),
+        });
+      } catch (syncError) {
+        console.warn('Failed to queue sync, but employee saved locally:', syncError);
+      }
+      
+      setNewEmployee({
+        name: "",
+        email: "",
+        phone: "",
+        role: "",
+        department: "",
+        baseSalary: 0,
+        address: "",
+        emergencyContact: "",
+        bankAccount: "",
+        pfNumber: "",
+        esiNumber: "",
+        appliedSalaryRules: []
+      });
+      setShowAddDialog(false);
+      
+      toast({
+        title: "Employee Added",
+        description: `${employee.name} has been added to the team.`
+      });
+    } catch (error) {
+      console.error('Error adding employee:', error);
+      toast({
+        title: "Error",
+        description: "Failed to add employee. Please try again.",
+        variant: "destructive"
+      });
+    }
   };
 
   const handleAddRule = () => {
@@ -432,7 +528,7 @@ export const EmployeeManagement = () => {
                         </TableCell>
                         <TableCell>{employee.role}</TableCell>
                         <TableCell>{employee.department}</TableCell>
-                        <TableCell>₹{employee.baseSalary.toLocaleString()}</TableCell>
+                        <TableCell>₹{(employee.baseSalary || 0).toLocaleString()}</TableCell>
                         <TableCell>
                           <Badge variant={employee.status === 'active' ? 'default' : 'secondary'}>
                             {employee.status}
@@ -667,14 +763,14 @@ export const EmployeeManagement = () => {
                         <div className="text-right space-y-1">
                           <div className="text-sm">
                             <span className="text-muted-foreground">Base: </span>
-                            <span>₹{summary.baseSalary.toLocaleString()}</span>
+                            <span>₹{(summary.baseSalary || 0).toLocaleString()}</span>
                           </div>
                           <div className="text-sm">
                             <span className="text-muted-foreground">Days: </span>
-                            <span>{summary.presentDays}/{summary.workingDays}</span>
+                            <span>{summary.presentDays || 0}/{summary.workingDays || 0}</span>
                           </div>
                           <div className="text-lg font-bold text-primary">
-                            Net: ₹{summary.netSalary.toLocaleString()}
+                            Net: ₹{(summary.netSalary || 0).toLocaleString()}
                           </div>
                         </div>
                       </div>
@@ -692,6 +788,9 @@ export const EmployeeManagement = () => {
         <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle>Add New Employee</DialogTitle>
+            <DialogDescription>
+              Add a new employee to the payroll system with salary rules
+            </DialogDescription>
           </DialogHeader>
           <div className="grid grid-cols-2 gap-4 max-h-96 overflow-y-auto">
             <div>
@@ -783,6 +882,44 @@ export const EmployeeManagement = () => {
                 value={newEmployee.esiNumber}
                 onChange={(e) => setNewEmployee({ ...newEmployee, esiNumber: e.target.value })}
               />
+            </div>
+            
+            {/* Salary Rules Selection */}
+            <div className="col-span-2">
+              <Label>Applied Salary Rules (Select rules that apply to this employee)</Label>
+              <div className="mt-2 space-y-2 max-h-48 overflow-y-auto border rounded-md p-3">
+                {salaryRules.filter(rule => rule.isActive).map((rule) => (
+                  <div key={rule.id} className="flex items-center space-x-2">
+                    <input
+                      type="checkbox"
+                      id={`rule-${rule.id}`}
+                      checked={newEmployee.appliedSalaryRules.includes(rule.id)}
+                      onChange={(e) => {
+                        const newRules = e.target.checked
+                          ? [...newEmployee.appliedSalaryRules, rule.id]
+                          : newEmployee.appliedSalaryRules.filter(id => id !== rule.id);
+                        setNewEmployee({ ...newEmployee, appliedSalaryRules: newRules });
+                      }}
+                      className="w-4 h-4"
+                    />
+                    <label htmlFor={`rule-${rule.id}`} className="text-sm cursor-pointer flex-1">
+                      <span className="font-medium">{rule.name}</span>
+                      <span className="text-muted-foreground ml-2">
+                        ({rule.type === 'deduction' ? '-' : '+'} 
+                        {rule.calculation === 'percentage' ? `${rule.value}%` : `₹${rule.value}`})
+                      </span>
+                    </label>
+                  </div>
+                ))}
+                {salaryRules.filter(rule => rule.isActive).length === 0 && (
+                  <p className="text-sm text-muted-foreground text-center py-2">
+                    No active salary rules. Add rules in the Salary Rules tab first.
+                  </p>
+                )}
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">
+                If no rules are selected, all active rules will apply by default.
+              </p>
             </div>
           </div>
           <div className="flex justify-end space-x-2 mt-6">

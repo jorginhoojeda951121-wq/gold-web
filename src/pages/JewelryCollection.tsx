@@ -76,6 +76,15 @@ const JewelryCollection = () => {
       if (jewelryData && Array.isArray(jewelryData)) {
         jewelryData.forEach((item: any) => {
           if (!item || !item.id || processedIds.has(item.id)) return;
+          
+          // CRITICAL: Filter by category to ensure only jewelry items are shown
+          // Skip if item is gold or stones (check both category and item_type for consistency)
+          if (item.category === 'gold' || item.item_type === 'gold' || 
+              item.category === 'stones' || item.item_type === 'stones' || 
+              item.category === 'stone' || item.item_type === 'stone') {
+            return;
+          }
+          
           processedIds.add(item.id);
 
           // Clean and validate image URL (same logic as GoldCollection)
@@ -83,7 +92,7 @@ const JewelryCollection = () => {
           
           // Fix corrupted image data (single characters, invalid strings)
           if (imageUrl && (imageUrl.length < 10 || imageUrl === '[' || imageUrl === '{' || imageUrl === 'undefined')) {
-            console.warn(`⚠️ Corrupted image data detected for ${item.name}, clearing...`);
+            // Silently clean up corrupted image data
             imageUrl = '';
           }
 
@@ -123,14 +132,21 @@ const JewelryCollection = () => {
         inventoryData.forEach((item: any) => {
           if (!item || !item.id) return;
           
-          // Only include jewelry items, skip gold and stones
-          if (item.item_type === 'jewelry' || (!item.item_type && item.type && item.type !== 'Gold Bar' && item.type !== 'Gemstone')) {
+          // CRITICAL: Consistent category filtering - only include jewelry items, skip gold and stones
+          // Check both category and item_type for backward compatibility
+          const isGold = item.category === 'gold' || item.item_type === 'gold';
+          const isStone = item.category === 'stones' || item.item_type === 'stones' || 
+                          item.category === 'stone' || item.item_type === 'stone';
+          
+          // Only include jewelry items (or items without type that aren't gold/stones)
+          if (item.item_type === 'jewelry' || item.category === 'jewelry' || 
+              (!isGold && !isStone && (!item.item_type || item.item_type === '') && item.type && item.type !== 'Gold Bar' && item.type !== 'Gemstone')) {
             // Clean and validate image URL
             let imageUrl = item.image || item.image_url || '';
             
             // Fix corrupted image data (single characters, invalid strings)
             if (imageUrl && (imageUrl.length < 10 || imageUrl === '[' || imageUrl === '{' || imageUrl === 'undefined')) {
-              console.warn(`⚠️ Corrupted image data detected for ${item.name}, clearing...`);
+              // Silently clean up corrupted image data
               imageUrl = '';
             }
 

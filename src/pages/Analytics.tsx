@@ -33,8 +33,7 @@ interface AnalyticsData {
 }
 
 const Analytics = () => {
-  const { data: selectedLocation, updateData: setSelectedLocation } = useOfflineStorage<string>("analytics_location", "all");
-  const { data: dateRange, updateData: setDateRange } = useOfflineStorage<string>("analytics_dateRange", "month");
+  const { data: dateRange, updateData: setDateRange} = useOfflineStorage<string>("analytics_dateRange", "month");
   const { data: searchQuery, updateData: setSearchQuery } = useOfflineStorage<string>("analytics_search", "");
   
   const [analyticsData, setAnalyticsData] = useState<AnalyticsData>({
@@ -51,14 +50,6 @@ const Analytics = () => {
     outOfStock: 0
   });
   const [loading, setLoading] = useState(true);
-  
-  const locations = [
-    { id: "all", name: "All Locations" },
-    { id: "mumbai", name: "Mumbai Store" },
-    { id: "delhi", name: "Delhi Store" },
-    { id: "bangalore", name: "Bangalore Store" },
-    { id: "kolkata", name: "Kolkata Store" }
-  ];
   
   // Load real user-scoped data for analytics
   const loadAnalyticsData = useCallback(async () => {
@@ -249,17 +240,6 @@ const Analytics = () => {
               <p className="text-primary-foreground/70 text-sm">Track your jewelry business performance</p>
             </div>
             <div className="flex items-center gap-4">
-              <Select value={selectedLocation} onValueChange={setSelectedLocation}>
-                <SelectTrigger className="w-48 bg-primary-foreground/10 text-primary-foreground border-primary-foreground/20">
-                  <Filter className="h-4 w-4 mr-2" />
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {locations.map(location => (
-                    <SelectItem key={location.id} value={location.id}>{location.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
               <Select value={dateRange} onValueChange={setDateRange}>
                 <SelectTrigger className="w-40 bg-primary-foreground/10 text-primary-foreground border-primary-foreground/20">
                   <SelectValue />

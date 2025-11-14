@@ -91,7 +91,7 @@ export const Navigation = () => {
 
   return (
     <nav className="sticky top-0 z-40 bg-white/80 backdrop-blur supports-[backdrop-filter]:bg-white/60 border-b border-gray-200/60 shadow-sm">
-      <div className="max-w-7xl mx-auto px-2 sm:px-4 py-2">
+      <div className="w-full px-2 sm:px-4 py-2">
         <div className="flex justify-between items-center py-2 min-h-[60px] gap-2">
           {/* Brand/Logo - Responsive */}
           <div className="flex items-center gap-1.5 sm:gap-2 pr-2 sm:pr-4 flex-shrink-0 min-w-0">
@@ -102,8 +102,8 @@ export const Navigation = () => {
           </div>
 
           {/* Desktop Navigation - Shows above 1480px */}
-          <div className="hidden nav:flex items-center space-x-1 flex-1 justify-center min-w-0 overflow-x-auto scrollbar-none">
-            <div className="flex items-center space-x-1 flex-nowrap">
+          <div className="hidden nav:flex items-center flex-1 min-w-0 overflow-x-auto custom-scrollbar-horizontal px-2 py-1 scroll-smooth" style={{ WebkitOverflowScrolling: 'touch' }}>
+            <div className="flex items-center space-x-1 flex-nowrap min-w-max">
             {navigationItems.map((item) => {
               const Icon = item.icon;
               const isActive = location.pathname === item.href;
@@ -155,7 +155,7 @@ export const Navigation = () => {
           </div>
 
           {/* Sync Actions - Shows above 1480px */}
-          <div className="hidden nav:flex items-center space-x-2 flex-shrink-0">
+          <div className="hidden nav:flex items-center space-x-2 flex-shrink-0 ml-2 pl-2">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="outline" size="sm" className="flex items-center justify-center gap-1.5 min-h-[40px] px-3 text-sm whitespace-nowrap">

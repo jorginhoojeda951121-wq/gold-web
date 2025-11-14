@@ -30,6 +30,22 @@ export const CraftsmanDetailsDialog = ({
   const [showCompletionDialog, setShowCompletionDialog] = useState(false);
   const [selectedProject, setSelectedProject] = useState<{id: string, name: string} | null>(null);
 
+  // Filter ongoing tasks (not completed) - MUST be called before any conditional returns
+  const ongoingTasks = useMemo(() => {
+    if (!craftsman) return [];
+    return (craftsman.assignedMaterials || []).filter(
+      (material) => !material.completed
+    );
+  }, [craftsman?.assignedMaterials]);
+
+  // Filter completed tasks - MUST be called before any conditional returns
+  const completedTasks = useMemo(() => {
+    if (!craftsman) return [];
+    return (craftsman.assignedMaterials || []).filter(
+      (material) => material.completed
+    );
+  }, [craftsman?.assignedMaterials]);
+
   if (!craftsman) return null;
 
   const getStatusColor = (status: string) => {
@@ -113,20 +129,6 @@ export const CraftsmanDetailsDialog = ({
       };
     }
   };
-
-  // Filter ongoing tasks (not completed)
-  const ongoingTasks = useMemo(() => {
-    return (craftsman.assignedMaterials || []).filter(
-      (material) => !material.completed
-    );
-  }, [craftsman.assignedMaterials]);
-
-  // Filter completed tasks
-  const completedTasks = useMemo(() => {
-    return (craftsman.assignedMaterials || []).filter(
-      (material) => material.completed
-    );
-  }, [craftsman.assignedMaterials]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>

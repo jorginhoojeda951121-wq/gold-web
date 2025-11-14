@@ -138,7 +138,7 @@ const CraftsmenTracking = () => {
     });
   };
 
-  const handleAssignMaterial = (material: Omit<RawMaterial, 'id'>) => {
+  const handleAssignMaterial = async (material: Omit<RawMaterial, 'id'>) => {
     if (!selectedCraftsman) return;
     
     const newMaterial: RawMaterial = {
@@ -147,7 +147,7 @@ const CraftsmenTracking = () => {
       completed: false
     };
 
-    setCraftsmen(prev => prev.map(craftsman => {
+    const updatedCraftsmen = craftsmen.map(craftsman => {
       if (craftsman.id === selectedCraftsman.id) {
         // Update payment tracking if agreed amount is set
         const updatedDue = (craftsman.totalAmountDue || 0) + (material.agreedAmount || 0);
@@ -161,7 +161,41 @@ const CraftsmenTracking = () => {
         };
       }
       return craftsman;
-    }));
+    });
+
+    await setCraftsmen(updatedCraftsmen);
+
+    // Queue for Supabase sync
+    try {
+      const { getCurrentUserId } = await import('@/lib/userStorage');
+      const userId = await getCurrentUserId();
+      if (userId) {
+        const updatedCraftsman = updatedCraftsmen.find(c => c.id === selectedCraftsman.id);
+        if (updatedCraftsman) {
+          const { enqueueChange } = await import('@/lib/sync');
+          await enqueueChange('craftsmen', 'upsert', {
+            id: updatedCraftsman.id,
+            name: updatedCraftsman.name,
+            specialty: updatedCraftsman.specialty || '',
+            experience: updatedCraftsman.experience || 0,
+            phone: updatedCraftsman.phone || updatedCraftsman.contact || '',
+            contact: updatedCraftsman.contact || '',
+            email: updatedCraftsman.email || '',
+            address: updatedCraftsman.address || '',
+            status: updatedCraftsman.status || 'available',
+            rating: updatedCraftsman.rating || 0.0,
+            assignedMaterials: updatedCraftsman.assignedMaterials || [],
+            totalAmountDue: updatedCraftsman.totalAmountDue || 0,
+            totalAmountPaid: updatedCraftsman.totalAmountPaid || 0,
+            pendingAmount: updatedCraftsman.pendingAmount || 0,
+            paymentHistory: updatedCraftsman.paymentHistory || [],
+            updated_at: new Date().toISOString(),
+          });
+        }
+      }
+    } catch (syncError) {
+      console.warn('Failed to queue sync, but material assigned locally:', syncError);
+    }
 
     toast({
       title: "Material Assigned",
@@ -169,18 +203,10 @@ const CraftsmenTracking = () => {
     });
     
     // Update selected craftsman for the details dialog
-    setSelectedCraftsman(prev => {
-      if (!prev) return null;
-      const updatedDue = (prev.totalAmountDue || 0) + (material.agreedAmount || 0);
-      const updatedPending = (prev.pendingAmount || 0) + (material.agreedAmount || 0);
-      
-      return {
-        ...prev,
-        assignedMaterials: [...prev.assignedMaterials, newMaterial],
-        totalAmountDue: updatedDue,
-        pendingAmount: updatedPending
-      };
-    });
+    const updatedCraftsman = updatedCraftsmen.find(c => c.id === selectedCraftsman.id);
+    if (updatedCraftsman) {
+      setSelectedCraftsman(updatedCraftsman);
+    }
   };
 
   const handleViewDetails = (craftsman: Craftsman) => {
@@ -193,15 +219,49 @@ const CraftsmenTracking = () => {
     setShowMaterialDialog(true);
   };
 
-  const handleCompleteTask = (materialId: string) => {
-    setCraftsmen(prev => prev.map(craftsman => ({
+  const handleCompleteTask = async (materialId: string) => {
+    const updatedCraftsmen = craftsmen.map(craftsman => ({
       ...craftsman,
       assignedMaterials: craftsman.assignedMaterials.map(material => 
         material.id === materialId
           ? { ...material, completed: true, completedDate: new Date().toISOString().split('T')[0] }
           : material
       )
-    })));
+    }));
+
+    await setCraftsmen(updatedCraftsmen);
+
+    // Queue for Supabase sync
+    try {
+      const { getCurrentUserId } = await import('@/lib/userStorage');
+      const userId = await getCurrentUserId();
+      if (userId) {
+        const { enqueueChange } = await import('@/lib/sync');
+        // Queue sync for all craftsmen that might have been updated
+        for (const craftsman of updatedCraftsmen) {
+          await enqueueChange('craftsmen', 'upsert', {
+            id: craftsman.id,
+            name: craftsman.name,
+            specialty: craftsman.specialty || '',
+            experience: craftsman.experience || 0,
+            phone: craftsman.phone || craftsman.contact || '',
+            contact: craftsman.contact || '',
+            email: craftsman.email || '',
+            address: craftsman.address || '',
+            status: craftsman.status || 'available',
+            rating: craftsman.rating || 0.0,
+            assignedMaterials: craftsman.assignedMaterials || [],
+            totalAmountDue: craftsman.totalAmountDue || 0,
+            totalAmountPaid: craftsman.totalAmountPaid || 0,
+            pendingAmount: craftsman.pendingAmount || 0,
+            paymentHistory: craftsman.paymentHistory || [],
+            updated_at: new Date().toISOString(),
+          });
+        }
+      }
+    } catch (syncError) {
+      console.warn('Failed to queue sync, but task completed locally:', syncError);
+    }
 
     toast({
       title: "Task Completed",
@@ -209,8 +269,8 @@ const CraftsmenTracking = () => {
     });
   };
 
-  const handleCompleteProject = (materialId: string, notes: string) => {
-    setCraftsmen(prev => prev.map(craftsman => ({
+  const handleCompleteProject = async (materialId: string, notes: string) => {
+    const updatedCraftsmen = craftsmen.map(craftsman => ({
       ...craftsman,
       assignedMaterials: craftsman.assignedMaterials.map(material => 
         material.id === materialId
@@ -222,7 +282,41 @@ const CraftsmenTracking = () => {
             }
           : material
       )
-    })));
+    }));
+
+    await setCraftsmen(updatedCraftsmen);
+
+    // Queue for Supabase sync
+    try {
+      const { getCurrentUserId } = await import('@/lib/userStorage');
+      const userId = await getCurrentUserId();
+      if (userId) {
+        const { enqueueChange } = await import('@/lib/sync');
+        // Queue sync for all craftsmen that might have been updated
+        for (const craftsman of updatedCraftsmen) {
+          await enqueueChange('craftsmen', 'upsert', {
+            id: craftsman.id,
+            name: craftsman.name,
+            specialty: craftsman.specialty || '',
+            experience: craftsman.experience || 0,
+            phone: craftsman.phone || craftsman.contact || '',
+            contact: craftsman.contact || '',
+            email: craftsman.email || '',
+            address: craftsman.address || '',
+            status: craftsman.status || 'available',
+            rating: craftsman.rating || 0.0,
+            assignedMaterials: craftsman.assignedMaterials || [],
+            totalAmountDue: craftsman.totalAmountDue || 0,
+            totalAmountPaid: craftsman.totalAmountPaid || 0,
+            pendingAmount: craftsman.pendingAmount || 0,
+            paymentHistory: craftsman.paymentHistory || [],
+            updated_at: new Date().toISOString(),
+          });
+        }
+      }
+    } catch (syncError) {
+      console.warn('Failed to queue sync, but project completed locally:', syncError);
+    }
 
     toast({
       title: "Project Completed",

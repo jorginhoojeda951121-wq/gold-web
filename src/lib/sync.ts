@@ -324,8 +324,35 @@ export async function syncAll() {
 			pendingAmount: row.pending_amount ?? existingItem.pendingAmount ?? 0,
 			// Preserve local-only fields that don't exist in Supabase
 			currentProjects: existingItem.currentProjects ?? 0,
-			assignedMaterials: existingItem.assignedMaterials ?? [],
-			paymentHistory: existingItem.paymentHistory ?? [],
+			// CRITICAL: Pull assignedMaterials from Supabase if available, otherwise preserve local
+			assignedMaterials: (() => {
+				try {
+					if (row.assigned_materials) {
+						if (typeof row.assigned_materials === 'string') {
+							return JSON.parse(row.assigned_materials);
+						} else if (Array.isArray(row.assigned_materials)) {
+							return row.assigned_materials;
+						}
+					}
+				} catch (e) {
+					console.warn('Failed to parse assigned_materials for craftsman', row.id, e);
+				}
+				return existingItem.assignedMaterials || [];
+			})(),
+			paymentHistory: (() => {
+				try {
+					if (row.payment_history) {
+						if (typeof row.payment_history === 'string') {
+							return JSON.parse(row.payment_history);
+						} else if (Array.isArray(row.payment_history)) {
+							return row.payment_history;
+						}
+					}
+				} catch (e) {
+					console.warn('Failed to parse payment_history for craftsman', row.id, e);
+				}
+				return existingItem.paymentHistory || [];
+			})(),
 			is_active: row.is_active ?? existingItem.is_active ?? 1,
 			created_at: row.created_at || existingItem.created_at || new Date().toISOString(),
 			updated_at: row.updated_at || new Date().toISOString(),
@@ -1583,6 +1610,13 @@ export async function backfillAllFromIdb() {
 					address: String(c.address || ''),
 					status: status,
 					rating: parseFloat(String(c.rating || 0.0)) || 0.0,
+					// CRITICAL: Include assignedMaterials and paymentHistory for sync
+					assigned_materials: c.assignedMaterials ? JSON.stringify(c.assignedMaterials) : null,
+					payment_history: c.paymentHistory ? JSON.stringify(c.paymentHistory) : null,
+					// Payment tracking fields
+					total_amount_due: parseFloat(String(c.totalAmountDue || 0)) || 0,
+					total_amount_paid: parseFloat(String(c.totalAmountPaid || 0)) || 0,
+					pending_amount: parseFloat(String(c.pendingAmount || 0)) || 0,
 					created_at: c.created_at || new Date().toISOString(),
 					updated_at: new Date().toISOString(),
 				};
@@ -2386,6 +2420,9 @@ async function pushQueue() {
 					total_amount_due: parseFloat(String(craftsman.totalAmountDue || 0)) || 0,
 					total_amount_paid: parseFloat(String(craftsman.totalAmountPaid || 0)) || 0,
 					pending_amount: parseFloat(String(craftsman.pendingAmount || 0)) || 0,
+					// CRITICAL: Include assignedMaterials and paymentHistory for sync
+					assigned_materials: craftsman.assignedMaterials ? JSON.stringify(craftsman.assignedMaterials) : null,
+					payment_history: craftsman.paymentHistory ? JSON.stringify(craftsman.paymentHistory) : null,
 					created_at: craftsman.created_at || new Date().toISOString(),
 					updated_at: new Date().toISOString(),
 				};

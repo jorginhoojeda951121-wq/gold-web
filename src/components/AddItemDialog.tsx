@@ -21,6 +21,7 @@ import { JewelryItem } from "./JewelryCard";
 import { Upload, X, Calculator, Barcode } from "lucide-react";
 import { useGoldRates, calculateGoldPrice } from "./GoldRateSettings";
 import { generateBarcode } from "./BarcodeScanner";
+import { MultiImageUpload } from "./MultiImageUpload";
 
 interface AddItemDialogProps {
   open: boolean;
@@ -41,10 +42,10 @@ const metals = [
 ];
 
 export const AddItemDialog = ({ open, onOpenChange, onAdd }: AddItemDialogProps) => {
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const goldSettings = useGoldRates();
   const [autoCalculate, setAutoCalculate] = useState(false);
   const [weight, setWeight] = useState("");
+  const [images, setImages] = useState<(string | null)[]>([null, null, null, null]);
   
   const [formData, setFormData] = useState({
     name: "",
@@ -55,7 +56,6 @@ export const AddItemDialog = ({ open, onOpenChange, onAdd }: AddItemDialogProps)
     price: "",
     inStock: "",
     isArtificial: false,
-    image: "",
     taxRate: "3",           // Default 3% for jewelry
     taxIncluded: false,
     taxCategory: "jewelry" as 'jewelry' | 'artificial' | 'gemstones' | 'other',
@@ -92,24 +92,6 @@ export const AddItemDialog = ({ open, onOpenChange, onAdd }: AddItemDialogProps)
     }
   }, [weight, formData.metal, formData.taxRate, autoCalculate, goldSettings]);
 
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        const result = e.target?.result as string;
-        setFormData(prev => ({ ...prev, image: result }));
-      };
-      reader.readAsDataURL(file);
-    }
-  };
-
-  const removeImage = () => {
-    setFormData(prev => ({ ...prev, image: "" }));
-    if (fileInputRef.current) {
-      fileInputRef.current.value = "";
-    }
-  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -127,7 +109,11 @@ export const AddItemDialog = ({ open, onOpenChange, onAdd }: AddItemDialogProps)
       price: parseFloat(formData.price),
       inStock: parseInt(formData.inStock),
       isArtificial: formData.isArtificial,
-      image: formData.image,
+      image: images[0] || "",
+      image_1: images[0] || undefined,
+      image_2: images[1] || undefined,
+      image_3: images[2] || undefined,
+      image_4: images[3] || undefined,
       taxRate: parseFloat(formData.taxRate),
       taxIncluded: formData.taxIncluded,
       taxCategory: formData.taxCategory,
@@ -145,18 +131,15 @@ export const AddItemDialog = ({ open, onOpenChange, onAdd }: AddItemDialogProps)
       price: "",
       inStock: "",
       isArtificial: false,
-      image: "",
       taxRate: "3",
       taxIncluded: false,
       taxCategory: "jewelry",
       barcode: "",
       sku: "",
     });
+    setImages([null, null, null, null]);
     setWeight("");
     setAutoCalculate(false);
-    if (fileInputRef.current) {
-      fileInputRef.current.value = "";
-    }
     
     onOpenChange(false);
   };
@@ -173,53 +156,13 @@ export const AddItemDialog = ({ open, onOpenChange, onAdd }: AddItemDialogProps)
         
         <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
           <div className="space-y-4 overflow-y-auto pr-2 flex-1">
-          {/* Image Upload Section */}
-          <div className="space-y-2">
-            <Label>Item Image</Label>
-            <div className="flex items-center gap-4">
-              {formData.image ? (
-                <div className="relative">
-                  <img 
-                    src={formData.image} 
-                    alt="Preview" 
-                    className="w-20 h-20 object-cover rounded-lg border"
-                  />
-                  <Button
-                    type="button"
-                    variant="destructive"
-                    size="sm"
-                    className="absolute -top-2 -right-2 h-6 w-6 p-0 rounded-full"
-                    onClick={removeImage}
-                  >
-                    <X className="h-3 w-3" />
-                  </Button>
-                </div>
-              ) : (
-                <div className="w-20 h-20 border-2 border-dashed border-muted-foreground/25 rounded-lg flex items-center justify-center">
-                  <Upload className="h-6 w-6 text-muted-foreground/50" />
-                </div>
-              )}
-              <div>
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="image/*"
-                  onChange={handleImageUpload}
-                  className="hidden"
-                />
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => fileInputRef.current?.click()}
-                >
-                  Choose Image
-                </Button>
-                <p className="text-xs text-muted-foreground mt-1">
-                  JPG, PNG, GIF up to 10MB
-                </p>
-              </div>
-            </div>
-          </div>
+          {/* Multi-Image Upload Section */}
+          <MultiImageUpload 
+            images={images}
+            onImagesChange={setImages}
+            maxImages={4}
+            label="Item Images"
+          />
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">

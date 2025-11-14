@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -18,7 +18,7 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { JewelryItem } from "./JewelryCard";
-import { Upload, X } from "lucide-react";
+import { MultiImageUpload } from "./MultiImageUpload";
 
 interface EditItemDialogProps {
   open: boolean;
@@ -40,7 +40,7 @@ const metals = [
 ];
 
 export const EditItemDialog = ({ open, onOpenChange, onSave, item }: EditItemDialogProps) => {
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [images, setImages] = useState<(string | null)[]>([null, null, null, null]);
   const [formData, setFormData] = useState({
     name: "",
     type: "",
@@ -67,6 +67,13 @@ export const EditItemDialog = ({ open, onOpenChange, onSave, item }: EditItemDia
         isArtificial: item.isArtificial || false,
         image: item.image || "",
       });
+      // Load existing images into the images state
+      setImages([
+        item.image_1 || item.image || null,
+        item.image_2 || null,
+        item.image_3 || null,
+        item.image_4 || null,
+      ]);
     } else if (!open && !item) {
       // Only reset form when dialog closes AND there's no item
       setFormData({
@@ -80,27 +87,10 @@ export const EditItemDialog = ({ open, onOpenChange, onSave, item }: EditItemDia
         isArtificial: false,
         image: "",
       });
+      setImages([null, null, null, null]);
     }
   }, [item, open]);
 
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        const result = e.target?.result as string;
-        setFormData(prev => ({ ...prev, image: result }));
-      };
-      reader.readAsDataURL(file);
-    }
-  };
-
-  const removeImage = () => {
-    setFormData(prev => ({ ...prev, image: "" }));
-    if (fileInputRef.current) {
-      fileInputRef.current.value = "";
-    }
-  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -155,7 +145,11 @@ export const EditItemDialog = ({ open, onOpenChange, onSave, item }: EditItemDia
       price: price,
       inStock: stock,
       isArtificial: formData.isArtificial,
-      image: formData.image || "",
+      image: images[0] || formData.image || "",
+      image_1: images[0] || "",
+      image_2: images[1] || "",
+      image_3: images[2] || "",
+      image_4: images[3] || "",
     };
     
     onSave(updatedItem);
@@ -185,53 +179,12 @@ export const EditItemDialog = ({ open, onOpenChange, onSave, item }: EditItemDia
           </div>
         ) : (
         <form onSubmit={handleSubmit} className="space-y-4">
-          {/* Image Upload Section */}
-          <div className="space-y-2">
-            <Label>Item Image</Label>
-            <div className="flex items-center gap-4">
-              {formData.image ? (
-                <div className="relative">
-                  <img 
-                    src={formData.image} 
-                    alt="Preview" 
-                    className="w-20 h-20 object-cover rounded-lg border"
-                  />
-                  <Button
-                    type="button"
-                    variant="destructive"
-                    size="sm"
-                    className="absolute -top-2 -right-2 h-6 w-6 p-0 rounded-full"
-                    onClick={removeImage}
-                  >
-                    <X className="h-3 w-3" />
-                  </Button>
-                </div>
-              ) : (
-                <div className="w-20 h-20 border-2 border-dashed border-muted-foreground/25 rounded-lg flex items-center justify-center">
-                  <Upload className="h-6 w-6 text-muted-foreground/50" />
-                </div>
-              )}
-              <div>
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="image/*"
-                  onChange={handleImageUpload}
-                  className="hidden"
-                />
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => fileInputRef.current?.click()}
-                >
-                  {formData.image ? "Change Image" : "Choose Image"}
-                </Button>
-                <p className="text-xs text-muted-foreground mt-1">
-                  JPG, PNG, GIF up to 10MB
-                </p>
-              </div>
-            </div>
-          </div>
+          {/* Multi-Image Upload Section */}
+          <MultiImageUpload
+            images={images}
+            onImagesChange={setImages}
+            label="Item Images"
+          />
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">

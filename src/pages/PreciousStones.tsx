@@ -12,17 +12,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast";
 import { enqueueChange } from "@/lib/sync";
 import { getUserData } from "@/lib/userStorage";
-
-interface StoneItem {
-  id: string;
-  name: string;
-  carat: string;
-  clarity: string;
-  cut: string;
-  price: number;
-  stock: number;
-  image: string;
-}
+import { MultiImageUpload } from "@/components/MultiImageUpload";
+import { StoneItemCard, StoneItem } from "@/components/StoneItemCard";
+import { StoneItemDetailsDialog } from "@/components/StoneItemDetailsDialog";
 
 const PreciousStones = () => {
   const { toast } = useToast();
@@ -36,6 +28,7 @@ const PreciousStones = () => {
 
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
+  const [showDetailsDialog, setShowDetailsDialog] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [itemToDelete, setItemToDelete] = useState<StoneItem | null>(null);
   const [selectedItem, setSelectedItem] = useState<StoneItem | null>(null);
@@ -45,9 +38,9 @@ const PreciousStones = () => {
     clarity: "",
     cut: "",
     price: "",
-    stock: "",
-    image: ""
+    stock: ""
   });
+  const [images, setImages] = useState<(string | null)[]>([null, null, null, null]);
 
   // Dropdown options
   const clarityOptions = ['IF', 'VVS1', 'VVS2', 'VS1', 'VS2', 'SI1', 'SI2', 'I1', 'I2', 'I3'];
@@ -80,6 +73,10 @@ const PreciousStones = () => {
             price: item.price || 0,
             stock: item.stock ?? item.inStock ?? 10,
             image: item.image || item.image_url || '',
+            image_1: item.image_1 || item.image || item.image_url || '',
+            image_2: item.image_2 || '',
+            image_3: item.image_3 || '',
+            image_4: item.image_4 || '',
           };
           allStoneItems.push(stoneItem);
         });
@@ -100,6 +97,10 @@ const PreciousStones = () => {
               price: item.price || 0,
               stock: item.stock ?? item.inStock ?? 10,
               image: item.image || item.image_url || '',
+              image_1: item.image_1 || item.image || item.image_url || '',
+              image_2: item.image_2 || '',
+              image_3: item.image_3 || '',
+              image_4: item.image_4 || '',
             };
             allStoneItems.push(stoneItem);
           }
@@ -154,7 +155,11 @@ const PreciousStones = () => {
         cut: formData.cut,
         price: parseFloat(formData.price) || 0,
         stock: parseInt(formData.stock) || 0,
-        image: formData.image || "https://images.unsplash.com/photo-1631832724508-ea8df04ad455?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3wzNzg4OTl8MHwxfHNlYXJjaHwxfHxwcmVjaW91cy1zdG9uZXN8ZW58MXwwfHx8MTc1Mzc2NjkyMHww&ixlib=rb-4.1.0&q=80&w=1080",
+        image: images[0] || "https://images.unsplash.com/photo-1631832724508-ea8df04ad455?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3wzNzg4OTl8MHwxfHNlYXJjaHwxfHxwcmVjaW91cy1zdG9uZXN8ZW58MXwwfHx8MTc1Mzc2NjkyMHww&ixlib=rb-4.1.0&q=80&w=1080",
+        image_1: images[0] || undefined,
+        image_2: images[1] || undefined,
+        image_3: images[2] || undefined,
+        image_4: images[3] || undefined,
         user_id: userId, // CRITICAL: Include user_id for data isolation
       };
 
@@ -169,13 +174,18 @@ const PreciousStones = () => {
         inStock: newItem.stock,
         stock: newItem.stock,
         image: newItem.image,
+        image_1: newItem.image_1,
+        image_2: newItem.image_2,
+        image_3: newItem.image_3,
+        image_4: newItem.image_4,
         updated_at: new Date().toISOString(),
       });
       
       // Reload stones to show the new item
       await loadStoneItems();
       
-      setFormData({ name: "", carat: "", clarity: "", cut: "", price: "", stock: "", image: "" });
+      setFormData({ name: "", carat: "", clarity: "", cut: "", price: "", stock: "" });
+      setImages([null, null, null, null]);
       setShowAddDialog(false);
       toast({
         title: "Item Added",
@@ -191,6 +201,11 @@ const PreciousStones = () => {
     }
   };
 
+  const handleViewItem = (item: StoneItem) => {
+    setSelectedItem(item);
+    setShowDetailsDialog(true);
+  };
+
   const handleEditItem = (item: StoneItem) => {
     setSelectedItem(item);
     setFormData({
@@ -202,6 +217,14 @@ const PreciousStones = () => {
       stock: item.stock.toString(),
       image: item.image
     });
+    // Load existing images into the images state
+    setImages([
+      item.image_1 || item.image || null,
+      item.image_2 || null,
+      item.image_3 || null,
+      item.image_4 || null,
+    ]);
+    setShowDetailsDialog(false); // Close details if open
     setShowEditDialog(true);
   };
 
@@ -216,7 +239,7 @@ const PreciousStones = () => {
         return;
       }
 
-      const updatedItem: StoneItem = {
+      const updatedItem: StoneItem & { image_1?: string; image_2?: string; image_3?: string; image_4?: string } = {
         ...selectedItem,
         name: formData.name,
         carat: formData.carat,
@@ -224,7 +247,11 @@ const PreciousStones = () => {
         cut: formData.cut,
         price: parseFloat(formData.price) || 0,
         stock: parseInt(formData.stock) || 0,
-        image: formData.image
+        image: images[0] || selectedItem.image || "", // Use images array
+        image_1: images[0] || selectedItem.image_1,
+        image_2: images[1] || selectedItem.image_2,
+        image_3: images[2] || selectedItem.image_3,
+        image_4: images[3] || selectedItem.image_4,
       };
 
       setStones(prev => prev.map(item => item.id === selectedItem.id ? updatedItem : item));
@@ -237,13 +264,18 @@ const PreciousStones = () => {
         inStock: updatedItem.stock,
         stock: updatedItem.stock,
         image: updatedItem.image,
+        image_1: updatedItem.image_1,
+        image_2: updatedItem.image_2,
+        image_3: updatedItem.image_3,
+        image_4: updatedItem.image_4,
         updated_at: new Date().toISOString(),
       });
       
       // Reload stones to show the updated item
       await loadStoneItems();
       
-      setFormData({ name: "", carat: "", clarity: "", cut: "", price: "", stock: "", image: "" });
+      setFormData({ name: "", carat: "", clarity: "", cut: "", price: "", stock: "" });
+      setImages([null, null, null, null]);
       setSelectedItem(null);
       setShowEditDialog(false);
       toast({
@@ -315,46 +347,6 @@ const PreciousStones = () => {
     navigate('/pos');
   };
 
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      // Validate file size (10MB max)
-      if (file.size > 10 * 1024 * 1024) {
-        toast({
-          title: "File too large",
-          description: "Image must be less than 10MB",
-          variant: "destructive"
-        });
-        return;
-      }
-      
-      // Validate file type
-      if (!file.type.startsWith('image/')) {
-        toast({
-          title: "Invalid file type",
-          description: "Please select an image file",
-          variant: "destructive"
-        });
-        return;
-      }
-
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        const result = e.target?.result as string;
-        setFormData(prev => ({ ...prev, image: result }));
-      };
-      reader.readAsDataURL(file);
-    }
-  };
-
-  const removeImage = (isEdit: boolean = false) => {
-    setFormData(prev => ({ ...prev, image: "" }));
-    if (isEdit && editFileInputRef.current) {
-      editFileInputRef.current.value = "";
-    } else if (!isEdit && fileInputRef.current) {
-      fileInputRef.current.value = "";
-    }
-  };
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -418,139 +410,14 @@ const PreciousStones = () => {
         {/* Precious Stones */}
         <div className={`grid gap-4 ${viewMode === 'grid' ? 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4' : 'grid-cols-1'}`}>
           {filteredItems.map(item => (
-            <div 
+            <StoneItemCard
               key={`${item.id}-${item.image || 'no-image'}-${item.name}`}
-              className="group relative bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden transition-all duration-300 hover:shadow-2xl hover:-translate-y-1 hover:border-purple-300"
-            >
-              {/* Premium Image Section - Fixed Height */}
-              <div className="relative w-full overflow-hidden bg-gradient-to-br from-purple-50 via-pink-50 to-blue-50 flex-shrink-0" style={{ height: '160px', minHeight: '160px', maxHeight: '160px' }}>
-                {item.image && item.image.trim() !== '' ? (
-                  <>
-                    <img 
-                      key={`img-${item.id}-${item.image ? item.image.substring(0, 50) : 'no-image'}`}
-                      src={item.image || ''}
-                      alt={item.name}
-                      className="absolute inset-0 w-full h-full object-cover object-center transition-transform duration-500 group-hover:scale-110"
-                      style={{ 
-                        objectFit: 'cover', 
-                        objectPosition: 'center',
-                        minHeight: '160px',
-                        maxHeight: '160px',
-                        height: '160px'
-                      }}
-                      loading="lazy"
-                      onError={(e) => {
-                        e.currentTarget.style.display = 'none';
-                      }}
-                    />
-                    {/* Gradient overlay on hover */}
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none"></div>
-                  </>
-                ) : (
-                  <div className="absolute inset-0 w-full h-full flex items-center justify-center">
-                    <div className="text-center">
-                      <div className="w-12 h-12 mx-auto mb-2 rounded-full bg-gradient-to-br from-purple-400 via-pink-400 to-blue-400 flex items-center justify-center shadow-xl">
-                        <Gem className="h-6 w-6 text-white" />
-                      </div>
-                      <p className="text-xs text-gray-600 font-medium">Precious Stone</p>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Content Section */}
-              <div className="p-4 bg-gradient-to-b from-white to-gray-50/50 flex flex-col min-h-[200px]">
-                {/* Product Header */}
-                <div className="mb-3">
-                  <h3 className="text-lg font-bold text-gray-900 mb-1 group-hover:text-purple-600 transition-colors duration-300 line-clamp-1">
-                    {item.name}
-                  </h3>
-                  <p className="text-xs font-medium text-purple-600 uppercase tracking-wide">
-                    Precious Stone
-                  </p>
-                </div>
-
-                {/* Premium Details Grid - Compact */}
-                <div className="grid grid-cols-2 gap-2 mb-3 flex-grow">
-                  <div className="col-span-2 py-1 px-2 rounded-lg bg-gradient-to-r from-purple-50 to-pink-50 border border-purple-100 min-h-[32px] flex items-center">
-                    <div className="flex items-center justify-between w-full">
-                      <span className="text-xs font-semibold text-purple-700 uppercase tracking-wide">Carat</span>
-                      <span className="text-xs font-bold text-gray-900 truncate ml-2">{item.carat}</span>
-                    </div>
-                  </div>
-                  
-                  <div className="py-1 px-2 rounded-lg bg-gradient-to-r from-blue-50 to-cyan-50 border border-blue-100 min-h-[32px] flex items-center">
-                    <div className="flex items-center justify-between w-full">
-                      <span className="text-xs font-semibold text-blue-700 uppercase tracking-wide">Clarity</span>
-                      <span className="text-xs font-bold text-gray-900 truncate ml-2">{item.clarity}</span>
-                    </div>
-                  </div>
-                  
-                  <div className="py-1 px-2 rounded-lg bg-gradient-to-r from-amber-50 to-yellow-50 border border-amber-100 min-h-[32px] flex items-center">
-                    <div className="flex items-center justify-between w-full">
-                      <span className="text-xs font-semibold text-amber-700 uppercase tracking-wide">Cut</span>
-                      <span className="text-xs font-bold text-gray-900 truncate ml-2">{item.cut}</span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Price Section */}
-                <div className="mb-3 pb-3 border-b border-gray-200">
-                  <div className="flex items-baseline gap-2">
-                    <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">Price</span>
-                  </div>
-                  <div className="flex items-center gap-2 mt-0.5">
-                    <span className="text-xl font-bold bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent">
-                      ₹{item.price.toLocaleString()}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Action Buttons */}
-                <div className="flex flex-col gap-2 mt-auto">
-                  {/* Primary Action - Order Now */}
-                  <Button 
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleOrderNow(item);
-                    }}
-                    size="sm"
-                    className="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-semibold py-2 shadow-md hover:shadow-lg transition-all duration-300 rounded-lg text-xs"
-                  >
-                    <ShoppingCart className="h-3.5 w-3.5 mr-1.5" />
-                    Order Now
-                  </Button>
-
-                  {/* Secondary Actions */}
-                  <div className="flex gap-2">
-                    <Button 
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleEditItem(item);
-                      }}
-                      size="sm"
-                      variant="outline"
-                      className="flex-1 border-blue-200 text-blue-600 hover:bg-blue-50 hover:border-blue-300 font-medium rounded-lg transition-all duration-200 text-xs"
-                    >
-                      <Edit className="h-3.5 w-3.5 mr-1.5" />
-                      Edit
-                    </Button>
-                    <Button 
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleDeleteClick(item);
-                      }}
-                      size="sm"
-                      variant="outline"
-                      className="flex-1 border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300 font-medium rounded-lg transition-all duration-200 text-xs"
-                    >
-                      <Trash2 className="h-3.5 w-3.5 mr-1.5" />
-                      Delete
-                    </Button>
-                  </div>
-                </div>
-              </div>
-            </div>
+              item={item}
+              onView={handleViewItem}
+              onEdit={handleEditItem}
+              onDelete={handleDeleteClick}
+              onOrder={handleOrderNow}
+            />
           ))}
         </div>
 
@@ -637,52 +504,12 @@ const PreciousStones = () => {
                 />
               </div>
             </div>
-            <div>
-              <Label>Item Image</Label>
-              <div className="flex items-center gap-4">
-                {formData.image ? (
-                  <div className="relative">
-                    <img 
-                      src={formData.image} 
-                      alt="Preview" 
-                      className="w-20 h-20 object-cover rounded-lg border"
-                    />
-                    <Button
-                      type="button"
-                      variant="destructive"
-                      size="sm"
-                      className="absolute -top-2 -right-2 h-6 w-6 p-0 rounded-full"
-                      onClick={() => removeImage(false)}
-                    >
-                      <X className="h-3 w-3" />
-                    </Button>
-                  </div>
-                ) : (
-                  <div className="w-20 h-20 border-2 border-dashed border-gray-300 rounded-lg flex items-center justify-center">
-                    <Upload className="h-6 w-6 text-gray-400" />
-                  </div>
-                )}
-                <div>
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept="image/*"
-                    onChange={handleImageUpload}
-                    className="hidden"
-                  />
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => fileInputRef.current?.click()}
-                  >
-                    {formData.image ? "Change Image" : "Choose Image"}
-                  </Button>
-                  <p className="text-xs text-gray-500 mt-1">
-                    JPG, PNG, GIF up to 10MB
-                  </p>
-                </div>
-              </div>
-            </div>
+            <MultiImageUpload 
+              images={images}
+              onImagesChange={setImages}
+              maxImages={4}
+              label="Item Images"
+            />
             <div className="flex justify-end space-x-2 pt-4">
               <Button variant="outline" onClick={() => setShowAddDialog(false)}>
                 Cancel
@@ -770,52 +597,12 @@ const PreciousStones = () => {
                 />
               </div>
             </div>
-            <div>
-              <Label>Item Image</Label>
-              <div className="flex items-center gap-4">
-                {formData.image ? (
-                  <div className="relative">
-                    <img 
-                      src={formData.image} 
-                      alt="Preview" 
-                      className="w-20 h-20 object-cover rounded-lg border"
-                    />
-                    <Button
-                      type="button"
-                      variant="destructive"
-                      size="sm"
-                      className="absolute -top-2 -right-2 h-6 w-6 p-0 rounded-full"
-                      onClick={() => removeImage(true)}
-                    >
-                      <X className="h-3 w-3" />
-                    </Button>
-                  </div>
-                ) : (
-                  <div className="w-20 h-20 border-2 border-dashed border-gray-300 rounded-lg flex items-center justify-center">
-                    <Upload className="h-6 w-6 text-gray-400" />
-                  </div>
-                )}
-                <div>
-                  <input
-                    ref={editFileInputRef}
-                    type="file"
-                    accept="image/*"
-                    onChange={handleImageUpload}
-                    className="hidden"
-                  />
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => editFileInputRef.current?.click()}
-                  >
-                    {formData.image ? "Change Image" : "Choose Image"}
-                  </Button>
-                  <p className="text-xs text-gray-500 mt-1">
-                    JPG, PNG, GIF up to 10MB
-                  </p>
-                </div>
-              </div>
-            </div>
+            <MultiImageUpload 
+              images={images}
+              onImagesChange={setImages}
+              maxImages={4}
+              label="Item Images"
+            />
             <div className="flex justify-end space-x-2 pt-4">
               <Button variant="outline" onClick={() => setShowEditDialog(false)}>
                 Cancel
@@ -827,6 +614,19 @@ const PreciousStones = () => {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* View Details Dialog */}
+      <StoneItemDetailsDialog
+        item={selectedItem}
+        open={showDetailsDialog}
+        onClose={() => {
+          setShowDetailsDialog(false);
+          setSelectedItem(null);
+        }}
+        onEdit={(item) => {
+          handleEditItem(item);
+        }}
+      />
 
       {/* Delete Confirmation Dialog */}
       <Dialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>

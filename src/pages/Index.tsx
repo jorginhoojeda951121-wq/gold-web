@@ -102,6 +102,10 @@ const Index = () => {
               inStock: item.inStock ?? item.stock ?? 10,
               isArtificial: item.isArtificial || false,
               image: item.image || '',
+              image_1: item.image_1 || item.image || '',
+              image_2: item.image_2 || '',
+              image_3: item.image_3 || '',
+              image_4: item.image_4 || '',
             });
           } else {
             // Transform legacy format (from sync)
@@ -116,6 +120,10 @@ const Index = () => {
               inStock: item.inStock ?? item.stock ?? 10,
               isArtificial: item.isArtificial || false,
               image: item.image || '',
+              image_1: item.image_1 || item.image || '',
+              image_2: item.image_2 || '',
+              image_3: item.image_3 || '',
+              image_4: item.image_4 || '',
             });
           }
         });
@@ -138,6 +146,10 @@ const Index = () => {
             inStock: item.inStock ?? item.stock ?? 10,
             isArtificial: false,
             image: item.image || '',
+            image_1: item.image_1 || item.image || '',
+            image_2: item.image_2 || '',
+            image_3: item.image_3 || '',
+            image_4: item.image_4 || '',
           });
         });
       }
@@ -163,6 +175,10 @@ const Index = () => {
             inStock: item.inStock ?? item.stock ?? 10,
             isArtificial: false,
             image: item.image || '',
+            image_1: item.image_1 || item.image || '',
+            image_2: item.image_2 || '',
+            image_3: item.image_3 || '',
+            image_4: item.image_4 || '',
           });
         });
       }
@@ -178,10 +194,10 @@ const Index = () => {
             name: item.name || 'Unknown Item',
             type: item.item_type === 'gold' ? 'Gold Bar' 
                   : item.item_type === 'stone' ? 'Gemstone'
-                  : (item.type || 'Ring'),
+                  : (item.type || item.attributes?.type || 'Ring'),
             gemstone: item.item_type === 'stone' 
               ? (item.name || 'Stone')
-              : (item.gemstone || item.attributes?.description || 'None'),
+              : (item.gemstone || item.attributes?.gemstone || item.attributes?.description || 'None'),
             carat: item.item_type === 'stone' 
               ? (parseFloat(item.attributes?.carat) || 0)
               : (item.carat || parseFloat(item.attributes?.carat) || 0),
@@ -194,6 +210,10 @@ const Index = () => {
             inStock: item.inStock ?? item.in_stock ?? 10,
             isArtificial: item.isArtificial || false,
             image: item.image || '',
+            image_1: item.image_1 || item.image || '',
+            image_2: item.image_2 || '',
+            image_3: item.image_3 || '',
+            image_4: item.image_4 || '',
           };
 
           if (existingIndex >= 0) {

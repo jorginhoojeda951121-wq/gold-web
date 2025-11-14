@@ -2,26 +2,20 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Gem, ChevronLeft, ChevronRight } from "lucide-react";
-import { JewelryItem } from "./JewelryCard";
+import { StoneItem } from "./StoneItemCard";
 import { useState, useMemo } from "react";
 
-interface ItemDetailsDialogProps {
-  item: JewelryItem | null;
+interface StoneItemDetailsDialogProps {
+  item: StoneItem | null;
   open: boolean;
-  onClose?: () => void;
-  onOpenChange?: (open: boolean) => void;
-  onEdit?: (item: JewelryItem) => void;
-  onOrder?: (item: JewelryItem) => void;
+  onClose: () => void;
+  onEdit?: (item: StoneItem) => void;
 }
 
-export const ItemDetailsDialog = ({ item, open, onClose, onOpenChange, onEdit, onOrder }: ItemDetailsDialogProps) => {
-  const handleOpenChange = (newOpen: boolean) => {
-    if (onOpenChange) onOpenChange(newOpen);
-    if (!newOpen && onClose) onClose();
-  };
+export const StoneItemDetailsDialog = ({ item, open, onClose, onEdit }: StoneItemDetailsDialogProps) => {
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
   
-  // Collect all available images - remove duplicates (MUST be before early return for React Hooks rules)
+  // Collect all available images - must be called before any conditional returns
   const images = useMemo(() => {
     if (!item) return [];
     const allImages = [item.image_1, item.image_2, item.image_3, item.image_4, item.image]
@@ -30,11 +24,7 @@ export const ItemDetailsDialog = ({ item, open, onClose, onOpenChange, onEdit, o
     return Array.from(new Set(allImages));
   }, [item?.image, item?.image_1, item?.image_2, item?.image_3, item?.image_4]);
 
-  const stockStatus = item ? (
-    item.inStock === 0 ? { label: "Out of Stock", variant: "destructive" as const } : 
-    (item.inStock < 3 ? { label: "Low Stock", variant: "secondary" as const } : 
-    { label: "In Stock", variant: "default" as const })
-  ) : { label: "Unknown", variant: "secondary" as const };
+  const stockStatus = item?.stock === 0 ? { label: "Out of Stock", variant: "destructive" as const } : ((item?.stock ?? 0) < 3 ? { label: "Low Stock", variant: "secondary" as const } : { label: "In Stock", variant: "default" as const });
   
   if (!item) return null;
   
@@ -47,14 +37,15 @@ export const ItemDetailsDialog = ({ item, open, onClose, onOpenChange, onEdit, o
   };
 
   return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
+    <Dialog open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
       <DialogContent className="max-w-3xl">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            Jewelry Item Details
+            <Gem className="h-5 w-5" />
+            Precious Stone Details
           </DialogTitle>
           <DialogDescription>
-            View and manage jewelry item information
+            View and manage precious stone information
           </DialogDescription>
         </DialogHeader>
 
@@ -99,8 +90,13 @@ export const ItemDetailsDialog = ({ item, open, onClose, onOpenChange, onEdit, o
                   )}
                 </>
               ) : (
-                <div className="absolute inset-0 bg-primary/10 flex items-center justify-center">
-                  <Gem className="h-16 w-16 text-primary/50" />
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <div className="text-center">
+                    <div className="w-12 h-12 mx-auto mb-2 rounded-full bg-gradient-to-br from-purple-400 via-pink-400 to-blue-400 flex items-center justify-center shadow-xl">
+                      <Gem className="h-6 w-6 text-white" />
+                    </div>
+                    <p className="text-xs text-gray-600 font-medium">Precious Stone</p>
+                  </div>
                 </div>
               )}
             </div>
@@ -131,48 +127,41 @@ export const ItemDetailsDialog = ({ item, open, onClose, onOpenChange, onEdit, o
           <div className="md:col-span-2 space-y-2">
             <div className="flex items-center gap-3">
               <h2 className="text-2xl font-bold text-foreground">{item.name}</h2>
-              <Badge>{item.type}</Badge>
               <Badge variant={stockStatus.variant}>{stockStatus.label}</Badge>
             </div>
-            <div className="text-3xl font-extrabold">₹{item.price.toLocaleString()}</div>
+            <div className="text-3xl font-extrabold text-green-600">₹{item.price.toLocaleString()}</div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-4">
               <div>
-                <h3 className="font-semibold mb-2">Item Specifications</h3>
+                <h3 className="font-semibold mb-2">Stone Specifications</h3>
                 <ul className="space-y-2 text-sm">
-                  <li className="flex justify-between"><span className="text-muted-foreground">Gemstone:</span><span className="font-medium">{item.gemstone}</span></li>
-                  {item.carat > 0 && (
-                    <li className="flex justify-between"><span className="text-muted-foreground">Carat Weight:</span><span className="font-medium">{item.carat}ct</span></li>
-                  )}
-                  <li className="flex justify-between"><span className="text-muted-foreground">Metal:</span><span className="font-medium">{item.metal}</span></li>
+                  <li className="flex justify-between"><span className="text-muted-foreground">Carat:</span><span className="font-medium">{item.carat}</span></li>
+                  <li className="flex justify-between"><span className="text-muted-foreground">Clarity:</span><span className="font-medium">{item.clarity}</span></li>
+                  <li className="flex justify-between"><span className="text-muted-foreground">Cut:</span><span className="font-medium">{item.cut}</span></li>
                 </ul>
               </div>
               <div>
                 <h3 className="font-semibold mb-2">Inventory Information</h3>
                 <ul className="space-y-2 text-sm">
-                  <li className="flex justify-between"><span className="text-muted-foreground">Stock Quantity:</span><span className="font-medium">{item.inStock} units</span></li>
+                  <li className="flex justify-between"><span className="text-muted-foreground">Stock Quantity:</span><span className="font-medium">{item.stock} units</span></li>
                   <li className="flex justify-between"><span className="text-muted-foreground">Unit Price:</span><span className="font-medium">₹{item.price.toLocaleString()}</span></li>
-                  <li className="flex justify-between"><span className="text-muted-foreground">Total Value:</span><span className="font-medium">₹{(item.price * (item.inStock ?? 0)).toLocaleString()}</span></li>
+                  <li className="flex justify-between"><span className="text-muted-foreground">Total Value:</span><span className="font-medium">₹{(item.price * (item.stock ?? 0)).toLocaleString()}</span></li>
                 </ul>
               </div>
             </div>
           </div>
         </div>
 
-        <DialogFooter className="mt-6 gap-2">
-          <Button variant="outline" onClick={() => handleOpenChange(false)}>Close</Button>
-          {onOrder && (
-            <Button variant="default" onClick={() => onOrder(item)}>Order Now</Button>
-          )}
-          {onEdit && (
+        <DialogFooter className="mt-6">
+          <Button variant="outline" onClick={onClose}>Close</Button>
+          {onEdit ? (
             <Button onClick={() => onEdit(item)}>Edit Item</Button>
-          )}
+          ) : null}
         </DialogFooter>
       </DialogContent>
     </Dialog>
   );
 };
 
-export default ItemDetailsDialog;
-
+export default StoneItemDetailsDialog;
 

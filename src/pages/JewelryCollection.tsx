@@ -1,5 +1,5 @@
-import { useState, useRef, useEffect, useCallback } from "react";
-import { Search, Grid, List, ArrowLeft, Plus, Edit, Trash2, Upload, X, ShoppingCart, AlertTriangle, Gem } from "lucide-react";
+import { useState, useEffect, useCallback } from "react";
+import { Search, Grid, List, ArrowLeft, Plus, Edit, Trash2, ShoppingCart, AlertTriangle, Gem } from "lucide-react";
 import { Navigation } from "@/components/Navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,8 +11,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast";
 import { enqueueChange } from "@/lib/sync";
 import { getUserData, setUserData } from "@/lib/userStorage";
+import { MultiImageUpload } from "@/components/MultiImageUpload";
+import { ItemDetailsDialog } from "@/components/ItemDetailsDialog";
+import { JewelryCard, JewelryItem } from "@/components/JewelryCard";
 
-interface JewelryItem {
+interface JewelryItemLocal {
   id: string;
   name: string;
   type: string;
@@ -22,6 +25,11 @@ interface JewelryItem {
   price: number;
   stock: number;
   image: string;
+  image_1?: string;
+  image_2?: string;
+  image_3?: string;
+  image_4?: string;
+  inStock?: number;
 }
 
 const JewelryCollection = () => {
@@ -29,7 +37,7 @@ const JewelryCollection = () => {
   const navigate = useNavigate();
   const { data: searchQuery, updateData: setSearchQuery } = useOfflineStorage<string>("jewelry_search", "");
   const { data: viewMode, updateData: setViewMode } = useOfflineStorage<'grid' | 'list'>("jewelry_viewMode", 'grid');
-  const [jewelryItems, setJewelryItems] = useState<JewelryItem[]>([]);
+  const [jewelryItems, setJewelryItems] = useState<JewelryItemLocal[]>([]);
   const [itemsLoaded, setItemsLoaded] = useState(false);
   const { data: posCart, updateData: setPosCart } = useOfflineStorage<any[]>("pos_cart", []);
 
@@ -41,8 +49,9 @@ const JewelryCollection = () => {
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const [itemToDelete, setItemToDelete] = useState<JewelryItem | null>(null);
-  const [selectedItem, setSelectedItem] = useState<JewelryItem | null>(null);
+  const [showDetailsDialog, setShowDetailsDialog] = useState(false);
+  const [itemToDelete, setItemToDelete] = useState<JewelryItemLocal | null>(null);
+  const [selectedItem, setSelectedItem] = useState<JewelryItemLocal | null>(null);
   const [formData, setFormData] = useState({
     name: "",
     type: "Ring",
@@ -53,8 +62,7 @@ const JewelryCollection = () => {
     stock: "",
     image: ""
   });
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const editFileInputRef = useRef<HTMLInputElement>(null);
+  const [images, setImages] = useState<(string | null)[]>([null, null, null, null]);
 
   // Load all inventory from all sources (jewelry, gold, stones, and inventory_items from sync)
   // Filter to only show jewelry items (not gold bars or gemstones)
@@ -109,6 +117,10 @@ const JewelryCollection = () => {
               price: item.price || 0,
               stock: item.stock ?? item.inStock ?? 10,
               image: imageUrl,
+              image_1: item.image_1 || imageUrl || '',
+              image_2: item.image_2 || '',
+              image_3: item.image_3 || '',
+              image_4: item.image_4 || '',
             });
           } else if (!item.type || item.type === 'Ring' || item.type === 'Necklace' || item.type === 'Earrings' || item.type === 'Bracelet') {
             // Legacy format or simple jewelry format
@@ -122,6 +134,10 @@ const JewelryCollection = () => {
               price: item.price || 0,
               stock: item.stock ?? item.inStock ?? 10,
               image: imageUrl,
+              image_1: item.image_1 || imageUrl || '',
+              image_2: item.image_2 || '',
+              image_3: item.image_3 || '',
+              image_4: item.image_4 || '',
             });
           }
         });
@@ -161,6 +177,10 @@ const JewelryCollection = () => {
               price: item.price || 0,
               stock: item.stock ?? item.inStock ?? 10,
               image: imageUrl,
+              image_1: item.image_1 || imageUrl || '',
+              image_2: item.image_2 || '',
+              image_3: item.image_3 || '',
+              image_4: item.image_4 || '',
             };
 
             if (existingIndex >= 0) {
@@ -238,7 +258,7 @@ const JewelryCollection = () => {
         return;
       }
       
-      const newItem: JewelryItem = {
+      const newItem: JewelryItem & { image_1?: string; image_2?: string; image_3?: string; image_4?: string } = {
         id: Date.now().toString(),
         name: formData.name,
         type: formData.type,
@@ -247,7 +267,11 @@ const JewelryCollection = () => {
         metal: formData.metal,
         price: parseFloat(formData.price) || 0,
         stock: parseInt(formData.stock) || 0,
-        image: formData.image || "https://images.unsplash.com/photo-1543294001-f7cd5d7fb516?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3wzNzg4OTl8MHwxfHNlYXJjaHwxfHxqZXdlbHJ5fGVufDF8MHx8fDE3NTM3NTkzMjh8MA&ixlib=rb-4.1.0&q=80&w=1080"
+        image: images[0] || "https://images.unsplash.com/photo-1543294001-f7cd5d7fb516?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3wzNzg4OTl8MHwxfHNlYXJjaHwxfHxqZXdlbHJ5fGVufDF8MHx8fDE3NTM3NTkzMjh8MA&ixlib=rb-4.1.0&q=80&w=1080",
+        image_1: images[0] || undefined,
+        image_2: images[1] || undefined,
+        image_3: images[2] || undefined,
+        image_4: images[3] || undefined,
       };
 
       // Save to IndexedDB with user_id
@@ -274,6 +298,10 @@ const JewelryCollection = () => {
         inStock: newItem.stock,
         stock: newItem.stock,
         image: newItem.image,
+        image_1: newItem.image_1,
+        image_2: newItem.image_2,
+        image_3: newItem.image_3,
+        image_4: newItem.image_4,
         image_url: newItem.image, // Add for compatibility
         updated_at: new Date().toISOString(),
       });
@@ -293,6 +321,10 @@ const JewelryCollection = () => {
         inStock: newItem.stock,
         stock: newItem.stock,
         image: newItem.image,
+        image_1: newItem.image_1,
+        image_2: newItem.image_2,
+        image_3: newItem.image_3,
+        image_4: newItem.image_4,
         image_url: newItem.image, // Add for compatibility
         updated_at: new Date().toISOString(),
       });
@@ -301,6 +333,7 @@ const JewelryCollection = () => {
       await loadAllInventory();
       
       setFormData({ name: "", type: "Ring", gemstone: "None", carat: "", metal: "Gold 18K", price: "", stock: "", image: "" });
+      setImages([null, null, null, null]);
       setShowAddDialog(false);
       toast({
         title: "Item Added",
@@ -316,7 +349,16 @@ const JewelryCollection = () => {
     }
   };
 
-  const handleEditItem = (item: JewelryItem) => {
+  const handleViewItem = (item: JewelryItemLocal) => {
+    setSelectedItem(item);
+    setShowDetailsDialog(true);
+  };
+
+  const handleEditItem = (item: JewelryItemLocal) => {
+    // Close details dialog if open
+    if (showDetailsDialog) {
+      setShowDetailsDialog(false);
+    }
     setSelectedItem(item);
     setFormData({
       name: item.name,
@@ -328,6 +370,13 @@ const JewelryCollection = () => {
       stock: item.stock.toString(),
       image: item.image
     });
+    // Load existing images into the images state
+    setImages([
+      item.image_1 || item.image || null,
+      item.image_2 || null,
+      item.image_3 || null,
+      item.image_4 || null,
+    ]);
     setShowEditDialog(true);
   };
 
@@ -342,10 +391,7 @@ const JewelryCollection = () => {
     }
 
     try {
-      // Preserve existing image if no new image was uploaded
-      const finalImage = formData.image || selectedItem.image || '';
-
-      const updatedItem: JewelryItem = {
+      const updatedItem: JewelryItem & { image_1?: string; image_2?: string; image_3?: string; image_4?: string } = {
         ...selectedItem,
         name: formData.name,
         type: formData.type,
@@ -354,7 +400,11 @@ const JewelryCollection = () => {
         metal: formData.metal,
         price: parseFloat(formData.price) || 0,
         stock: parseInt(formData.stock) || 0,
-        image: finalImage
+        image: images[0] || selectedItem.image || "",
+        image_1: images[0] || selectedItem.image_1,
+        image_2: images[1] || selectedItem.image_2,
+        image_3: images[2] || selectedItem.image_3,
+        image_4: images[3] || selectedItem.image_4,
       };
 
       // Save to IndexedDB
@@ -382,8 +432,12 @@ const JewelryCollection = () => {
         price: updatedItem.price,
         inStock: updatedItem.stock,
         stock: updatedItem.stock,
-        image: finalImage,
-        image_url: finalImage, // Add for compatibility
+        image: updatedItem.image,
+        image_1: updatedItem.image_1,
+        image_2: updatedItem.image_2,
+        image_3: updatedItem.image_3,
+        image_4: updatedItem.image_4,
+        image_url: updatedItem.image, // Add for compatibility
         updated_at: new Date().toISOString(),
       };
       if (inventoryIndex >= 0) {
@@ -400,6 +454,7 @@ const JewelryCollection = () => {
       await loadAllInventory();
       
       setFormData({ name: "", type: "Ring", gemstone: "None", carat: "", metal: "Gold 18K", price: "", stock: "", image: "" });
+      setImages([null, null, null, null]);
       setSelectedItem(null);
       setShowEditDialog(false);
       toast({
@@ -416,7 +471,7 @@ const JewelryCollection = () => {
     }
   };
 
-  const handleDeleteClick = (item: JewelryItem) => {
+  const handleDeleteClick = (item: JewelryItemLocal) => {
     setItemToDelete(item);
     setShowDeleteConfirm(true);
   };
@@ -458,7 +513,7 @@ const JewelryCollection = () => {
     }
   };
 
-  const handleOrderNow = (item: JewelryItem) => {
+  const handleOrderNow = (item: JewelryItemLocal) => {
     // Convert JewelryItem to cart item format
     const cartItem = {
       id: item.id,
@@ -492,46 +547,6 @@ const JewelryCollection = () => {
     navigate('/pos');
   };
 
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      // Validate file size (10MB max)
-      if (file.size > 10 * 1024 * 1024) {
-        toast({
-          title: "File too large",
-          description: "Image must be less than 10MB",
-          variant: "destructive"
-        });
-        return;
-      }
-      
-      // Validate file type
-      if (!file.type.startsWith('image/')) {
-        toast({
-          title: "Invalid file type",
-          description: "Please select an image file",
-          variant: "destructive"
-        });
-        return;
-      }
-
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        const result = e.target?.result as string;
-        setFormData(prev => ({ ...prev, image: result }));
-      };
-      reader.readAsDataURL(file);
-    }
-  };
-
-  const removeImage = (isEdit: boolean = false) => {
-    setFormData(prev => ({ ...prev, image: "" }));
-    if (isEdit && editFileInputRef.current) {
-      editFileInputRef.current.value = "";
-    } else if (!isEdit && fileInputRef.current) {
-      fileInputRef.current.value = "";
-    }
-  };
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -595,147 +610,14 @@ const JewelryCollection = () => {
         {/* Jewelry Items */}
         <div className={`grid gap-8 ${viewMode === 'grid' ? 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4' : 'grid-cols-1'}`}>
           {filteredItems.map(item => (
-            <div 
-              key={`${item.id}-${item.image || 'no-image'}-${item.name}`}
-              className="group relative bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden transition-all duration-300 hover:shadow-2xl hover:-translate-y-1 hover:border-purple-300"
-            >
-              {/* Premium Image Section - Fixed Height */}
-              <div className="relative w-full overflow-hidden bg-gradient-to-br from-purple-50 via-pink-50 to-blue-50 flex-shrink-0" style={{ height: '160px', minHeight: '160px', maxHeight: '160px' }}>
-                {item.image && item.image.trim() !== '' ? (
-                  <>
-                    <img 
-                      key={`img-${item.id}-${item.image ? item.image.substring(0, 50) : 'no-image'}`}
-                      src={item.image || ''}
-                      alt={item.name}
-                      className="absolute inset-0 w-full h-full object-cover object-center transition-transform duration-500 group-hover:scale-110"
-                      style={{ 
-                        objectFit: 'cover', 
-                        objectPosition: 'center',
-                        minHeight: '160px',
-                        maxHeight: '160px',
-                        height: '160px'
-                      }}
-                      loading="lazy"
-                      onError={(e) => {
-                        // Hide broken image and show placeholder
-                        const img = e.currentTarget;
-                        img.style.display = 'none';
-                        const parent = img.parentElement;
-                        if (parent) {
-                          const placeholder = parent.querySelector('.image-placeholder');
-                          if (!placeholder) {
-                            const placeholderDiv = document.createElement('div');
-                            placeholderDiv.className = 'image-placeholder absolute inset-0 w-full h-full flex items-center justify-center';
-                            placeholderDiv.innerHTML = `
-                              <div class="text-center">
-                                <div class="w-12 h-12 mx-auto mb-2 rounded-full bg-gradient-to-br from-purple-400 via-pink-400 to-blue-400 flex items-center justify-center shadow-xl">
-                                  <svg class="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                                  </svg>
-                                </div>
-                                <p class="text-xs text-gray-600 font-medium">Premium Jewelry</p>
-                              </div>
-                            `;
-                            parent.appendChild(placeholderDiv);
-                          }
-                        }
-                      }}
-                      onLoad={(e) => {
-                        // Remove placeholder when image loads successfully
-                        const img = e.currentTarget;
-                        const parent = img.parentElement;
-                        if (parent) {
-                          const placeholder = parent.querySelector('.image-placeholder');
-                          if (placeholder) {
-                            placeholder.remove();
-                          }
-                        }
-                      }}
-                    />
-                    {/* Gradient overlay on hover */}
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none"></div>
-                  </>
-                ) : (
-                  <div className="absolute inset-0 w-full h-full flex items-center justify-center">
-                    <div className="text-center">
-                      <div className="w-12 h-12 mx-auto mb-2 rounded-full bg-gradient-to-br from-purple-400 via-pink-400 to-blue-400 flex items-center justify-center shadow-xl">
-                        <Gem className="h-6 w-6 text-white" />
-                      </div>
-                      <p className="text-xs text-gray-600 font-medium">Premium Jewelry</p>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Content Section */}
-              <div className="p-4 bg-gradient-to-b from-white to-gray-50/50 flex flex-col min-h-[200px]">
-                {/* Product Header */}
-                <div className="mb-3">
-                  <h3 className="text-lg font-bold text-gray-900 group-hover:text-purple-600 transition-colors duration-300 line-clamp-1">
-                    {item.name}
-                  </h3>
-                </div>
-
-                {/* Spacer to push price/buttons to bottom */}
-                <div className="flex-grow"></div>
-
-                {/* Price Section */}
-                <div className="mb-3 pb-3 border-b border-gray-200">
-                  <div className="flex items-baseline gap-2">
-                    <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">Price</span>
-                  </div>
-                  <div className="flex items-center gap-2 mt-0.5">
-                    <span className="text-xl font-bold bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent">
-                      ₹{item.price.toLocaleString()}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Action Buttons */}
-                <div className="flex flex-col gap-2 mt-auto">
-                  {/* Primary Action - Order Now */}
-                  <Button 
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleOrderNow(item);
-                    }}
-                    size="sm"
-                    className="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-semibold py-2 shadow-md hover:shadow-lg transition-all duration-300 rounded-lg text-xs"
-                  >
-                    <ShoppingCart className="h-3.5 w-3.5 mr-1.5" />
-                    Order Now
-                  </Button>
-
-                  {/* Secondary Actions */}
-                  <div className="flex gap-2">
-                    <Button 
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleEditItem(item);
-                      }}
-                      size="sm"
-                      variant="outline"
-                      className="flex-1 border-blue-200 text-blue-600 hover:bg-blue-50 hover:border-blue-300 font-medium rounded-lg transition-all duration-200 text-xs"
-                    >
-                      <Edit className="h-3.5 w-3.5 mr-1.5" />
-                      Edit
-                    </Button>
-                    <Button 
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleDeleteClick(item);
-                      }}
-                      size="sm"
-                      variant="outline"
-                      className="flex-1 border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300 font-medium rounded-lg transition-all duration-200 text-xs"
-                    >
-                      <Trash2 className="h-3.5 w-3.5 mr-1.5" />
-                      Delete
-                    </Button>
-                  </div>
-                </div>
-              </div>
-            </div>
+            <JewelryCard
+              key={item.id}
+              item={item}
+              onEdit={handleEditItem}
+              onDelete={handleDeleteClick}
+              onOrder={handleOrderNow}
+              onView={handleViewItem}
+            />
           ))}
         </div>
 
@@ -837,52 +719,12 @@ const JewelryCollection = () => {
                 />
               </div>
             </div>
-            <div>
-              <Label>Item Image</Label>
-              <div className="flex items-center gap-4">
-                {formData.image ? (
-                  <div className="relative">
-                    <img 
-                      src={formData.image} 
-                      alt="Preview" 
-                      className="w-20 h-20 object-cover rounded-lg border"
-                    />
-                    <Button
-                      type="button"
-                      variant="destructive"
-                      size="sm"
-                      className="absolute -top-2 -right-2 h-6 w-6 p-0 rounded-full"
-                      onClick={() => removeImage(false)}
-                    >
-                      <X className="h-3 w-3" />
-                    </Button>
-                  </div>
-                ) : (
-                  <div className="w-20 h-20 border-2 border-dashed border-gray-300 rounded-lg flex items-center justify-center">
-                    <Upload className="h-6 w-6 text-gray-400" />
-                  </div>
-                )}
-                <div>
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept="image/*"
-                    onChange={handleImageUpload}
-                    className="hidden"
-                  />
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => fileInputRef.current?.click()}
-                  >
-                    {formData.image ? "Change Image" : "Choose Image"}
-                  </Button>
-                  <p className="text-xs text-gray-500 mt-1">
-                    JPG, PNG, GIF up to 10MB
-                  </p>
-                </div>
-              </div>
-            </div>
+            <MultiImageUpload 
+              images={images}
+              onImagesChange={setImages}
+              maxImages={4}
+              label="Item Images"
+            />
             <div className="flex justify-end space-x-2 pt-4">
               <Button variant="outline" onClick={() => setShowAddDialog(false)}>
                 Cancel
@@ -985,52 +827,15 @@ const JewelryCollection = () => {
                 />
               </div>
             </div>
-            <div>
-              <Label>Item Image</Label>
-              <div className="flex items-center gap-4">
-                {formData.image ? (
-                  <div className="relative">
-                    <img 
-                      src={formData.image} 
-                      alt="Preview" 
-                      className="w-20 h-20 object-cover rounded-lg border"
-                    />
-                    <Button
-                      type="button"
-                      variant="destructive"
-                      size="sm"
-                      className="absolute -top-2 -right-2 h-6 w-6 p-0 rounded-full"
-                      onClick={() => removeImage(true)}
-                    >
-                      <X className="h-3 w-3" />
-                    </Button>
-                  </div>
-                ) : (
-                  <div className="w-20 h-20 border-2 border-dashed border-gray-300 rounded-lg flex items-center justify-center">
-                    <Upload className="h-6 w-6 text-gray-400" />
-                  </div>
-                )}
-                <div>
-                  <input
-                    ref={editFileInputRef}
-                    type="file"
-                    accept="image/*"
-                    onChange={handleImageUpload}
-                    className="hidden"
-                  />
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => editFileInputRef.current?.click()}
-                  >
-                    {formData.image ? "Change Image" : "Choose Image"}
-                  </Button>
-                  <p className="text-xs text-gray-500 mt-1">
-                    JPG, PNG, GIF up to 10MB
-                  </p>
-                </div>
-              </div>
-            </div>
+            
+            {/* Multi-Image Upload */}
+            <MultiImageUpload
+              images={images}
+              onImagesChange={setImages}
+              label="Item Images"
+              maxImages={4}
+            />
+            
             <div className="flex justify-end space-x-2 pt-4">
               <Button variant="outline" onClick={() => setShowEditDialog(false)}>
                 Cancel
@@ -1074,6 +879,18 @@ const JewelryCollection = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* View Item Details Dialog */}
+      <ItemDetailsDialog 
+        item={selectedItem}
+        open={showDetailsDialog}
+        onOpenChange={setShowDetailsDialog}
+        onEdit={handleEditItem}
+        onOrder={(item) => {
+          setShowDetailsDialog(false);
+          handleOrderNow(item);
+        }}
+      />
     </div>
   );
 };

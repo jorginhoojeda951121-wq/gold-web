@@ -23,6 +23,11 @@ export interface JewelryItem {
   inStock: number;
   isArtificial?: boolean;
   image?: string;
+  // Multiple Images (up to 4)
+  image_1?: string;
+  image_2?: string;
+  image_3?: string;
+  image_4?: string;
   // Custom Tax Rate Fields
   taxRate?: number;           // Custom GST rate for this item (e.g., 3 for 3%, 18 for 18%)
   taxIncluded?: boolean;      // Whether price includes tax or not (default: false)
@@ -44,6 +49,37 @@ interface JewelryCardProps {
 
 export const JewelryCard = ({ item, onEdit, onDelete, onView, onAddToCart, showAddToCart = false, showActions = true }: JewelryCardProps) => {
   const [showWhatsAppShare, setShowWhatsAppShare] = React.useState(false);
+  const [currentImageIndex, setCurrentImageIndex] = React.useState(0);
+  const [isHovering, setIsHovering] = React.useState(false);
+  
+  // Collect all available images - remove duplicates
+  const images = React.useMemo(() => {
+    const allImages = [item.image_1, item.image_2, item.image_3, item.image_4, item.image]
+      .filter((img): img is string => !!img && img.trim() !== '' && img !== 'undefined');
+    // Remove duplicates by using Set
+    const uniqueImages = Array.from(new Set(allImages));
+    return uniqueImages.length > 0 ? uniqueImages : [];
+  }, [item.image, item.image_1, item.image_2, item.image_3, item.image_4]);
+
+  // Continuous image cycling on hover
+  React.useEffect(() => {
+    if (!isHovering || images.length <= 1) return;
+    
+    const interval = setInterval(() => {
+      setCurrentImageIndex((prev) => (prev + 1) % images.length);
+    }, 1000); // Change image every 1 second while hovering
+    
+    return () => clearInterval(interval);
+  }, [isHovering, images.length]);
+
+  const handleMouseEnter = () => {
+    setIsHovering(true);
+  };
+
+  const handleMouseLeave = () => {
+    setIsHovering(false);
+    setCurrentImageIndex(0);
+  };
   
   const getStockStatus = (stock: number) => {
     if (stock === 0) return { label: "Out of Stock", variant: "destructive" as const };
@@ -52,23 +88,26 @@ export const JewelryCard = ({ item, onEdit, onDelete, onView, onAddToCart, showA
   };
 
   const stockStatus = getStockStatus(item.inStock);
+  const currentImage = images[currentImageIndex];
 
   return (
     <>
     <Card 
       className="group relative bg-white rounded-2xl shadow-lg border border-gray-100/80 overflow-hidden transition-all duration-300 hover:shadow-2xl hover:-translate-y-2 hover:border-purple-300/60 hover:scale-[1.02] cursor-pointer h-full flex flex-col backdrop-blur-sm"
       onClick={() => onView(item)}
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
     >
       <CardContent className="p-0 flex flex-col h-full">
-        {/* Premium Image Section - Fixed Height */}
+        {/* Premium Image Section - Fixed Height with Auto-Rotation */}
         <div className="relative w-full overflow-hidden bg-gradient-to-br from-purple-50 via-pink-50 to-blue-50 flex-shrink-0 shadow-inner" style={{ height: '160px', minHeight: '160px', maxHeight: '160px' }}>
-          {item.image && item.image.trim() !== '' ? (
+          {currentImage ? (
             <>
               <img 
-                key={`img-${item.id}-${item.image ? item.image.substring(0, 50) : 'no-image'}`}
-                src={item.image || ''}
-                alt={item.name}
-                className="absolute inset-0 w-full h-full object-cover object-center transition-transform duration-500 group-hover:scale-110"
+                key={`img-${item.id}-${currentImageIndex}-${currentImage.substring(0, 30)}`}
+                src={currentImage}
+                alt={`${item.name} - Image ${currentImageIndex + 1}`}
+                className="absolute inset-0 w-full h-full object-cover object-center transition-all duration-700 ease-in-out group-hover:scale-110 animate-in fade-in"
                 style={{ 
                   objectFit: 'cover', 
                   objectPosition: 'center',
@@ -117,6 +156,22 @@ export const JewelryCard = ({ item, onEdit, onDelete, onView, onAddToCart, showA
               <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none"></div>
               {/* Shine effect on hover */}
               <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000 pointer-events-none"></div>
+              
+              {/* Image Counter Indicator - Only show if multiple images */}
+              {images.length > 1 && (
+                <div className="absolute bottom-2 left-1/2 transform -translate-x-1/2 flex gap-1.5 z-10">
+                  {images.map((_, idx) => (
+                    <div
+                      key={idx}
+                      className={`h-1.5 rounded-full transition-all duration-300 ${
+                        idx === currentImageIndex 
+                          ? 'w-6 bg-white shadow-lg' 
+                          : 'w-1.5 bg-white/50'
+                      }`}
+                    />
+                  ))}
+                </div>
+              )}
             </>
           ) : (
             <div className="absolute inset-0 w-full h-full flex items-center justify-center">
@@ -244,9 +299,11 @@ export const JewelryCard = ({ item, onEdit, onDelete, onView, onAddToCart, showA
             </div>
             
             {item.carat > 0 && (
-              <div className="py-1.5 px-2.5 rounded-lg bg-gradient-to-r from-blue-50 via-cyan-50 to-blue-50 border border-blue-100/80 min-h-[50px] flex flex-col justify-center shadow-sm hover:shadow-md transition-shadow duration-300">
-                <span className="text-xs font-semibold text-blue-700 uppercase tracking-wide mb-0.5">Carat</span>
-                <span className="text-xs font-bold text-gray-900">{item.carat}ct</span>
+              <div className="col-span-2 py-1 px-2 rounded-lg bg-gradient-to-r from-blue-50 via-cyan-50 to-blue-50 border border-blue-100/80 min-h-[32px] flex items-center shadow-sm hover:shadow-md transition-shadow duration-300">
+                <div className="flex items-center justify-between w-full">
+                  <span className="text-xs font-semibold text-blue-700 uppercase tracking-wide">Carat</span>
+                  <span className="text-xs font-bold text-gray-900">{item.carat}ct</span>
+                </div>
               </div>
             )}
             

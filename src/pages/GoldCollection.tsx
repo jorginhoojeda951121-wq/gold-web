@@ -12,16 +12,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast";
 import { enqueueChange } from "@/lib/sync";
 import { getUserData } from "@/lib/userStorage";
-
-interface GoldItem {
-  id: string;
-  name: string;
-  weight: string;
-  purity: string;
-  price: number;
-  stock: number;
-  image: string;
-}
+import { MultiImageUpload } from "@/components/MultiImageUpload";
+import { GoldItemCard, GoldItem } from "@/components/GoldItemCard";
+import { GoldItemDetailsDialog } from "@/components/GoldItemDetailsDialog";
 
 const GoldCollection = () => {
   const { toast } = useToast();
@@ -35,6 +28,7 @@ const GoldCollection = () => {
 
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
+  const [showDetailsDialog, setShowDetailsDialog] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [itemToDelete, setItemToDelete] = useState<GoldItem | null>(null);
   const [selectedItem, setSelectedItem] = useState<GoldItem | null>(null);
@@ -43,9 +37,9 @@ const GoldCollection = () => {
     weight: "",
     purity: "Gold 18K",
     price: "",
-    stock: "",
-    image: ""
+    stock: ""
   });
+  const [images, setImages] = useState<(string | null)[]>([null, null, null, null]);
 
   // Dropdown options
   const purityOptions = ['Gold 24K', 'Gold 22K', 'Gold 18K', 'Gold 14K', 'Gold 10K'];
@@ -85,6 +79,10 @@ const GoldCollection = () => {
             price: item.price || item.totalPrice || 0,
             stock: item.stock ?? item.inStock ?? 10,
             image: imageUrl,
+            image_1: item.image_1 || imageUrl || '',
+            image_2: item.image_2 || '',
+            image_3: item.image_3 || '',
+            image_4: item.image_4 || '',
           };
           allGoldItems.push(goldItem);
         });
@@ -114,6 +112,10 @@ const GoldCollection = () => {
               price: item.price || 0,
               stock: item.inStock ?? item.stock ?? 10,
               image: imageUrl,
+              image_1: item.image_1 || imageUrl || '',
+              image_2: item.image_2 || '',
+              image_3: item.image_3 || '',
+              image_4: item.image_4 || '',
             };
             allGoldItems.push(goldItem);
           }
@@ -160,14 +162,18 @@ const GoldCollection = () => {
         return;
       }
 
-      const newItem: GoldItem & { user_id?: string } = {
+      const newItem: GoldItem & { user_id?: string; image_1?: string; image_2?: string; image_3?: string; image_4?: string } = {
         id: Date.now().toString(),
         name: formData.name,
         weight: formData.weight,
         purity: formData.purity,
         price: parseFloat(formData.price) || 0,
         stock: parseInt(formData.stock) || 10,
-        image: formData.image || "https://images.unsplash.com/photo-1545873509-33e944ca7655?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3wzNzg4OTl8MHwxfHNlYXJjaHwxfHxnb2xkfGVufDF8MHx8fDE3NTM3NjY5MjB8MA&ixlib=rb-4.1.0&q=80&w=1080",
+        image: images[0] || "https://images.unsplash.com/photo-1545873509-33e944ca7655?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3wzNzg4OTl8MHwxfHNlYXJjaHwxfHxnb2xkfGVufDF8MHx8fDE3NTM3NjY5MjB8MA&ixlib=rb-4.1.0&q=80&w=1080",
+        image_1: images[0] || undefined,
+        image_2: images[1] || undefined,
+        image_3: images[2] || undefined,
+        image_4: images[3] || undefined,
         user_id: userId, // CRITICAL: Include user_id for data isolation
       };
 
@@ -189,6 +195,10 @@ const GoldCollection = () => {
         inStock: newItem.stock,
         stock: newItem.stock,
         image: newItem.image,
+        image_1: newItem.image_1,
+        image_2: newItem.image_2,
+        image_3: newItem.image_3,
+        image_4: newItem.image_4,
         updated_at: new Date().toISOString(),
       });
       await setUserData('inventory_items', inventoryItems);
@@ -204,13 +214,18 @@ const GoldCollection = () => {
         inStock: newItem.stock,
         stock: newItem.stock,
         image: newItem.image,
+        image_1: newItem.image_1,
+        image_2: newItem.image_2,
+        image_3: newItem.image_3,
+        image_4: newItem.image_4,
         updated_at: new Date().toISOString(),
       });
       
       // Reload gold items to show the new item
       await loadGoldItems();
       
-      setFormData({ name: "", weight: "", purity: "", price: "", stock: "", image: "" });
+      setFormData({ name: "", weight: "", purity: "", price: "", stock: "" });
+      setImages([null, null, null, null]);
       setShowAddDialog(false);
       toast({
         title: "Item Added",
@@ -226,6 +241,11 @@ const GoldCollection = () => {
     }
   };
 
+  const handleViewItem = (item: GoldItem) => {
+    setSelectedItem(item);
+    setShowDetailsDialog(true);
+  };
+
   const handleEditItem = (item: GoldItem) => {
     setSelectedItem(item);
     setFormData({
@@ -236,6 +256,14 @@ const GoldCollection = () => {
       stock: item.stock.toString(),
       image: item.image || '' // Ensure image is set
     });
+    // Load existing images into the images state
+    setImages([
+      item.image_1 || item.image || null,
+      item.image_2 || null,
+      item.image_3 || null,
+      item.image_4 || null,
+    ]);
+    setShowDetailsDialog(false); // Close details if open
     setShowEditDialog(true);
   };
 
@@ -263,14 +291,18 @@ const GoldCollection = () => {
         return;
       }
 
-      const updatedItem: GoldItem = {
+      const updatedItem: GoldItem & { image_1?: string; image_2?: string; image_3?: string; image_4?: string } = {
         ...selectedItem,
         name: formData.name,
         weight: formData.weight,
         purity: formData.purity,
         price: parseFloat(formData.price) || 0,
         stock: parseInt(formData.stock) || 10,
-        image: formData.image || selectedItem.image // Ensure image is preserved
+        image: images[0] || selectedItem.image || "", // Use images array
+        image_1: images[0] || selectedItem.image_1,
+        image_2: images[1] || selectedItem.image_2,
+        image_3: images[2] || selectedItem.image_3,
+        image_4: images[3] || selectedItem.image_4,
       };
 
 
@@ -302,6 +334,10 @@ const GoldCollection = () => {
           inStock: updatedItem.stock,
           stock: updatedItem.stock,
           image: updatedItem.image,
+          image_1: updatedItem.image_1,
+          image_2: updatedItem.image_2,
+          image_3: updatedItem.image_3,
+          image_4: updatedItem.image_4,
           image_url: updatedItem.image, // Also save as image_url for compatibility
           updated_at: new Date().toISOString(),
         };
@@ -319,6 +355,10 @@ const GoldCollection = () => {
         inStock: updatedItem.stock,
         stock: updatedItem.stock,
         image: updatedItem.image,
+        image_1: updatedItem.image_1,
+        image_2: updatedItem.image_2,
+        image_3: updatedItem.image_3,
+        image_4: updatedItem.image_4,
         image_url: updatedItem.image, // Also sync image_url for compatibility
         updated_at: new Date().toISOString(),
       });
@@ -326,7 +366,8 @@ const GoldCollection = () => {
       // Reload gold items to ensure data consistency
       await loadGoldItems();
       
-      setFormData({ name: "", weight: "", purity: "", price: "", stock: "", image: "" });
+      setFormData({ name: "", weight: "", purity: "", price: "", stock: "" });
+      setImages([null, null, null, null]);
       setSelectedItem(null);
       setShowEditDialog(false);
       toast({
@@ -435,46 +476,7 @@ const GoldCollection = () => {
     navigate('/pos');
   };
 
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      // Validate file size (10MB max)
-      if (file.size > 10 * 1024 * 1024) {
-        toast({
-          title: "File too large",
-          description: "Image must be less than 10MB",
-          variant: "destructive"
-        });
-        return;
-      }
-      
-      // Validate file type
-      if (!file.type.startsWith('image/')) {
-        toast({
-          title: "Invalid file type",
-          description: "Please select an image file",
-          variant: "destructive"
-        });
-        return;
-      }
 
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        const result = e.target?.result as string;
-        setFormData(prev => ({ ...prev, image: result }));
-      };
-      reader.readAsDataURL(file);
-    }
-  };
-
-  const removeImage = (isEdit: boolean = false) => {
-    setFormData(prev => ({ ...prev, image: "" }));
-    if (isEdit && editFileInputRef.current) {
-      editFileInputRef.current.value = "";
-    } else if (!isEdit && fileInputRef.current) {
-      fileInputRef.current.value = "";
-    }
-  };
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -538,137 +540,14 @@ const GoldCollection = () => {
         {/* Gold Items */}
         <div className={`grid gap-4 ${viewMode === 'grid' ? 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4' : 'grid-cols-1'}`}>
           {filteredItems.map(item => (
-            <div 
+            <GoldItemCard
               key={`${item.id}-${item.image || 'no-image'}-${item.name}`}
-              className="group relative bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden transition-all duration-300 hover:shadow-2xl hover:-translate-y-1 hover:border-amber-300"
-            >
-              {/* Image Section with Gradient Overlay */}
-              <div className="relative h-40 overflow-hidden bg-gradient-to-br from-yellow-50 via-amber-50 to-orange-50">
-                {item.image && item.image.trim() !== '' && item.image !== 'undefined' ? (
-                  <>
-                    <img 
-                      key={`gold-img-${item.id}-${Date.now()}`}
-                      src={item.image}
-                      alt={item.name}
-                      className="absolute inset-0 w-full h-full object-cover object-center transition-transform duration-500 group-hover:scale-110 z-10"
-                      style={{ 
-                        objectFit: 'cover', 
-                        objectPosition: 'center',
-                        minHeight: '160px',
-                        maxHeight: '160px',
-                        height: '160px'
-                      }}
-                      loading="lazy"
-                      onError={(e) => {
-                        // Hide image if it fails to load, placeholder will show
-                        e.currentTarget.style.display = 'none';
-                      }}
-                      onLoad={(e) => {
-                        e.currentTarget.style.display = 'block';
-                      }}
-                    />
-                    {/* Gradient overlay on hover */}
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none z-20"></div>
-                  </>
-                ) : (
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <div className="text-center">
-                      <div className="w-12 h-12 mx-auto mb-2 rounded-full bg-gradient-to-br from-yellow-400 to-amber-600 flex items-center justify-center shadow-lg">
-                        <span className="text-2xl">✨</span>
-                      </div>
-                      <p className="text-xs text-gray-500 font-medium">Premium Gold</p>
-                    </div>
-                  </div>
-                )}
-                
-                {/* Gold Purity Badge */}
-                <div className="absolute top-2 left-2 z-30">
-                  <span className="px-2 py-0.5 rounded-full bg-gradient-to-r from-yellow-400 via-amber-500 to-orange-500 text-white text-xs font-bold shadow-lg backdrop-blur-sm border border-white/30">
-                    {item.purity}
-                  </span>
-                </div>
-              </div>
-
-              {/* Content Section */}
-              <div className="p-4 bg-gradient-to-b from-white to-gray-50/50 flex flex-col min-h-[200px]">
-                {/* Product Name */}
-                <h3 className="text-lg font-bold text-gray-900 mb-1 group-hover:text-amber-600 transition-colors duration-300 line-clamp-1">
-                  {item.name}
-                </h3>
-
-                {/* Details Section */}
-                <div className="space-y-2 mb-3 flex-grow">
-                  <div className="flex items-center justify-between py-1 px-2 rounded-lg bg-gray-50 border border-gray-100 min-h-[32px]">
-                    <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">Weight</span>
-                    <span className="text-xs font-semibold text-gray-800 truncate ml-2">{item.weight || '-'}</span>
-                  </div>
-                  <div className="flex items-center justify-between py-1 px-2 rounded-lg bg-gradient-to-r from-yellow-50 to-amber-50 border border-yellow-200 min-h-[32px]">
-                    <span className="text-xs font-medium text-yellow-700 uppercase tracking-wide">Purity</span>
-                    <span className="text-xs font-bold text-yellow-800 truncate ml-2">{item.purity}</span>
-                  </div>
-                  <div className="flex items-center justify-between py-1 px-2 rounded-lg bg-gradient-to-r from-blue-50 to-cyan-50 border border-blue-100 min-h-[32px]">
-                    <span className="text-xs font-medium text-blue-700 uppercase tracking-wide">Stock</span>
-                    <span className="text-xs font-bold text-blue-800 truncate ml-2">{item.stock} units</span>
-                  </div>
-                </div>
-
-                {/* Price Section */}
-                <div className="mb-3 pb-3 border-b border-gray-200">
-                  <div className="flex items-baseline gap-2">
-                    <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">Price</span>
-                  </div>
-                  <div className="flex items-center gap-2 mt-0.5">
-                    <span className="text-xl font-bold bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent">
-                      ₹{item.price.toLocaleString()}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Action Buttons */}
-                <div className="flex flex-col gap-2 mt-auto">
-                  {/* Primary Action - Order Now */}
-                  <Button 
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleOrderNow(item);
-                    }}
-                    size="sm"
-                    className="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-semibold py-2 shadow-md hover:shadow-lg transition-all duration-300 rounded-lg text-xs"
-                  >
-                    <ShoppingCart className="h-3.5 w-3.5 mr-1.5" />
-                    Order Now
-                  </Button>
-
-                  {/* Secondary Actions */}
-                  <div className="flex gap-2">
-                    <Button 
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleEditItem(item);
-                      }}
-                      size="sm"
-                      variant="outline"
-                      className="flex-1 border-blue-200 text-blue-600 hover:bg-blue-50 hover:border-blue-300 font-medium rounded-lg transition-all duration-200 text-xs"
-                    >
-                      <Edit className="h-3.5 w-3.5 mr-1.5" />
-                      Edit
-                    </Button>
-                    <Button 
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleDeleteClick(item);
-                      }}
-                      size="sm"
-                      variant="outline"
-                      className="flex-1 border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300 font-medium rounded-lg transition-all duration-200 text-xs"
-                    >
-                      <Trash2 className="h-3.5 w-3.5 mr-1.5" />
-                      Delete
-                    </Button>
-                  </div>
-                </div>
-              </div>
-            </div>
+              item={item}
+              onView={handleViewItem}
+              onEdit={handleEditItem}
+              onDelete={handleDeleteClick}
+              onOrder={handleOrderNow}
+            />
           ))}
         </div>
 
@@ -740,52 +619,12 @@ const GoldCollection = () => {
                 placeholder="e.g., 10"
               />
             </div>
-            <div>
-              <Label>Item Image</Label>
-              <div className="flex items-center gap-4">
-                {formData.image ? (
-                  <div className="relative">
-                    <img 
-                      src={formData.image} 
-                      alt="Preview" 
-                      className="w-20 h-20 object-cover rounded-lg border"
-                    />
-                    <Button
-                      type="button"
-                      variant="destructive"
-                      size="sm"
-                      className="absolute -top-2 -right-2 h-6 w-6 p-0 rounded-full"
-                      onClick={() => removeImage(false)}
-                    >
-                      <X className="h-3 w-3" />
-                    </Button>
-                  </div>
-                ) : (
-                  <div className="w-20 h-20 border-2 border-dashed border-gray-300 rounded-lg flex items-center justify-center">
-                    <Upload className="h-6 w-6 text-gray-400" />
-                  </div>
-                )}
-                <div>
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept="image/*"
-                    onChange={handleImageUpload}
-                    className="hidden"
-                  />
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => fileInputRef.current?.click()}
-                  >
-                    {formData.image ? "Change Image" : "Choose Image"}
-                  </Button>
-                  <p className="text-xs text-gray-500 mt-1">
-                    JPG, PNG, GIF up to 10MB
-                  </p>
-                </div>
-              </div>
-            </div>
+            <MultiImageUpload 
+              images={images}
+              onImagesChange={setImages}
+              maxImages={4}
+              label="Item Images"
+            />
             <div className="flex justify-end space-x-2 pt-4">
               <Button variant="outline" onClick={() => setShowAddDialog(false)}>
                 Cancel
@@ -858,52 +697,12 @@ const GoldCollection = () => {
                 placeholder="e.g., 10"
               />
             </div>
-            <div>
-              <Label>Item Image</Label>
-              <div className="flex items-center gap-4">
-                {formData.image ? (
-                  <div className="relative">
-                    <img 
-                      src={formData.image} 
-                      alt="Preview" 
-                      className="w-20 h-20 object-cover rounded-lg border"
-                    />
-                    <Button
-                      type="button"
-                      variant="destructive"
-                      size="sm"
-                      className="absolute -top-2 -right-2 h-6 w-6 p-0 rounded-full"
-                      onClick={() => removeImage(true)}
-                    >
-                      <X className="h-3 w-3" />
-                    </Button>
-                  </div>
-                ) : (
-                  <div className="w-20 h-20 border-2 border-dashed border-gray-300 rounded-lg flex items-center justify-center">
-                    <Upload className="h-6 w-6 text-gray-400" />
-                  </div>
-                )}
-                <div>
-                  <input
-                    ref={editFileInputRef}
-                    type="file"
-                    accept="image/*"
-                    onChange={handleImageUpload}
-                    className="hidden"
-                  />
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => editFileInputRef.current?.click()}
-                  >
-                    {formData.image ? "Change Image" : "Choose Image"}
-                  </Button>
-                  <p className="text-xs text-gray-500 mt-1">
-                    JPG, PNG, GIF up to 10MB
-                  </p>
-                </div>
-              </div>
-            </div>
+            <MultiImageUpload 
+              images={images}
+              onImagesChange={setImages}
+              maxImages={4}
+              label="Item Images"
+            />
             <div className="flex justify-end space-x-2 pt-4">
               <Button variant="outline" onClick={() => setShowEditDialog(false)}>
                 Cancel
@@ -915,6 +714,19 @@ const GoldCollection = () => {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* View Details Dialog */}
+      <GoldItemDetailsDialog
+        item={selectedItem}
+        open={showDetailsDialog}
+        onClose={() => {
+          setShowDetailsDialog(false);
+          setSelectedItem(null);
+        }}
+        onEdit={(item) => {
+          handleEditItem(item);
+        }}
+      />
 
       {/* Delete Confirmation Dialog */}
       <Dialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>

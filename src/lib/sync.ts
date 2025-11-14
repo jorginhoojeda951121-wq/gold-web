@@ -37,8 +37,6 @@ const WEB_TO_SUPABASE_MAPPING: Record<string, string> = {
 	// Reservations tables
 	'reservations': 'reservations',
 	'reservation_items': 'reservation_items',
-	// Google Calendar settings
-	'google_calendar_settings': 'google_calendar_settings',
 	// Subscription management
 	'user_subscriptions': 'user_subscriptions',
 	'subscription_payments': 'subscription_payments',
@@ -77,8 +75,6 @@ const SUPABASE_TO_WEB_MAPPING: Record<string, string> = {
 	// Reservations tables
 	'reservations': 'reservations',
 	'reservation_items': 'reservation_items',
-	// Google Calendar settings
-	'google_calendar_settings': 'google_calendar_settings',
 	// Subscription management
 	'user_subscriptions': 'user_subscriptions',
 	'subscription_payments': 'subscription_payments',

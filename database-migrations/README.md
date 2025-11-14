@@ -50,7 +50,6 @@ vendor-supplier-management.sql      # Complete vendor management system
 ### 7. Reservation & Booking
 ```sql
 reservations-system.sql             # Wedding/event reservations
-google-calendar-integration.sql     # Auto-sync reservations to Google Calendar
 ```
 
 ## System Overview
@@ -110,7 +109,6 @@ google-calendar-integration.sql     # Auto-sync reservations to Google Calendar
 - **Customer Preferences**: Category, color, polish quality preferences
 - **Item Allocation**: Assign specific items to reservations
 - **Status Tracking**: Pending → Confirmed → Ready → Picked Up → Returned
-- **Google Calendar Sync**: Auto-sync reservations to Google Calendar
 
 #### 8. **Tax Management**
 - **Custom Tax Rates**: Set different GST rates per item (3% jewelry, 12% artificial, etc.)
@@ -180,7 +178,6 @@ google-calendar-integration.sql     # Auto-sync reservations to Google Calendar
 ### Reservations
 - `reservations` - Event/wedding reservations
 - `reservation_items` - Items in each reservation
-- `google_calendar_settings` - Google Calendar integration settings
 
 ### Settings
 - `gold_rates` - Current gold rates and making charges

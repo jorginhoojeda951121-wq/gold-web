@@ -280,4 +280,18 @@ All colors MUST be HSL.
       background-position: 200% 0;
     }
   }
+
+  /* Smooth fade-in animation for image transitions */
+  .animate-fadeIn {
+    animation: smoothFadeIn 0.7s ease-in-out;
+  }
+
+  @keyframes smoothFadeIn {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
 }

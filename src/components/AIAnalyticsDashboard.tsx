@@ -8,7 +8,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 export const AIAnalyticsDashboard = () => {
   const [selectedPeriod, setSelectedPeriod] = useState("7days");
-  const [selectedLocation, setSelectedLocation] = useState("all");
 
   // Mock AI analytics data
   const aiInsights = {
@@ -95,16 +94,6 @@ export const AIAnalyticsDashboard = () => {
             <SelectItem value="30days">Last 30 Days</SelectItem>
             <SelectItem value="90days">Last 90 Days</SelectItem>
             <SelectItem value="1year">Last Year</SelectItem>
-          </SelectContent>
-        </Select>
-        <Select value={selectedLocation} onValueChange={setSelectedLocation}>
-          <SelectTrigger className="w-48">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Locations</SelectItem>
-            <SelectItem value="mumbai">Main Store - Mumbai</SelectItem>
-            <SelectItem value="delhi">Branch - Delhi</SelectItem>
           </SelectContent>
         </Select>
       </div>

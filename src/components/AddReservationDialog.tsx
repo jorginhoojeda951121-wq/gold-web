@@ -6,7 +6,8 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { getSupabase } from '@/lib/supabase';
+import { enqueueChange } from '@/lib/sync';
+import { getUserData, setUserData, getCurrentUserId } from '@/lib/userStorage';
 import { Calendar as CalendarIcon, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { Calendar } from '@/components/ui/calendar';
@@ -56,9 +57,10 @@ export function AddReservationDialog({ open, onOpenChange, onSuccess }: AddReser
 
     try {
       setLoading(true);
-      const supabase = getSupabase();
 
       const reservationId = `RES-${Date.now()}`;
+      const userId = await getCurrentUserId();
+      if (!userId) throw new Error('No authenticated user');
 
       // Parse category and color preferences
       const categoryPrefs = formData.category_preferences
@@ -68,33 +70,49 @@ export function AddReservationDialog({ open, onOpenChange, onSuccess }: AddReser
         ? formData.color_preferences.split(',').map(c => c.trim()).filter(Boolean)
         : [];
 
-      const { data: userData } = await supabase.auth.getUser();
-      if (!userData.user) throw new Error('No authenticated user');
+      const totalAmount = parseFloat(formData.total_amount) || 0;
+      const advancePaid = parseFloat(formData.advance_paid) || 0;
+      const balanceDue = totalAmount - advancePaid;
 
-      const { error } = await supabase.from('reservations').insert({
+      const newReservation = {
         id: reservationId,
-        user_id: userData.user.id,
+        user_id: userId,
         customer_name: formData.customer_name,
         customer_phone: formData.customer_phone,
         customer_email: formData.customer_email || null,
         event_type: formData.event_type,
         event_date: format(eventDate, 'yyyy-MM-dd'),
+        reservation_date: new Date().toISOString().split('T')[0],
         event_description: formData.event_description || null,
         pickup_date: pickupDate ? format(pickupDate, 'yyyy-MM-dd') : null,
         return_date: returnDate ? format(returnDate, 'yyyy-MM-dd') : null,
         status: 'pending',
-        advance_paid: parseFloat(formData.advance_paid) || 0,
+        total_amount: totalAmount,
+        advance_paid: advancePaid,
+        balance_due: balanceDue,
         special_requests: formData.special_requests || null,
         category_preferences: categoryPrefs.length > 0 ? JSON.stringify(categoryPrefs) : null,
         color_preferences: colorPrefs.length > 0 ? JSON.stringify(colorPrefs) : null,
         polish_quality: formData.polish_quality || null,
         polish_service: formData.polish_service || false,
         polish_rate: formData.polish_rate ? parseFloat(formData.polish_rate) : null,
-        total_amount: parseFloat(formData.total_amount) || 0,
         notes: formData.notes || null,
-      });
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
 
-      if (error) throw error;
+      // Save to IndexedDB first
+      const reservations = (await getUserData<any[]>('reservations')) || [];
+      reservations.push(newReservation);
+      await setUserData('reservations', reservations);
+
+      // Queue for sync to Supabase
+      try {
+        await enqueueChange('reservations', 'upsert', newReservation);
+      } catch (syncError) {
+        console.warn('Failed to queue sync, but reservation saved locally:', syncError);
+        // Don't fail the operation if sync fails - data is saved locally
+      }
 
       toast({
         title: 'Success',
@@ -108,7 +126,7 @@ export function AddReservationDialog({ open, onOpenChange, onSuccess }: AddReser
       console.error('Error creating reservation:', error);
       toast({
         title: 'Error',
-        description: 'Failed to create reservation. Please try again.',
+        description: error instanceof Error ? error.message : 'Failed to create reservation. Please try again.',
         variant: 'destructive',
       });
     } finally {

@@ -9,7 +9,8 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { JewelryItem } from "./JewelryCard";
-import { Gem, Package, DollarSign, Tag, Edit, ChevronLeft, ChevronRight } from "lucide-react";
+import { Gem, Package, DollarSign, Tag, Edit, ChevronLeft, ChevronRight, Share2 } from "lucide-react";
+import { InventoryShare, InventoryItem } from "./InventoryShare";
 
 interface ViewItemDialogProps {
   open: boolean;
@@ -20,6 +21,7 @@ interface ViewItemDialogProps {
 
 export const ViewItemDialog = ({ open, onOpenChange, onEdit, item }: ViewItemDialogProps) => {
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
+  const [showShareDialog, setShowShareDialog] = useState(false);
 
   // Collect all available images - remove duplicates
   const images = useMemo(() => {
@@ -50,8 +52,8 @@ export const ViewItemDialog = ({ open, onOpenChange, onEdit, item }: ViewItemDia
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl">
-        <DialogHeader>
+      <DialogContent className="max-w-3xl max-h-[90vh] flex flex-col">
+        <DialogHeader className="flex-shrink-0">
           <DialogTitle className="flex items-center gap-2">
             <Gem className="h-5 w-5" />
             Jewelry Item Details
@@ -60,16 +62,17 @@ export const ViewItemDialog = ({ open, onOpenChange, onEdit, item }: ViewItemDia
             View and manage jewelry item information
           </DialogDescription>
         </DialogHeader>
-
-        {/* Main Content */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        
+        <div className="flex-1 overflow-y-auto pr-2 -mr-2">
+          {/* Main Content */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {/* Left: Image Section */}
           <div className="md:col-span-1 space-y-3">
             {/* Main Image Display */}
             <div className="aspect-square rounded-lg bg-gradient-to-br from-purple-50 via-pink-50 to-blue-50 overflow-hidden relative group">
               {images.length > 0 ? (
                 <>
-                  <img 
+                <img 
                     src={images[selectedImageIndex]} 
                     alt={`${item.name} - Image ${selectedImageIndex + 1}`}
                     className="w-full h-full object-cover transition-all duration-500 ease-in-out animate-in fade-in"
@@ -141,11 +144,11 @@ export const ViewItemDialog = ({ open, onOpenChange, onEdit, item }: ViewItemDia
 
           {/* Right: Product Info */}
           <div className="md:col-span-2 space-y-2">
-            <div className="flex items-center gap-3">
+                <div className="flex items-center gap-3">
               <h2 className="text-2xl font-bold text-foreground">{item.name}</h2>
               <Badge variant={stockStatus.variant}>{stockStatus.label}</Badge>
-            </div>
-            
+                </div>
+                
             <div className="text-3xl font-extrabold text-green-600">₹{item.price.toLocaleString()}</div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-4">
@@ -166,59 +169,68 @@ export const ViewItemDialog = ({ open, onOpenChange, onEdit, item }: ViewItemDia
                       <div>
                         <span className="text-muted-foreground">Carat:</span>
                         <span className="ml-2 font-medium">{item.carat}ct</span>
-                      </div>
+                  </div>
                     </li>
-                  )}
+                )}
                   <li className="flex items-start gap-2">
                     <Gem className="h-4 w-4 text-amber-500 mt-0.5" />
-                    <div>
+                  <div>
                       <span className="text-muted-foreground">Metal:</span>
                       <span className="ml-2 font-medium">{item.metal}</span>
-                    </div>
+                  </div>
                   </li>
                   <li className="flex items-start gap-2">
                     <Tag className="h-4 w-4 text-green-500 mt-0.5" />
                     <div>
                       <span className="text-muted-foreground">Type:</span>
                       <span className="ml-2 font-medium">{item.type}</span>
-                    </div>
+                </div>
                   </li>
                 </ul>
-              </div>
-
+            </div>
+            
               {/* Inventory Information */}
               <div>
                 <h3 className="font-semibold mb-2">Inventory Information</h3>
                 <ul className="space-y-2 text-sm">
                   <li className="flex items-start gap-2">
                     <Package className="h-4 w-4 text-blue-500 mt-0.5" />
-                    <div>
+                  <div>
                       <span className="text-muted-foreground">Stock Quantity:</span>
                       <span className="ml-2 font-medium">{item.inStock} units</span>
-                    </div>
+                  </div>
                   </li>
                   <li className="flex items-start gap-2">
                     <DollarSign className="h-4 w-4 text-green-500 mt-0.5" />
-                    <div>
+                  <div>
                       <span className="text-muted-foreground">Unit Price:</span>
                       <span className="ml-2 font-medium">₹{item.price.toLocaleString()}</span>
-                    </div>
+                  </div>
                   </li>
                   <li className="flex items-start gap-2">
                     <Tag className="h-4 w-4 text-purple-500 mt-0.5" />
-                    <div>
+                  <div>
                       <span className="text-muted-foreground">Total Value:</span>
                       <span className="ml-2 font-medium">₹{(item.price * item.inStock).toLocaleString()}</span>
-                    </div>
+                  </div>
                   </li>
                 </ul>
               </div>
             </div>
           </div>
         </div>
+        </div>
 
         {/* Action Buttons */}
-        <div className="flex justify-end gap-3 mt-4">
+        <div className="flex-shrink-0 flex justify-end gap-3 mt-4">
+          <Button
+            variant="outline"
+            onClick={() => setShowShareDialog(true)}
+            className="gap-2"
+          >
+            <Share2 className="h-4 w-4" />
+            Share
+          </Button>
           <Button
             variant="outline"
             onClick={() => onOpenChange(false)}
@@ -236,6 +248,32 @@ export const ViewItemDialog = ({ open, onOpenChange, onEdit, item }: ViewItemDia
           </Button>
         </div>
       </DialogContent>
+      
+      {/* Share Dialog */}
+      {item && (
+        <InventoryShare
+          items={[{
+            id: item.id,
+            name: item.name,
+            price: item.price,
+            stock: item.inStock,
+            inStock: item.inStock,
+            image: item.image,
+            image_1: item.image_1,
+            image_2: item.image_2,
+            image_3: item.image_3,
+            image_4: item.image_4,
+            type: item.type,
+            metal: item.metal,
+            gemstone: item.gemstone,
+            carat: item.carat,
+            item_type: 'jewelry',
+          } as InventoryItem]}
+          open={showShareDialog}
+          onOpenChange={setShowShareDialog}
+          shareType="single"
+        />
+      )}
     </Dialog>
   );
 };

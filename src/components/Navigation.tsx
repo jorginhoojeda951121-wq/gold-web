@@ -13,7 +13,8 @@ import {
   ShoppingCart,
   Home,
   Settings,
-  ChevronDown
+  ChevronDown,
+  Sparkles
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -40,6 +41,12 @@ const navigationItems = [
     href: "/precious-stones", 
     icon: Gem,
     description: "Rare stones"
+  },
+  { 
+    name: "Artificial Stones", 
+    href: "/artificial-stones", 
+    icon: Sparkles,
+    description: "Synthetic stones"
   },
   { 
     name: "Jewelry Collection", 

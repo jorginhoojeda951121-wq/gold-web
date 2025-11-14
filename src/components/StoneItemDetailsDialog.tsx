@@ -1,9 +1,10 @@
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Gem, ChevronLeft, ChevronRight } from "lucide-react";
+import { Gem, ChevronLeft, ChevronRight, Share2 } from "lucide-react";
 import { StoneItem } from "./StoneItemCard";
 import { useState, useMemo } from "react";
+import { InventoryShare, InventoryItem } from "./InventoryShare";
 
 interface StoneItemDetailsDialogProps {
   item: StoneItem | null;
@@ -14,6 +15,7 @@ interface StoneItemDetailsDialogProps {
 
 export const StoneItemDetailsDialog = ({ item, open, onClose, onEdit }: StoneItemDetailsDialogProps) => {
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
+  const [showShareDialog, setShowShareDialog] = useState(false);
   
   // Collect all available images - must be called before any conditional returns
   const images = useMemo(() => {
@@ -38,8 +40,8 @@ export const StoneItemDetailsDialog = ({ item, open, onClose, onEdit }: StoneIte
 
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
-      <DialogContent className="max-w-3xl">
-        <DialogHeader>
+      <DialogContent className="max-w-3xl max-h-[90vh] flex flex-col">
+        <DialogHeader className="flex-shrink-0">
           <DialogTitle className="flex items-center gap-2">
             <Gem className="h-5 w-5" />
             Precious Stone Details
@@ -49,7 +51,8 @@ export const StoneItemDetailsDialog = ({ item, open, onClose, onEdit }: StoneIte
           </DialogDescription>
         </DialogHeader>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="flex-1 overflow-y-auto pr-2 -mr-2">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <div className="md:col-span-1 space-y-3">
             {/* Main Image Display */}
             <div className="aspect-square rounded-lg bg-gradient-to-br from-purple-50 via-pink-50 to-blue-50 overflow-hidden relative group">
@@ -151,14 +154,44 @@ export const StoneItemDetailsDialog = ({ item, open, onClose, onEdit }: StoneIte
             </div>
           </div>
         </div>
+        </div>
 
-        <DialogFooter className="mt-6">
+        <DialogFooter className="flex-shrink-0 mt-6 gap-2">
+          <Button variant="outline" onClick={() => setShowShareDialog(true)} className="gap-2">
+            <Share2 className="h-4 w-4" />
+            Share
+          </Button>
           <Button variant="outline" onClick={onClose}>Close</Button>
           {onEdit ? (
             <Button onClick={() => onEdit(item)}>Edit Item</Button>
           ) : null}
         </DialogFooter>
       </DialogContent>
+      
+      {/* Share Dialog */}
+      {item && (
+        <InventoryShare
+          items={[{
+            id: item.id,
+            name: item.name,
+            price: item.price,
+            stock: item.stock,
+            inStock: item.stock,
+            image: item.image,
+            image_1: item.image_1,
+            image_2: item.image_2,
+            image_3: item.image_3,
+            image_4: item.image_4,
+            carat: item.carat,
+            clarity: item.clarity,
+            cut: item.cut,
+            item_type: 'stone',
+          } as InventoryItem]}
+          open={showShareDialog}
+          onOpenChange={setShowShareDialog}
+          shareType="single"
+        />
+      )}
     </Dialog>
   );
 };

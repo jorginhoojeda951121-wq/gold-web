@@ -13,8 +13,15 @@ import {
   Calendar,
   Target,
   Award,
-  Filter
+  Filter,
+  Sparkles,
+  Brain,
+  AlertTriangle,
+  Lightbulb,
+  TrendingDown,
+  PieChart
 } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { useOfflineStorage } from "@/hooks/useOfflineStorage";
 import { getUserData } from "@/lib/userStorage";
 
@@ -30,6 +37,8 @@ interface AnalyticsData {
   totalValue: number;
   lowStock: number;
   outOfStock: number;
+  categoryPerformance: Array<{ category: string; revenue: number; itemsSold: number; growth: number; avgPrice: number }>;
+  aiSuggestions: Array<{ type: string; priority: 'high' | 'medium' | 'low'; message: string; impact: string }>;
 }
 
 const Analytics = () => {
@@ -47,7 +56,9 @@ const Analytics = () => {
     totalItems: 0,
     totalValue: 0,
     lowStock: 0,
-    outOfStock: 0
+    outOfStock: 0,
+    categoryPerformance: [],
+    aiSuggestions: []
   });
   const [loading, setLoading] = useState(true);
   
@@ -191,6 +202,159 @@ const Analytics = () => {
       const lowStock = inventoryItems.filter((item: any) => (item.inStock || item.stock || 0) > 0 && (item.inStock || item.stock || 0) < 10).length;
       const outOfStock = inventoryItems.filter((item: any) => (item.inStock || item.stock || 0) === 0).length;
 
+      // Calculate category performance
+      const categoryMap = new Map<string, { revenue: number; itemsSold: number; count: number; totalPrice: number }>();
+      
+      invoices.forEach((inv: any) => {
+        if (inv.items) {
+          inv.items.forEach((item: any) => {
+            // Determine category from item type or name
+            let category = 'Other';
+            const itemName = (item.name || '').toLowerCase();
+            const itemType = (item.type || '').toLowerCase();
+            
+            if (itemName.includes('gold') || itemType.includes('gold') || itemName.includes('22k') || itemName.includes('24k') || itemName.includes('18k')) {
+              category = 'Gold';
+            } else if (itemName.includes('diamond') || itemName.includes('ruby') || itemName.includes('emerald') || itemName.includes('sapphire') || itemName.includes('stone') || itemType.includes('stone')) {
+              category = 'Precious Stones';
+            } else if (itemName.includes('artificial') || itemName.includes('synthetic') || itemType.includes('artificial')) {
+              category = 'Artificial Stones';
+            } else if (itemName.includes('jewelry') || itemName.includes('ring') || itemName.includes('necklace') || itemName.includes('bracelet') || itemName.includes('earring')) {
+              category = 'Jewelry';
+            }
+            
+            const quantity = item.quantity || 0;
+            const revenue = (item.price || 0) * quantity;
+            const existing = categoryMap.get(category);
+            
+            if (existing) {
+              existing.revenue += revenue;
+              existing.itemsSold += quantity;
+              existing.count += 1;
+              existing.totalPrice += (item.price || 0);
+            } else {
+              categoryMap.set(category, { revenue, itemsSold: quantity, count: 1, totalPrice: item.price || 0 });
+            }
+          });
+        }
+      });
+
+      // Get previous month data for growth calculation
+      const previousMonth = currentMonth === 0 ? 11 : currentMonth - 1;
+      const previousYear = currentMonth === 0 ? currentYear - 1 : currentYear;
+      const previousMonthInvoices = invoices.filter((inv: any) => {
+        if (!inv.date) return false;
+        const invDate = new Date(inv.date);
+        return invDate.getMonth() === previousMonth && invDate.getFullYear() === previousYear;
+      });
+
+      const previousMonthCategoryMap = new Map<string, number>();
+      previousMonthInvoices.forEach((inv: any) => {
+        if (inv.items) {
+          inv.items.forEach((item: any) => {
+            let category = 'Other';
+            const itemName = (item.name || '').toLowerCase();
+            const itemType = (item.type || '').toLowerCase();
+            
+            if (itemName.includes('gold') || itemType.includes('gold') || itemName.includes('22k') || itemName.includes('24k') || itemName.includes('18k')) {
+              category = 'Gold';
+            } else if (itemName.includes('diamond') || itemName.includes('ruby') || itemName.includes('emerald') || itemName.includes('sapphire') || itemName.includes('stone') || itemType.includes('stone')) {
+              category = 'Precious Stones';
+            } else if (itemName.includes('artificial') || itemName.includes('synthetic') || itemType.includes('artificial')) {
+              category = 'Artificial Stones';
+            } else if (itemName.includes('jewelry') || itemName.includes('ring') || itemName.includes('necklace') || itemName.includes('bracelet') || itemName.includes('earring')) {
+              category = 'Jewelry';
+            }
+            
+            const revenue = (item.price || 0) * (item.quantity || 0);
+            previousMonthCategoryMap.set(category, (previousMonthCategoryMap.get(category) || 0) + revenue);
+          });
+        }
+      });
+
+      const categoryPerformance = Array.from(categoryMap.entries()).map(([category, data]) => {
+        const previousRevenue = previousMonthCategoryMap.get(category) || 0;
+        const growth = previousRevenue > 0 ? ((data.revenue - previousRevenue) / previousRevenue) * 100 : 0;
+        const avgPrice = data.count > 0 ? data.totalPrice / data.count : 0;
+        
+        return {
+          category,
+          revenue: data.revenue,
+          itemsSold: data.itemsSold,
+          growth,
+          avgPrice
+        };
+      }).sort((a, b) => b.revenue - a.revenue);
+
+      // Generate AI Suggestions based on data analysis
+      const aiSuggestions: Array<{ type: string; priority: 'high' | 'medium' | 'low'; message: string; impact: string }> = [];
+      
+      // Low stock suggestion
+      if (lowStock > 0) {
+        const lowStockItems = inventoryItems.filter((item: any) => (item.inStock || item.stock || 0) > 0 && (item.inStock || item.stock || 0) < 10);
+        const lowStockValue = lowStockItems.reduce((sum: number, item: any) => sum + ((item.price || 0) * (item.inStock || item.stock || 0)), 0);
+        aiSuggestions.push({
+          type: 'inventory',
+          priority: 'high',
+          message: `${lowStock} items are running low on stock. Consider restocking to avoid stockouts.`,
+          impact: `₹${Math.round(lowStockValue * 0.3).toLocaleString()} potential revenue at risk`
+        });
+      }
+
+      // Out of stock suggestion
+      if (outOfStock > 0) {
+        aiSuggestions.push({
+          type: 'inventory',
+          priority: 'high',
+          message: `${outOfStock} items are out of stock. Restock immediately to capture lost sales.`,
+          impact: 'Potential revenue loss'
+        });
+      }
+
+      // Category performance suggestions
+      if (categoryPerformance.length > 0) {
+        const topCategory = categoryPerformance[0];
+        const bottomCategory = categoryPerformance[categoryPerformance.length - 1];
+        
+        if (topCategory.growth > 20) {
+          aiSuggestions.push({
+            type: 'marketing',
+            priority: 'medium',
+            message: `${topCategory.category} category is showing strong growth (${topCategory.growth.toFixed(1)}%). Consider increasing inventory.`,
+            impact: `₹${Math.round(topCategory.revenue * 0.15).toLocaleString()} additional revenue potential`
+          });
+        }
+        
+        if (bottomCategory.growth < -10 && bottomCategory.revenue > 0) {
+          aiSuggestions.push({
+            type: 'pricing',
+            priority: 'medium',
+            message: `${bottomCategory.category} category sales are declining (${bottomCategory.growth.toFixed(1)}%). Review pricing or marketing strategy.`,
+            impact: 'Prevent further decline'
+          });
+        }
+      }
+
+      // Average order value suggestion
+      if (averageOrder > 0 && averageOrder < 5000) {
+        aiSuggestions.push({
+          type: 'sales',
+          priority: 'low',
+          message: `Average order value is ₹${Math.round(averageOrder).toLocaleString()}. Consider upselling or bundling strategies.`,
+          impact: `₹${Math.round(averageOrder * 0.2).toLocaleString()} potential increase per order`
+        });
+      }
+
+      // Top selling items suggestion
+      if (topItems.length > 0 && topItems[0].revenue > 0) {
+        aiSuggestions.push({
+          type: 'inventory',
+          priority: 'medium',
+          message: `${topItems[0].name} is your top seller. Ensure adequate stock levels.`,
+          impact: `₹${Math.round(topItems[0].revenue * 0.1).toLocaleString()} monthly revenue`
+        });
+      }
+
       setAnalyticsData({
         monthlyRevenue,
         itemsSold,
@@ -202,7 +366,9 @@ const Analytics = () => {
         totalItems,
         totalValue,
         lowStock,
-        outOfStock
+        outOfStock,
+        categoryPerformance,
+        aiSuggestions
       });
     } catch (error) {
       console.error('Error loading analytics data:', error);
@@ -367,6 +533,153 @@ const Analytics = () => {
             </CardContent>
           </Card>
         </div>
+
+        {/* AI Suggestions Section */}
+        <Card className="bg-gradient-to-br from-purple-50 to-blue-50 border-purple-200 shadow-lg mb-8">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-xl">
+              <Brain className="h-6 w-6 text-purple-600" />
+              AI-Powered Suggestions
+              <Badge variant="secondary" className="ml-2">
+                <Sparkles className="h-3 w-3 mr-1" />
+                Smart Insights
+              </Badge>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {loading ? (
+              <div className="text-center py-4 text-muted-foreground">Analyzing data...</div>
+            ) : analyticsData.aiSuggestions.length === 0 ? (
+              <div className="text-center py-8">
+                <Lightbulb className="h-12 w-12 mx-auto mb-2 text-muted-foreground" />
+                <p className="text-muted-foreground">No suggestions at this time. Keep up the great work!</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {analyticsData.aiSuggestions.map((suggestion, index) => (
+                  <div
+                    key={index}
+                    className={`p-4 rounded-lg border-2 ${
+                      suggestion.priority === 'high'
+                        ? 'bg-red-50 border-red-200'
+                        : suggestion.priority === 'medium'
+                        ? 'bg-yellow-50 border-yellow-200'
+                        : 'bg-blue-50 border-blue-200'
+                    }`}
+                  >
+                    <div className="flex items-start gap-3">
+                      <div className={`p-2 rounded-lg ${
+                        suggestion.priority === 'high'
+                          ? 'bg-red-100'
+                          : suggestion.priority === 'medium'
+                          ? 'bg-yellow-100'
+                          : 'bg-blue-100'
+                      }`}>
+                        {suggestion.priority === 'high' ? (
+                          <AlertTriangle className="h-5 w-5 text-red-600" />
+                        ) : (
+                          <Lightbulb className="h-5 w-5 text-yellow-600" />
+                        )}
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-2">
+                          <Badge
+                            variant={
+                              suggestion.priority === 'high'
+                                ? 'destructive'
+                                : suggestion.priority === 'medium'
+                                ? 'secondary'
+                                : 'outline'
+                            }
+                            className="text-xs"
+                          >
+                            {suggestion.priority.toUpperCase()}
+                          </Badge>
+                          <Badge variant="outline" className="text-xs">
+                            {suggestion.type}
+                          </Badge>
+                        </div>
+                        <p className="font-medium text-foreground mb-1">{suggestion.message}</p>
+                        <p className="text-sm text-muted-foreground">{suggestion.impact}</p>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Category Performance Section */}
+        <Card className="bg-card shadow-card border-border/50 mb-8">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-xl">
+              <PieChart className="h-6 w-6" />
+              Category Performance
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {loading ? (
+              <div className="text-center py-4 text-muted-foreground">Loading category data...</div>
+            ) : analyticsData.categoryPerformance.length === 0 ? (
+              <div className="text-center py-4 text-muted-foreground">No category data available</div>
+            ) : (
+              <div className="space-y-4">
+                {analyticsData.categoryPerformance.map((category, index) => {
+                  const maxRevenue = Math.max(...analyticsData.categoryPerformance.map(c => c.revenue));
+                  const revenuePercentage = maxRevenue > 0 ? (category.revenue / maxRevenue) * 100 : 0;
+                  
+                  return (
+                    <div key={category.category} className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className="flex items-center justify-center w-10 h-10 bg-gradient-gold rounded-lg text-primary font-bold">
+                            {index + 1}
+                          </div>
+                          <div>
+                            <h4 className="font-semibold text-foreground">{category.category}</h4>
+                            <div className="flex items-center gap-2 mt-1">
+                              {category.growth > 0 ? (
+                                <Badge variant="default" className="bg-green-100 text-green-800 text-xs">
+                                  <TrendingUp className="h-3 w-3 mr-1" />
+                                  +{category.growth.toFixed(1)}%
+                                </Badge>
+                              ) : category.growth < 0 ? (
+                                <Badge variant="destructive" className="text-xs">
+                                  <TrendingDown className="h-3 w-3 mr-1" />
+                                  {category.growth.toFixed(1)}%
+                                </Badge>
+                              ) : (
+                                <Badge variant="outline" className="text-xs">No change</Badge>
+                              )}
+                              <span className="text-xs text-muted-foreground">
+                                {category.itemsSold} items sold
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <div className="font-bold text-lg text-foreground">
+                            ₹{category.revenue.toLocaleString()}
+                          </div>
+                          <div className="text-xs text-muted-foreground">
+                            Avg: ₹{Math.round(category.avgPrice).toLocaleString()}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="h-2 bg-secondary rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-gradient-gold rounded-full transition-all duration-500"
+                          style={{ width: `${revenuePercentage}%` }}
+                        />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </CardContent>
+        </Card>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {/* Quick Insights */}

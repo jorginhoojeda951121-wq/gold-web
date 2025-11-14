@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Search, Plus, User, Calendar, DollarSign, Clock, FileText, AlertTriangle } from "lucide-react";
+import { Search, Plus, User, Calendar, DollarSign, Clock, FileText, AlertTriangle, Download, CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -14,6 +14,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { useUserStorage } from "@/hooks/useUserStorage";
 import { enqueueChange } from "@/lib/sync";
+import jsPDF from 'jspdf';
 
 interface AttendanceRecord {
   id: string;
@@ -66,6 +67,21 @@ interface SalarySummary {
   pf: number;
   esi: number;
   professionalTax: number;
+  breakdown?: {
+    additions: Array<{ name: string; amount: number }>;
+    deductions: Array<{ name: string; amount: number }>;
+  };
+}
+
+interface SalarySlip {
+  id: string;
+  employeeId: string;
+  employeeName: string;
+  month: number;
+  year: number;
+  generatedDate: string;
+  summary: SalarySummary;
+  isProcessed: boolean;
 }
 
 export const EmployeeManagement = () => {
@@ -73,11 +89,13 @@ export const EmployeeManagement = () => {
   const [activeTab, setActiveTab] = useState("employees");
   const [searchQuery, setSearchQuery] = useState("");
   const [showAddDialog, setShowAddDialog] = useState(false);
+  const [showEditDialog, setShowEditDialog] = useState(false);
   const [showAttendanceDialog, setShowAttendanceDialog] = useState(false);
   const [showSalaryDialog, setShowSalaryDialog] = useState(false);
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+  const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
 
   // CRITICAL: Use useUserStorage with 'staff_employees' key to sync with Staff page and Supabase
   const { data: rawEmployees, updateData: setEmployees, loaded: employeesLoaded } = useUserStorage<any[]>('staff_employees', [
@@ -114,6 +132,7 @@ export const EmployeeManagement = () => {
   ]);
 
   const { data: attendanceRecords, updateData: setAttendanceRecords } = useUserStorage<AttendanceRecord[]>('attendance_records', []);
+  const { data: salarySlips, updateData: setSalarySlips } = useUserStorage<SalarySlip[]>('salary_slips', []);
 
   // Normalize employee data - handle both 'salary' (from Staff page) and 'baseSalary' (from Payroll)
   const employees: Employee[] = (rawEmployees || []).map((emp: any) => ({
@@ -240,6 +259,8 @@ export const EmployeeManagement = () => {
     const lateDays = monthlyAttendance.filter(r => r.status === 'late').length;
     const halfDays = monthlyAttendance.filter(r => r.status === 'half-day').length;
 
+    const additions: Array<{ name: string; amount: number }> = [];
+    const deductions: Array<{ name: string; amount: number }> = [];
     let totalDeductions = 0;
     let totalAdditions = 0;
 
@@ -254,33 +275,44 @@ export const EmployeeManagement = () => {
         return; // Skip this rule if not selected for this employee
       }
 
-      if (rule.type === 'deduction') {
-        if (rule.calculation === 'percentage') {
-          totalDeductions += (employee.baseSalary * rule.value) / 100;
-        } else {
-          if (rule.name === 'Late Coming Penalty') {
-            totalDeductions += rule.value * lateDays;
-          } else {
-            totalDeductions += rule.value;
-          }
-        }
+      let amount = 0;
+      if (rule.calculation === 'percentage') {
+        amount = (employee.baseSalary * rule.value) / 100;
       } else {
-        if (rule.calculation === 'percentage') {
-          totalAdditions += (employee.baseSalary * rule.value) / 100;
+        if (rule.name === 'Late Coming Penalty') {
+          amount = rule.value * lateDays;
         } else {
-          totalAdditions += rule.value;
+          amount = rule.value;
         }
+      }
+
+      if (rule.type === 'deduction') {
+        totalDeductions += amount;
+        deductions.push({ name: rule.name, amount });
+      } else {
+        totalAdditions += amount;
+        additions.push({ name: rule.name, amount });
       }
     });
 
     // Calculate absence deduction
     const absentDays = workingDays - presentDays - (halfDays * 0.5);
     const absenceDeduction = (employee.baseSalary / workingDays) * absentDays;
-    totalDeductions += absenceDeduction;
+    if (absentDays > 0) {
+      totalDeductions += absenceDeduction;
+      deductions.push({ name: 'Absence Deduction', amount: absenceDeduction });
+    }
 
+    // Standard deductions
     const pf = (employee.baseSalary * 12) / 100;
     const esi = employee.baseSalary <= 21000 ? (employee.baseSalary * 0.75) / 100 : 0;
     const professionalTax = employee.baseSalary > 10000 ? 200 : 0;
+
+    if (pf > 0) deductions.push({ name: 'Provident Fund (PF)', amount: pf });
+    if (esi > 0) deductions.push({ name: 'ESI', amount: esi });
+    if (professionalTax > 0) deductions.push({ name: 'Professional Tax', amount: professionalTax });
+
+    totalDeductions += pf + esi + professionalTax;
 
     const netSalary = employee.baseSalary + totalAdditions - totalDeductions;
 
@@ -296,7 +328,11 @@ export const EmployeeManagement = () => {
       netSalary,
       pf,
       esi,
-      professionalTax
+      professionalTax,
+      breakdown: {
+        additions,
+        deductions
+      }
     };
   };
 
@@ -390,6 +426,98 @@ export const EmployeeManagement = () => {
     }
   };
 
+  const handleUpdateEmployee = async () => {
+    if (!editingEmployee || !newEmployee.name || !newEmployee.email || !newEmployee.role) {
+      toast({
+        title: "Missing Information",
+        description: "Please fill in all required fields.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    try {
+      // Get current user ID for data isolation
+      const { getCurrentUserId } = await import('@/lib/userStorage');
+      const userId = await getCurrentUserId();
+      
+      if (!userId) {
+        toast({
+          title: "Authentication Error",
+          description: "Please log in to update employees.",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      const updatedEmployee: Employee & { user_id?: string } = {
+        ...editingEmployee,
+        ...newEmployee,
+        user_id: userId,
+      };
+
+      // Update local storage
+      const updatedEmployees = employees.map(emp => 
+        emp.id === editingEmployee.id ? updatedEmployee : emp
+      );
+      await setEmployees(updatedEmployees);
+      
+      // Queue for Supabase sync
+      try {
+        await enqueueChange('staff', 'upsert', {
+          id: updatedEmployee.id,
+          user_id: userId,
+          name: updatedEmployee.name,
+          email: updatedEmployee.email,
+          phone: updatedEmployee.phone,
+          role: updatedEmployee.role,
+          department: updatedEmployee.department,
+          salary: updatedEmployee.baseSalary,
+          status: updatedEmployee.status,
+          hire_date: updatedEmployee.joinDate,
+          address: updatedEmployee.address,
+          emergency_contact: updatedEmployee.emergencyContact,
+          bank_account: updatedEmployee.bankAccount,
+          pf_number: updatedEmployee.pfNumber,
+          esi_number: updatedEmployee.esiNumber,
+          applied_salary_rules: JSON.stringify(updatedEmployee.appliedSalaryRules || []),
+          updated_at: new Date().toISOString(),
+        });
+      } catch (syncError) {
+        console.warn('Failed to queue sync, but employee updated locally:', syncError);
+      }
+      
+      setNewEmployee({
+        name: "",
+        email: "",
+        phone: "",
+        role: "",
+        department: "",
+        baseSalary: 0,
+        address: "",
+        emergencyContact: "",
+        bankAccount: "",
+        pfNumber: "",
+        esiNumber: "",
+        appliedSalaryRules: []
+      });
+      setEditingEmployee(null);
+      setShowEditDialog(false);
+      
+      toast({
+        title: "Employee Updated",
+        description: `${updatedEmployee.name} has been updated.`
+      });
+    } catch (error) {
+      console.error('Error updating employee:', error);
+      toast({
+        title: "Error",
+        description: "Failed to update employee. Please try again.",
+        variant: "destructive"
+      });
+    }
+  };
+
   const handleAddRule = () => {
     if (!newRule.name || newRule.value <= 0) {
       toast({
@@ -457,6 +585,183 @@ export const EmployeeManagement = () => {
       title: "Attendance Marked",
       description: `Attendance marked as ${status} for today.`
     });
+  };
+
+  const generateSalarySlipPDF = (employee: Employee, summary: SalarySummary) => {
+    const doc = new jsPDF();
+    
+    // Header
+    doc.setFontSize(20);
+    doc.text('SALARY SLIP', 105, 20, { align: 'center' });
+    
+    doc.setFontSize(12);
+    doc.text(`For the month of ${summary.month} ${summary.year}`, 105, 30, { align: 'center' });
+    
+    // Employee Details
+    let yPos = 50;
+    doc.setFontSize(14);
+    doc.text('Employee Details', 20, yPos);
+    yPos += 10;
+    doc.setFontSize(11);
+    doc.text(`Name: ${employee.name}`, 20, yPos);
+    yPos += 7;
+    doc.text(`Employee ID: ${employee.id}`, 20, yPos);
+    yPos += 7;
+    doc.text(`Designation: ${employee.role}`, 20, yPos);
+    yPos += 7;
+    doc.text(`Department: ${employee.department}`, 20, yPos);
+    if (employee.pfNumber) {
+      yPos += 7;
+      doc.text(`PF Number: ${employee.pfNumber}`, 20, yPos);
+    }
+    if (employee.esiNumber) {
+      yPos += 7;
+      doc.text(`ESI Number: ${employee.esiNumber}`, 20, yPos);
+    }
+    if (employee.bankAccount) {
+      yPos += 7;
+      doc.text(`Bank Account: ${employee.bankAccount}`, 20, yPos);
+    }
+    
+    // Salary Details
+    yPos += 15;
+    doc.setFontSize(14);
+    doc.text('Salary Details', 20, yPos);
+    yPos += 10;
+    doc.setFontSize(11);
+    
+    // Earnings
+    doc.setFontSize(12);
+    doc.text('EARNINGS', 20, yPos);
+    yPos += 8;
+    doc.setFontSize(11);
+    doc.text(`Basic Salary`, 20, yPos);
+    doc.text(`₹${summary.baseSalary.toLocaleString()}`, 180, yPos, { align: 'right' });
+    yPos += 7;
+    
+    if (summary.breakdown?.additions && summary.breakdown.additions.length > 0) {
+      summary.breakdown.additions.forEach(item => {
+        doc.text(item.name, 25, yPos);
+        doc.text(`₹${item.amount.toLocaleString()}`, 180, yPos, { align: 'right' });
+        yPos += 7;
+      });
+    }
+    
+    doc.setFontSize(12);
+    doc.text('Total Earnings', 20, yPos);
+    const totalEarnings = summary.baseSalary + summary.totalAdditions;
+    doc.text(`₹${totalEarnings.toLocaleString()}`, 180, yPos, { align: 'right' });
+    
+    // Deductions
+    yPos += 15;
+    doc.setFontSize(12);
+    doc.text('DEDUCTIONS', 20, yPos);
+    yPos += 8;
+    doc.setFontSize(11);
+    
+    if (summary.breakdown?.deductions && summary.breakdown.deductions.length > 0) {
+      summary.breakdown.deductions.forEach(item => {
+        doc.text(item.name, 25, yPos);
+        doc.text(`₹${item.amount.toLocaleString()}`, 180, yPos, { align: 'right' });
+        yPos += 7;
+      });
+    }
+    
+    doc.setFontSize(12);
+    doc.text('Total Deductions', 20, yPos);
+    doc.text(`₹${summary.totalDeductions.toLocaleString()}`, 180, yPos, { align: 'right' });
+    
+    // Net Salary
+    yPos += 15;
+    doc.setFontSize(14);
+    doc.setFont(undefined, 'bold');
+    doc.text('NET SALARY', 20, yPos);
+    doc.text(`₹${summary.netSalary.toLocaleString()}`, 180, yPos, { align: 'right' });
+    
+    // Attendance Summary
+    yPos += 15;
+    doc.setFontSize(12);
+    doc.setFont(undefined, 'normal');
+    doc.text('Attendance Summary', 20, yPos);
+    yPos += 8;
+    doc.setFontSize(11);
+    doc.text(`Working Days: ${summary.workingDays}`, 20, yPos);
+    yPos += 7;
+    doc.text(`Present Days: ${summary.presentDays}`, 20, yPos);
+    
+    // Footer
+    yPos += 15;
+    doc.setFontSize(10);
+    doc.text(`Generated on: ${new Date().toLocaleDateString()}`, 105, yPos, { align: 'center' });
+    yPos += 5;
+    doc.text('This is a computer-generated document.', 105, yPos, { align: 'center' });
+    
+    // Save PDF
+    const fileName = `Salary_Slip_${employee.name.replace(/\s+/g, '_')}_${summary.month}_${summary.year}.pdf`;
+    doc.save(fileName);
+    
+    toast({
+      title: "Salary Slip Generated",
+      description: `Salary slip for ${employee.name} has been downloaded.`
+    });
+  };
+
+  const processMonthlySalary = async (month: number, year: number) => {
+    try {
+      const activeEmployees = employees.filter(emp => emp.status === 'active');
+      const newSlips: SalarySlip[] = [];
+      
+      for (const employee of activeEmployees) {
+        // Check if slip already exists
+        const existingSlip = salarySlips.find(
+          slip => slip.employeeId === employee.id && 
+                  slip.month === month && 
+                  slip.year === year
+        );
+        
+        if (existingSlip) {
+          continue; // Skip if already processed
+        }
+        
+        const summary = calculateSalarySummary(employee, month, year);
+        
+        const slip: SalarySlip = {
+          id: `${employee.id}_${year}_${month}`,
+          employeeId: employee.id,
+          employeeName: employee.name,
+          month,
+          year,
+          generatedDate: new Date().toISOString(),
+          summary,
+          isProcessed: true
+        };
+        
+        newSlips.push(slip);
+      }
+      
+      if (newSlips.length === 0) {
+        toast({
+          title: "Already Processed",
+          description: `All employees have been processed for ${new Date(year, month).toLocaleString('default', { month: 'long' })} ${year}.`,
+          variant: "default"
+        });
+        return;
+      }
+      
+      await setSalarySlips([...salarySlips, ...newSlips]);
+      
+      toast({
+        title: "Salary Processing Complete",
+        description: `Processed salary for ${newSlips.length} employee(s) for ${new Date(year, month).toLocaleString('default', { month: 'long' })} ${year}.`
+      });
+    } catch (error) {
+      console.error('Error processing monthly salary:', error);
+      toast({
+        title: "Error",
+        description: "Failed to process monthly salary. Please try again.",
+        variant: "destructive"
+      });
+    }
   };
 
   return (
@@ -545,6 +850,30 @@ export const EmployeeManagement = () => {
                               }}
                             >
                               Salary
+                            </Button>
+                            <Button 
+                              size="sm" 
+                              variant="outline"
+                              onClick={() => {
+                                setEditingEmployee(employee);
+                                setNewEmployee({
+                                  name: employee.name,
+                                  email: employee.email,
+                                  phone: employee.phone,
+                                  role: employee.role,
+                                  department: employee.department,
+                                  baseSalary: employee.baseSalary,
+                                  address: employee.address,
+                                  emergencyContact: employee.emergencyContact,
+                                  bankAccount: employee.bankAccount,
+                                  pfNumber: employee.pfNumber || '',
+                                  esiNumber: employee.esiNumber || '',
+                                  appliedSalaryRules: employee.appliedSalaryRules || []
+                                });
+                                setShowEditDialog(true);
+                              }}
+                            >
+                              Edit
                             </Button>
                             <Button 
                               size="sm"
@@ -717,7 +1046,16 @@ export const EmployeeManagement = () => {
         <TabsContent value="reports">
           <Card>
             <CardHeader>
-              <CardTitle>Payroll Reports</CardTitle>
+              <div className="flex justify-between items-center">
+                <CardTitle>Payroll Reports & Salary Slips</CardTitle>
+                <Button 
+                  onClick={() => processMonthlySalary(selectedMonth, selectedYear)}
+                  className="bg-green-600 hover:bg-green-700"
+                >
+                  <CheckCircle2 className="h-4 w-4 mr-2" />
+                  Process Monthly Salary
+                </Button>
+              </div>
             </CardHeader>
             <CardContent>
               <div className="mb-6 flex gap-4">
@@ -746,6 +1084,7 @@ export const EmployeeManagement = () => {
                   <SelectContent>
                     <SelectItem value="2024">2024</SelectItem>
                     <SelectItem value="2023">2023</SelectItem>
+                    <SelectItem value="2025">2025</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -753,27 +1092,89 @@ export const EmployeeManagement = () => {
               <div className="space-y-4">
                 {employees.map(employee => {
                   const summary = calculateSalarySummary(employee, selectedMonth, selectedYear);
+                  const existingSlip = salarySlips.find(
+                    slip => slip.employeeId === employee.id && 
+                            slip.month === selectedMonth && 
+                            slip.year === selectedYear
+                  );
+                  
                   return (
                     <Card key={employee.id} className="p-4">
                       <div className="flex justify-between items-start">
-                        <div>
-                          <h4 className="font-medium">{employee.name}</h4>
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-2">
+                            <h4 className="font-medium">{employee.name}</h4>
+                            {existingSlip && (
+                              <Badge variant="default" className="bg-green-600">
+                                <CheckCircle2 className="h-3 w-3 mr-1" />
+                                Processed
+                              </Badge>
+                            )}
+                          </div>
                           <p className="text-sm text-muted-foreground">{employee.role}</p>
+                          <div className="mt-3 grid grid-cols-2 gap-4 text-sm">
+                            <div>
+                              <span className="text-muted-foreground">Base Salary: </span>
+                              <span className="font-medium">₹{(summary.baseSalary || 0).toLocaleString()}</span>
+                            </div>
+                            <div>
+                              <span className="text-muted-foreground">Attendance: </span>
+                              <span className="font-medium">{summary.presentDays || 0}/{summary.workingDays || 0} days</span>
+                            </div>
+                            <div>
+                              <span className="text-muted-foreground">Additions: </span>
+                              <span className="font-medium text-green-600">+₹{(summary.totalAdditions || 0).toLocaleString()}</span>
+                            </div>
+                            <div>
+                              <span className="text-muted-foreground">Deductions: </span>
+                              <span className="font-medium text-red-600">-₹{(summary.totalDeductions || 0).toLocaleString()}</span>
+                            </div>
+                          </div>
                         </div>
-                        <div className="text-right space-y-1">
-                          <div className="text-sm">
-                            <span className="text-muted-foreground">Base: </span>
-                            <span>₹{(summary.baseSalary || 0).toLocaleString()}</span>
+                        <div className="text-right space-y-2 ml-4">
+                          <div className="text-2xl font-bold text-primary">
+                            ₹{(summary.netSalary || 0).toLocaleString()}
                           </div>
-                          <div className="text-sm">
-                            <span className="text-muted-foreground">Days: </span>
-                            <span>{summary.presentDays || 0}/{summary.workingDays || 0}</span>
-                          </div>
-                          <div className="text-lg font-bold text-primary">
-                            Net: ₹{(summary.netSalary || 0).toLocaleString()}
-                          </div>
+                          <div className="text-xs text-muted-foreground">Net Salary</div>
+                          <Button 
+                            size="sm" 
+                            variant="outline"
+                            onClick={() => generateSalarySlipPDF(employee, summary)}
+                            className="mt-2"
+                          >
+                            <Download className="h-3 w-3 mr-1" />
+                            Download Slip
+                          </Button>
                         </div>
                       </div>
+                      
+                      {/* Breakdown Details */}
+                      {(summary.breakdown?.additions.length > 0 || summary.breakdown?.deductions.length > 0) && (
+                        <div className="mt-4 pt-4 border-t grid grid-cols-2 gap-4 text-xs">
+                          {summary.breakdown.additions.length > 0 && (
+                            <div>
+                              <div className="font-medium text-green-600 mb-1">Additions:</div>
+                              {summary.breakdown.additions.map((item, idx) => (
+                                <div key={idx} className="flex justify-between">
+                                  <span>{item.name}</span>
+                                  <span className="font-medium">+₹{item.amount.toLocaleString()}</span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                          {summary.breakdown.deductions.length > 0 && (
+                            <div>
+                              <div className="font-medium text-red-600 mb-1">Deductions:</div>
+                              {summary.breakdown.deductions.map((item, idx) => (
+                                <div key={idx} className="flex justify-between">
+                                  <span>{item.name}</span>
+                                  <span className="font-medium">-₹{item.amount.toLocaleString()}</span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </Card>
                   );
                 })}
@@ -928,6 +1329,178 @@ export const EmployeeManagement = () => {
             </Button>
             <Button onClick={handleAddEmployee}>
               Add Employee
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Employee Dialog */}
+      <Dialog open={showEditDialog} onOpenChange={(open) => {
+        setShowEditDialog(open);
+        if (!open) {
+          setEditingEmployee(null);
+          setNewEmployee({
+            name: "",
+            email: "",
+            phone: "",
+            role: "",
+            department: "",
+            baseSalary: 0,
+            address: "",
+            emergencyContact: "",
+            bankAccount: "",
+            pfNumber: "",
+            esiNumber: "",
+            appliedSalaryRules: []
+          });
+        }
+      }}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Edit Employee</DialogTitle>
+            <DialogDescription>
+              Update employee information and salary rules
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid grid-cols-2 gap-4 max-h-96 overflow-y-auto">
+            <div>
+              <Label htmlFor="edit-name">Name *</Label>
+              <Input
+                id="edit-name"
+                value={newEmployee.name}
+                onChange={(e) => setNewEmployee({ ...newEmployee, name: e.target.value })}
+              />
+            </div>
+            <div>
+              <Label htmlFor="edit-email">Email *</Label>
+              <Input
+                id="edit-email"
+                type="email"
+                value={newEmployee.email}
+                onChange={(e) => setNewEmployee({ ...newEmployee, email: e.target.value })}
+              />
+            </div>
+            <div>
+              <Label htmlFor="edit-phone">Phone</Label>
+              <Input
+                id="edit-phone"
+                value={newEmployee.phone}
+                onChange={(e) => setNewEmployee({ ...newEmployee, phone: e.target.value })}
+              />
+            </div>
+            <div>
+              <Label htmlFor="edit-role">Role *</Label>
+              <Input
+                id="edit-role"
+                value={newEmployee.role}
+                onChange={(e) => setNewEmployee({ ...newEmployee, role: e.target.value })}
+              />
+            </div>
+            <div>
+              <Label htmlFor="edit-department">Department</Label>
+              <Input
+                id="edit-department"
+                value={newEmployee.department}
+                onChange={(e) => setNewEmployee({ ...newEmployee, department: e.target.value })}
+              />
+            </div>
+            <div>
+              <Label htmlFor="edit-baseSalary">Base Salary</Label>
+              <Input
+                id="edit-baseSalary"
+                type="number"
+                value={newEmployee.baseSalary}
+                onChange={(e) => setNewEmployee({ ...newEmployee, baseSalary: Number(e.target.value) })}
+              />
+            </div>
+            <div className="col-span-2">
+              <Label htmlFor="edit-address">Address</Label>
+              <Textarea
+                id="edit-address"
+                value={newEmployee.address}
+                onChange={(e) => setNewEmployee({ ...newEmployee, address: e.target.value })}
+              />
+            </div>
+            <div>
+              <Label htmlFor="edit-emergencyContact">Emergency Contact</Label>
+              <Input
+                id="edit-emergencyContact"
+                value={newEmployee.emergencyContact}
+                onChange={(e) => setNewEmployee({ ...newEmployee, emergencyContact: e.target.value })}
+              />
+            </div>
+            <div>
+              <Label htmlFor="edit-bankAccount">Bank Account</Label>
+              <Input
+                id="edit-bankAccount"
+                value={newEmployee.bankAccount}
+                onChange={(e) => setNewEmployee({ ...newEmployee, bankAccount: e.target.value })}
+              />
+            </div>
+            <div>
+              <Label htmlFor="edit-pfNumber">PF Number</Label>
+              <Input
+                id="edit-pfNumber"
+                value={newEmployee.pfNumber}
+                onChange={(e) => setNewEmployee({ ...newEmployee, pfNumber: e.target.value })}
+              />
+            </div>
+            <div>
+              <Label htmlFor="edit-esiNumber">ESI Number</Label>
+              <Input
+                id="edit-esiNumber"
+                value={newEmployee.esiNumber}
+                onChange={(e) => setNewEmployee({ ...newEmployee, esiNumber: e.target.value })}
+              />
+            </div>
+            
+            {/* Salary Rules Selection */}
+            <div className="col-span-2">
+              <Label>Applied Salary Rules (Select rules that apply to this employee)</Label>
+              <div className="mt-2 space-y-2 max-h-48 overflow-y-auto border rounded-md p-3">
+                {salaryRules.filter(rule => rule.isActive).map((rule) => (
+                  <div key={rule.id} className="flex items-center space-x-2">
+                    <input
+                      type="checkbox"
+                      id={`edit-rule-${rule.id}`}
+                      checked={newEmployee.appliedSalaryRules.includes(rule.id)}
+                      onChange={(e) => {
+                        const newRules = e.target.checked
+                          ? [...newEmployee.appliedSalaryRules, rule.id]
+                          : newEmployee.appliedSalaryRules.filter(id => id !== rule.id);
+                        setNewEmployee({ ...newEmployee, appliedSalaryRules: newRules });
+                      }}
+                      className="w-4 h-4"
+                    />
+                    <label htmlFor={`edit-rule-${rule.id}`} className="text-sm cursor-pointer flex-1">
+                      <span className="font-medium">{rule.name}</span>
+                      <span className="text-muted-foreground ml-2">
+                        ({rule.type === 'deduction' ? '-' : '+'} 
+                        {rule.calculation === 'percentage' ? `${rule.value}%` : `₹${rule.value}`})
+                      </span>
+                    </label>
+                  </div>
+                ))}
+                {salaryRules.filter(rule => rule.isActive).length === 0 && (
+                  <p className="text-sm text-muted-foreground text-center py-2">
+                    No active salary rules. Add rules in the Salary Rules tab first.
+                  </p>
+                )}
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">
+                If no rules are selected, all active rules will apply by default.
+              </p>
+            </div>
+          </div>
+          <div className="flex justify-end space-x-2 mt-6">
+            <Button variant="outline" onClick={() => {
+              setShowEditDialog(false);
+              setEditingEmployee(null);
+            }}>
+              Cancel
+            </Button>
+            <Button onClick={handleUpdateEmployee}>
+              Update Employee
             </Button>
           </div>
         </DialogContent>

@@ -302,7 +302,7 @@ export const JewelryCard = ({ item, onEdit, onDelete, onView, onAddToCart, showA
               <div className="col-span-2 py-1 px-2 rounded-lg bg-gradient-to-r from-blue-50 via-cyan-50 to-blue-50 border border-blue-100/80 min-h-[32px] flex items-center shadow-sm hover:shadow-md transition-shadow duration-300">
                 <div className="flex items-center justify-between w-full">
                   <span className="text-xs font-semibold text-blue-700 uppercase tracking-wide">Carat</span>
-                  <span className="text-xs font-bold text-gray-900">{item.carat}ct</span>
+                <span className="text-xs font-bold text-gray-900">{item.carat}ct</span>
                 </div>
               </div>
             )}

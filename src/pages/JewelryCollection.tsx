@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { Search, Grid, List, ArrowLeft, Plus, Edit, Trash2, ShoppingCart, AlertTriangle, Gem } from "lucide-react";
+import { Search, Grid, List, ArrowLeft, Plus, Edit, Trash2, ShoppingCart, AlertTriangle, Gem, Share2, CheckSquare, Square } from "lucide-react";
 import { Navigation } from "@/components/Navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,12 +8,14 @@ import { useOfflineStorage } from "@/hooks/useOfflineStorage";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { enqueueChange } from "@/lib/sync";
 import { getUserData, setUserData } from "@/lib/userStorage";
 import { MultiImageUpload } from "@/components/MultiImageUpload";
 import { ItemDetailsDialog } from "@/components/ItemDetailsDialog";
 import { JewelryCard, JewelryItem } from "@/components/JewelryCard";
+import { InventoryShare, InventoryItem } from "@/components/InventoryShare";
 
 interface JewelryItemLocal {
   id: string;
@@ -50,8 +52,10 @@ const JewelryCollection = () => {
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showDetailsDialog, setShowDetailsDialog] = useState(false);
+  const [showBulkShareDialog, setShowBulkShareDialog] = useState(false);
   const [itemToDelete, setItemToDelete] = useState<JewelryItemLocal | null>(null);
   const [selectedItem, setSelectedItem] = useState<JewelryItemLocal | null>(null);
+  const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
   const [formData, setFormData] = useState({
     name: "",
     type: "Ring",
@@ -64,136 +68,48 @@ const JewelryCollection = () => {
   });
   const [images, setImages] = useState<(string | null)[]>([null, null, null, null]);
 
-  // Load all inventory from all sources (jewelry, gold, stones, and inventory_items from sync)
-  // Filter to only show jewelry items (not gold bars or gemstones)
+  // Load jewelry items from unified inventory_items table (Single Source of Truth)
   const loadAllInventory = useCallback(async () => {
     try {
-      
-      // Load all inventory types directly from IndexedDB
-      const [jewelryData, goldData, stonesData, inventoryData] = await Promise.all([
-        getUserData<any[]>("jewelry_items") || Promise.resolve([]),
-        getUserData<any[]>("gold_items") || Promise.resolve([]),
-        getUserData<any[]>("stones_items") || Promise.resolve([]),
-        getUserData<any[]>("inventory_items") || Promise.resolve([]),
-      ]);
+      // Load from unified inventory_items table
+      const inventoryData = await getUserData<any[]>("inventory_items") || [];
 
-      const allItems: JewelryItem[] = [];
-      const processedIds = new Set<string>();
-
-      // Transform jewelry_items (only jewelry, not gold/stones)
-      if (jewelryData && Array.isArray(jewelryData)) {
-        jewelryData.forEach((item: any) => {
-          if (!item || !item.id || processedIds.has(item.id)) return;
-          
-          // CRITICAL: Filter by category to ensure only jewelry items are shown
-          // Skip if item is gold or stones (check both category and item_type for consistency)
-          if (item.category === 'gold' || item.item_type === 'gold' || 
-              item.category === 'stones' || item.item_type === 'stones' || 
-              item.category === 'stone' || item.item_type === 'stone') {
-            return;
-          }
-          
-          processedIds.add(item.id);
-
-          // Clean and validate image URL (same logic as GoldCollection)
-          let imageUrl = item.image || item.image_url || '';
-          
-          // Fix corrupted image data (single characters, invalid strings)
-          if (imageUrl && (imageUrl.length < 10 || imageUrl === '[' || imageUrl === '{' || imageUrl === 'undefined')) {
-            // Silently clean up corrupted image data
-            imageUrl = '';
-          }
-
-          // Check if it's a full JewelryItem format or legacy format
-          if (item.type && item.type !== 'Gold Bar' && item.type !== 'Gemstone') {
-            // Full format with all fields
-            allItems.push({
-              id: item.id,
-              name: item.name || 'Unknown Item',
-              type: item.type || 'Ring',
-              gemstone: item.gemstone || 'None',
-              carat: item.carat || '',
-              metal: item.metal || 'Gold 18K',
-              price: item.price || 0,
-              stock: item.stock ?? item.inStock ?? 10,
-              image: imageUrl,
-              image_1: item.image_1 || imageUrl || '',
-              image_2: item.image_2 || '',
-              image_3: item.image_3 || '',
-              image_4: item.image_4 || '',
-            });
-          } else if (!item.type || item.type === 'Ring' || item.type === 'Necklace' || item.type === 'Earrings' || item.type === 'Bracelet') {
-            // Legacy format or simple jewelry format
-            allItems.push({
-              id: item.id,
-              name: item.name || 'Unknown Item',
-              type: item.type || 'Ring',
-              gemstone: item.gemstone || 'None',
-              carat: item.carat || '',
-              metal: item.metal || 'Gold 18K',
-              price: item.price || 0,
-              stock: item.stock ?? item.inStock ?? 10,
-              image: imageUrl,
-              image_1: item.image_1 || imageUrl || '',
-              image_2: item.image_2 || '',
-              image_3: item.image_3 || '',
-              image_4: item.image_4 || '',
-            });
-          }
-        });
-      }
-
-      // Transform inventory_items from sync (only jewelry type, not gold/stones)
-      if (inventoryData && Array.isArray(inventoryData)) {
-        inventoryData.forEach((item: any) => {
-          if (!item || !item.id) return;
-          
-          // CRITICAL: Consistent category filtering - only include jewelry items, skip gold and stones
-          // Check both category and item_type for backward compatibility
-          const isGold = item.category === 'gold' || item.item_type === 'gold';
-          const isStone = item.category === 'stones' || item.item_type === 'stones' || 
-                          item.category === 'stone' || item.item_type === 'stone';
-          
-          // Only include jewelry items (or items without type that aren't gold/stones)
-          if (item.item_type === 'jewelry' || item.category === 'jewelry' || 
-              (!isGold && !isStone && (!item.item_type || item.item_type === '') && item.type && item.type !== 'Gold Bar' && item.type !== 'Gemstone')) {
+      // Filter only jewelry items
+      const jewelryItems = inventoryData
+        .filter((item: any) => {
+          const itemType = item.item_type || 
+            (item.type === 'Gold Bar' ? 'gold' : 
+             item.type === 'Gemstone' ? 'stone' : 'jewelry');
+          return itemType === 'jewelry';
+        })
+        .map((item: any) => {
             // Clean and validate image URL
-            let imageUrl = item.image || item.image_url || '';
-            
-            // Fix corrupted image data (single characters, invalid strings)
+          let imageUrl = item.image || item.image_1 || item.image_url || '';
             if (imageUrl && (imageUrl.length < 10 || imageUrl === '[' || imageUrl === '{' || imageUrl === 'undefined')) {
-              // Silently clean up corrupted image data
               imageUrl = '';
             }
 
-            const existingIndex = allItems.findIndex(i => i.id === item.id);
-            const transformedItem: JewelryItem = {
+          const stockValue = item.stock ?? item.inStock ?? item.in_stock ?? 10;
+          
+          return {
               id: item.id,
               name: item.name || 'Unknown Item',
-              type: item.type || item.attributes?.type || 'Ring',
+            type: item.type || 'Ring',
               gemstone: item.gemstone || item.attributes?.gemstone || 'None',
               carat: item.carat || item.attributes?.carat || '',
               metal: item.metal || item.attributes?.metal || 'Gold 18K',
               price: item.price || 0,
-              stock: item.stock ?? item.inStock ?? 10,
+            stock: stockValue,
+            inStock: stockValue, // Add inStock for JewelryCard compatibility
               image: imageUrl,
-              image_1: item.image_1 || imageUrl || '',
-              image_2: item.image_2 || '',
-              image_3: item.image_3 || '',
-              image_4: item.image_4 || '',
-            };
-
-            if (existingIndex >= 0) {
-              // Update existing item (sync data takes precedence)
-              allItems[existingIndex] = transformedItem;
-            } else {
-              allItems.push(transformedItem);
-            }
-          }
+            image_1: item.image_1 || imageUrl || '',
+            image_2: item.image_2 || '',
+            image_3: item.image_3 || '',
+            image_4: item.image_4 || '',
+          };
         });
-      }
 
-      setJewelryItems(allItems);
+      setJewelryItems(jewelryItems);
       setItemsLoaded(true);
     } catch (error) {
       console.error('❌ Error loading jewelry inventory:', error);
@@ -482,10 +398,7 @@ const JewelryCollection = () => {
         const id = itemToDelete.id;
         const item = jewelryItems.find(i => i.id === id);
         
-        // Remove from IndexedDB
-        const jewelryData = (await getUserData<any[]>('jewelry_items')) || [];
-        await setUserData('jewelry_items', jewelryData.filter((item: any) => item.id !== id));
-        
+        // Remove from unified inventory_items table (Single Source of Truth)
         const inventoryItems = (await getUserData<any[]>('inventory_items')) || [];
         await setUserData('inventory_items', inventoryItems.filter((item: any) => item.id !== id));
         
@@ -589,6 +502,17 @@ const JewelryCollection = () => {
               />
             </div>
             <div className="flex items-center space-x-2 ml-4">
+              {selectedItems.size > 0 && (
+                <Button
+                  variant="default"
+                  size="sm"
+                  onClick={() => setShowBulkShareDialog(true)}
+                  className="bg-blue-600 hover:bg-blue-700 text-white gap-2"
+                >
+                  <Share2 className="h-4 w-4" />
+                  Share Selected ({selectedItems.size})
+                </Button>
+              )}
               <Button
                 variant={viewMode === 'list' ? 'default' : 'outline'}
                 size="sm"
@@ -605,19 +529,69 @@ const JewelryCollection = () => {
               </Button>
             </div>
           </div>
+          
+          {/* Bulk Selection Controls */}
+          {filteredItems.length > 0 && (
+            <div className="flex items-center justify-between mt-4 pt-4 border-t">
+              <div className="flex items-center gap-4">
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    id="select-all"
+                    checked={selectedItems.size === filteredItems.length && filteredItems.length > 0}
+                    onCheckedChange={(checked) => {
+                      if (checked) {
+                        setSelectedItems(new Set(filteredItems.map(item => item.id)));
+                      } else {
+                        setSelectedItems(new Set());
+                      }
+                    }}
+                  />
+                  <Label htmlFor="select-all" className="cursor-pointer">
+                    Select All ({selectedItems.size} selected)
+                  </Label>
+                </div>
+                {selectedItems.size > 0 && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setSelectedItems(new Set())}
+                    className="text-red-600 hover:text-red-700"
+                  >
+                    Clear Selection
+                  </Button>
+                )}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Jewelry Items */}
         <div className={`grid gap-8 ${viewMode === 'grid' ? 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4' : 'grid-cols-1'}`}>
           {filteredItems.map(item => (
-            <JewelryCard
-              key={item.id}
-              item={item}
-              onEdit={handleEditItem}
-              onDelete={handleDeleteClick}
-              onOrder={handleOrderNow}
-              onView={handleViewItem}
-            />
+            <div key={item.id} className="relative">
+              <div className="absolute top-2 left-2 z-10">
+                <Checkbox
+                  checked={selectedItems.has(item.id)}
+                  onCheckedChange={(checked) => {
+                    const newSelected = new Set(selectedItems);
+                    if (checked) {
+                      newSelected.add(item.id);
+                    } else {
+                      newSelected.delete(item.id);
+                    }
+                    setSelectedItems(newSelected);
+                  }}
+                  className="bg-white border-2 border-gray-300 shadow-md"
+                />
+              </div>
+              <JewelryCard
+                item={item}
+                onEdit={handleEditItem}
+                onDelete={handleDeleteClick}
+                onOrder={handleOrderNow}
+                onView={handleViewItem}
+              />
+            </div>
           ))}
         </div>
 
@@ -891,6 +865,36 @@ const JewelryCollection = () => {
           handleOrderNow(item);
         }}
       />
+      
+      {/* Bulk Share Dialog */}
+      {selectedItems.size > 0 && (
+        <InventoryShare
+          items={filteredItems
+            .filter(item => selectedItems.has(item.id))
+            .map(item => ({
+              id: item.id,
+              name: item.name,
+              price: item.price,
+              stock: item.stock,
+              inStock: item.inStock,
+              image: item.image,
+              image_1: item.image_1,
+              image_2: item.image_2,
+              image_3: item.image_3,
+              image_4: item.image_4,
+              type: item.type,
+              metal: item.metal,
+              gemstone: item.gemstone,
+              carat: item.carat,
+              item_type: 'jewelry',
+            } as InventoryItem))}
+          open={showBulkShareDialog}
+          onOpenChange={(open) => {
+            setShowBulkShareDialog(open);
+          }}
+          shareType="bulk"
+        />
+      )}
     </div>
   );
 };

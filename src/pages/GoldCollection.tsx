@@ -46,93 +46,69 @@ const GoldCollection = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const editFileInputRef = useRef<HTMLInputElement>(null);
 
-  // Load gold items from both gold_items and inventory_items (for items added from Home page)
+  // Load gold items from unified inventory_items table (Single Source of Truth)
   const loadGoldItems = useCallback(async () => {
     try {
-      const [goldData, inventoryData] = await Promise.all([
-        getUserData<any[]>('gold_items') || [],
-        getUserData<any[]>('inventory_items') || [],
-      ]);
+      const inventoryData = await getUserData<any[]>('inventory_items') || [];
 
-      const allGoldItems: GoldItem[] = [];
-      const processedIds = new Set<string>();
-
-      // Add items from gold_items
-      if (goldData && Array.isArray(goldData)) {
-        goldData.forEach((item: any) => {
-          if (!item || !item.id || processedIds.has(item.id)) return;
-          processedIds.add(item.id);
+      // Filter only gold items
+      const goldItems = inventoryData
+        .filter((item: any) => {
+          // Check item_type first, then category, then type field
+          const itemType = item.item_type || 
+            (item.category === 'gold' ? 'gold' :
+             item.category === 'stones' ? 'stone' :
+             item.category === 'stone' ? 'stone' :
+             item.type === 'Gold Bar' ? 'gold' : 
+             item.type === 'Gemstone' ? 'stone' : 'jewelry');
+          return itemType === 'gold';
+        })
+        .map((item: any) => {
           // Clean and validate image URL
-          let imageUrl = item.image || item.image_url || '';
-          
-          // Fix corrupted image data (single characters, invalid strings)
+          let imageUrl = item.image || item.image_1 || item.image_url || '';
           if (imageUrl && (imageUrl.length < 10 || imageUrl === '[' || imageUrl === '{')) {
-            // Silently clean up corrupted image data
             imageUrl = '';
           }
-          
-          const goldItem = {
+
+          return {
             id: item.id,
             name: item.name || 'Unknown Gold',
-            weight: item.weight || '',
-            purity: item.purity || item.metal || 'Gold 18K',
-            price: item.price || item.totalPrice || 0,
-            stock: item.stock ?? item.inStock ?? 10,
+            weight: item.attributes?.weight || item.weight || '',
+            purity: item.attributes?.purity || item.purity || item.metal || 'Gold 18K',
+            price: item.price || 0,
+            stock: item.inStock ?? item.stock ?? item.in_stock ?? 10,
             image: imageUrl,
             image_1: item.image_1 || imageUrl || '',
             image_2: item.image_2 || '',
             image_3: item.image_3 || '',
             image_4: item.image_4 || '',
           };
-          allGoldItems.push(goldItem);
         });
-      }
 
-      // Add items from inventory_items that are gold type
-      if (inventoryData && Array.isArray(inventoryData)) {
-        inventoryData.forEach((item: any) => {
-          if (!item || !item.id || processedIds.has(item.id)) return;
-          if (item.item_type === 'gold' || item.category === 'gold' || item.type === 'Gold Bar') {
-            processedIds.add(item.id);
-            
-            // Clean and validate image URL
-            let imageUrl = item.image || item.image_url || '';
-            
-            // Fix corrupted image data (single characters, invalid strings)
-            if (imageUrl && (imageUrl.length < 10 || imageUrl === '[' || imageUrl === '{')) {
-              // Silently clean up corrupted image data
-              imageUrl = '';
-            }
-            
-            const goldItem = {
-              id: item.id,
-              name: item.name || 'Unknown Gold',
-              weight: item.attributes?.weight || item.weight || '',
-              purity: item.attributes?.purity || item.purity || item.metal || 'Gold 18K',
-              price: item.price || 0,
-              stock: item.inStock ?? item.stock ?? 10,
-              image: imageUrl,
-              image_1: item.image_1 || imageUrl || '',
-              image_2: item.image_2 || '',
-              image_3: item.image_3 || '',
-              image_4: item.image_4 || '',
-            };
-            allGoldItems.push(goldItem);
-          }
-        });
-      }
-
-      // Always update state to ensure latest data is shown
-      setGoldItems(allGoldItems);
+      setGoldItems(goldItems);
     } catch (error) {
       console.error('Error loading gold items:', error);
     }
   }, [setGoldItems]);
 
-  // Load gold items on mount only
+  // Load gold items on mount
   useEffect(() => {
     loadGoldItems();
-  }, []); // Empty dependency array - run only once on mount
+  }, [loadGoldItems]);
+
+  // Listen for sync completion events to reload data after sync
+  useEffect(() => {
+    const handleDataSynced = () => {
+      // Reload items after sync to show newly synced data
+      loadGoldItems();
+    };
+
+    window.addEventListener('data-synced', handleDataSynced);
+    
+    return () => {
+      window.removeEventListener('data-synced', handleDataSynced);
+    };
+  }, [loadGoldItems]);
 
   const filteredItems = goldItems.filter(item =>
     item.name.toLowerCase().includes(searchQuery.toLowerCase())
@@ -177,49 +153,31 @@ const GoldCollection = () => {
         user_id: userId, // CRITICAL: Include user_id for data isolation
       };
 
-      // Save to gold_items with user_id
-      const goldData = (await getUserData<any[]>('gold_items')) || [];
-      goldData.push(newItem);
-      await setUserData('gold_items', goldData);
-      
-      // Also save to inventory_items for sync
+      // Save to unified inventory_items table (Single Source of Truth)
       const inventoryItems = (await getUserData<any[]>('inventory_items')) || [];
-      inventoryItems.push({
+      const newInventoryItem = {
         id: newItem.id,
-        user_id: userId, // CRITICAL: Include user_id for data isolation
+        user_id: userId,
         item_type: 'gold',
-        category: 'gold',
         name: newItem.name,
+        type: 'Gold Bar',
         attributes: { weight: newItem.weight, purity: newItem.purity },
         price: newItem.price,
         inStock: newItem.stock,
         stock: newItem.stock,
-        image: newItem.image,
-        image_1: newItem.image_1,
-        image_2: newItem.image_2,
-        image_3: newItem.image_3,
-        image_4: newItem.image_4,
+        image: newItem.image || newItem.image_1 || '',
+        image_1: newItem.image_1 || newItem.image || '',
+        image_2: newItem.image_2 || '',
+        image_3: newItem.image_3 || '',
+        image_4: newItem.image_4 || '',
+        created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
-      });
+      };
+      inventoryItems.push(newInventoryItem);
       await setUserData('inventory_items', inventoryItems);
       
       // Queue for sync
-      enqueueChange('inventory_items', 'upsert', {
-        id: newItem.id,
-        user_id: userId, // CRITICAL: Include user_id for data isolation
-        item_type: 'gold',
-        name: newItem.name,
-        attributes: { weight: newItem.weight, purity: newItem.purity },
-        price: newItem.price,
-        inStock: newItem.stock,
-        stock: newItem.stock,
-        image: newItem.image,
-        image_1: newItem.image_1,
-        image_2: newItem.image_2,
-        image_3: newItem.image_3,
-        image_4: newItem.image_4,
-        updated_at: new Date().toISOString(),
-      });
+      enqueueChange('inventory_items', 'upsert', newInventoryItem);
       
       // Reload gold items to show the new item
       await loadGoldItems();
@@ -764,3 +722,4 @@ const GoldCollection = () => {
 };
 
 export default GoldCollection;
+

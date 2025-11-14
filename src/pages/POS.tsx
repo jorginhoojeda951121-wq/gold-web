@@ -104,6 +104,14 @@ const POS = () => {
   });
   const [showCustomerSearch, setShowCustomerSearch] = useState(false);
   const [customerSearchQuery, setCustomerSearchQuery] = useState("");
+  const [showCashPaymentDialog, setShowCashPaymentDialog] = useState(false);
+  const [showCardPaymentDialog, setShowCardPaymentDialog] = useState(false);
+  const [cashPaymentData, setCashPaymentData] = useState({
+    amountReceived: "",
+  });
+  const [cardPaymentData, setCardPaymentData] = useState({
+    cardNumber: "",
+  });
   const { data: businessSettings } = useUserStorage('businessSettings', {
     businessName: "Golden Treasures",
     address: "123 Jewelry Street, Mumbai",
@@ -136,138 +144,49 @@ const POS = () => {
     try {
       setIsRefreshing(true);
       
-      // Load all inventory types directly from user-scoped storage
-      const [jewelryData, goldData, stonesData, inventoryData] = await Promise.all([
-        getUserData<any[]>("jewelry_items") || Promise.resolve([]),
-        getUserData<any[]>("gold_items") || Promise.resolve([]),
-        getUserData<any[]>("stones_items") || Promise.resolve([]),
-        getUserData<any[]>("inventory_items") || Promise.resolve([]),
-      ]);
+      // Load all inventory from unified inventory_items table (Single Source of Truth)
+      const inventoryData = await getUserData<any[]>("inventory_items") || [];
 
-      const items: JewelryItem[] = [];
-      const processedIds = new Set<string>();
+      const items: JewelryItem[] = inventoryData.map((item: any) => {
+        // Determine item type - check item_type first, then category, then type field
+        const itemType = item.item_type || 
+          (item.category === 'gold' ? 'gold' :
+           item.category === 'stones' ? 'stone' :
+           item.category === 'stone' ? 'stone' :
+           item.type === 'Gold Bar' ? 'gold' : 
+           item.type === 'Gemstone' ? 'stone' : 'jewelry');
 
-      // Transform jewelry_items
-      if (jewelryData && Array.isArray(jewelryData)) {
-        jewelryData.forEach((item: any) => {
-          if (!item || !item.id || processedIds.has(item.id)) return;
-          processedIds.add(item.id);
+        // Transform to JewelryItem format
+        const stockValue = item.inStock ?? item.stock ?? item.in_stock ?? 10;
+        
+        return {
+          id: item.id,
+          name: item.name || 'Unknown Item',
+          type: itemType === 'gold' ? 'Gold Bar' 
+                : itemType === 'stone' ? 'Gemstone'
+                : (item.type || 'Ring'),
+          gemstone: itemType === 'stone' 
+            ? (item.name || 'Stone')
+            : (item.gemstone || item.attributes?.gemstone || 'None'),
+          carat: itemType === 'stone' 
+            ? (parseFloat(item.attributes?.carat || item.carat) || 0)
+            : (parseFloat(item.carat) || 0),
+          metal: itemType === 'gold'
+            ? (item.attributes?.purity || item.purity || item.metal || 'Gold 18K')
+            : itemType === 'stone'
+            ? 'Platinum'
+            : (item.metal || 'Gold 18K'),
+          price: item.price || 0,
+          inStock: stockValue,
+          isArtificial: item.isArtificial || false,
+          image: item.image || item.image_1 || '',
+          image_1: item.image_1 || item.image || '',
+          image_2: item.image_2 || '',
+          image_3: item.image_3 || '',
+          image_4: item.image_4 || '',
+        };
+      });
 
-          // Check if already in correct format
-          if (item.type && item.metal && (item.inStock !== undefined || item.stock !== undefined)) {
-            items.push({
-              id: item.id,
-              name: item.name || 'Unknown Item',
-              type: item.type,
-              gemstone: item.gemstone || 'None',
-              carat: item.carat || 0,
-              metal: item.metal,
-              price: item.price || 0,
-              inStock: item.inStock ?? item.stock ?? 10,
-              isArtificial: item.isArtificial || false,
-              image: item.image || '',
-            });
-          } else {
-            // Transform legacy format
-            items.push({
-              id: item.id,
-              name: item.name || 'Unknown Item',
-              type: item.type || 'Ring',
-              gemstone: item.gemstone || 'None',
-              carat: item.carat || 0,
-              metal: item.metal || 'Gold 18K',
-              price: item.price || 0,
-              inStock: item.inStock ?? item.stock ?? 10,
-              isArtificial: item.isArtificial || false,
-              image: item.image || '',
-            });
-          }
-        });
-      }
-
-      // Transform gold_items
-      if (goldData && Array.isArray(goldData)) {
-        goldData.forEach((item: any) => {
-          if (!item || !item.id || processedIds.has(item.id)) return;
-          processedIds.add(item.id);
-
-          items.push({
-            id: item.id,
-            name: item.name || 'Unknown Gold',
-            type: 'Gold Bar',
-            gemstone: 'None',
-            carat: 0,
-            metal: item.purity || item.metal || 'Gold 18K',
-            price: item.price || item.totalPrice || 0,
-            inStock: item.inStock ?? item.stock ?? 10,
-            isArtificial: false,
-            image: item.image || '',
-          });
-        });
-      }
-
-      // Transform stones_items (precious stones)
-      if (stonesData && Array.isArray(stonesData)) {
-        stonesData.forEach((item: any) => {
-          if (!item || !item.id || processedIds.has(item.id)) return;
-          processedIds.add(item.id);
-
-          const caratValue = typeof item.carat === 'string' 
-            ? parseFloat(item.carat) || 0 
-            : (item.carat || 0);
-
-          items.push({
-            id: item.id,
-            name: item.name || 'Unknown Stone',
-            type: 'Gemstone',
-            gemstone: item.name || 'Stone',
-            carat: caratValue,
-            metal: 'Platinum',
-            price: item.price || 0,
-            inStock: item.inStock ?? item.stock ?? 10,
-            isArtificial: false,
-            image: item.image || '',
-          });
-        });
-      }
-
-      // Transform inventory_items from sync (overwrites duplicates)
-      if (inventoryData && Array.isArray(inventoryData)) {
-        inventoryData.forEach((item: any) => {
-          if (!item || !item.id) return;
-
-          const existingIndex = items.findIndex(i => i.id === item.id);
-          const transformedItem: JewelryItem = {
-            id: item.id,
-            name: item.name || 'Unknown Item',
-            type: item.item_type === 'gold' ? 'Gold Bar' 
-                  : item.item_type === 'stone' ? 'Gemstone'
-                  : (item.type || 'Ring'),
-            gemstone: item.item_type === 'stone' 
-              ? (item.name || 'Stone')
-              : (item.gemstone || item.attributes?.description || 'None'),
-            carat: item.item_type === 'stone' 
-              ? (item.attributes?.carat || 0)
-              : (item.carat || item.attributes?.carat || 0),
-            metal: item.item_type === 'gold'
-              ? (item.attributes?.purity || item.metal || 'Gold 18K')
-              : item.item_type === 'stone'
-              ? 'Platinum'
-              : (item.metal || 'Gold 18K'),
-            price: item.price || 0,
-            inStock: item.inStock ?? item.in_stock ?? 10,
-            isArtificial: item.isArtificial || false,
-            image: item.image || '',
-          };
-
-          if (existingIndex >= 0) {
-            // Update existing item (sync data takes precedence)
-            items[existingIndex] = transformedItem;
-          } else {
-            items.push(transformedItem);
-          }
-        });
-      }
 
       setAvailableItems(items);
       setItemsLoaded(true);
@@ -302,21 +221,12 @@ const POS = () => {
     };
   }, [loadAllInventory]);
   
-  // Update function for POS inventory updates - CRITICAL: Must update inventory_items and enqueue for sync
+  // Update function for POS inventory updates - CRITICAL: Must update inventory_items (Single Source of Truth)
   const updateInventoryStock = useCallback(async (updatedItems: JewelryItem[]) => {
     try {
-      // Load current data from all sources
-      const [jewelryData, goldData, stonesData, inventoryData] = await Promise.all([
-        getUserData<any[]>("jewelry_items") || [],
-        getUserData<any[]>("gold_items") || [],
-        getUserData<any[]>("stones_items") || [],
-        getUserData<any[]>("inventory_items") || [],
-      ]);
-
-      const updatedJewelry = [...(jewelryData || [])];
-      const updatedGold = [...(goldData || [])];
-      const updatedStones = [...(stonesData || [])];
-      const updatedInventory = [...(inventoryData || [])];
+      // Load current data from unified inventory_items table
+      const inventoryData = await getUserData<any[]>("inventory_items") || [];
+      const updatedInventory = [...inventoryData];
 
       updatedItems.forEach(item => {
         const now = new Date().toISOString();
@@ -359,50 +269,10 @@ const POS = () => {
 
         // Enqueue change for sync (CRITICAL: This ensures server gets updated stock)
         enqueueChange('inventory_items', 'upsert', inventoryUpdate);
-
-        // Update per-type tables for UI compatibility
-        if (item.type === 'Gold Bar') {
-          const index = updatedGold.findIndex((g: any) => g.id === item.id);
-          if (index >= 0) {
-            updatedGold[index] = {
-              ...updatedGold[index],
-              price: item.price,
-              stock: item.inStock,
-              inStock: item.inStock,
-            };
-          }
-        } else if (item.type === 'Gemstone') {
-          const index = updatedStones.findIndex((s: any) => s.id === item.id);
-          if (index >= 0) {
-            updatedStones[index] = {
-              ...updatedStones[index],
-              price: item.price,
-              stock: item.inStock,
-              inStock: item.inStock,
-            };
-          }
-        } else {
-          // Jewelry item
-          const index = updatedJewelry.findIndex((j: any) => j.id === item.id);
-          if (index >= 0) {
-            updatedJewelry[index] = {
-              ...updatedJewelry[index],
-              ...item,
-              inStock: item.inStock, // Ensure inStock is preserved
-            };
-          } else {
-            updatedJewelry.push(item);
-          }
-        }
       });
 
-      // Save back to IndexedDB - CRITICAL: Save inventory_items first
-      await Promise.all([
-        setUserData("inventory_items", updatedInventory), // MUST be saved
-        setUserData("jewelry_items", updatedJewelry),
-        setUserData("gold_items", updatedGold),
-        setUserData("stones_items", updatedStones),
-      ]);
+      // Save back to IndexedDB (Single Source of Truth)
+      await setUserData("inventory_items", updatedInventory);
 
 
       // Reload inventory
@@ -1221,7 +1091,18 @@ const POS = () => {
                   <div className="space-y-2">
                     <Button
                       className="w-full bg-gradient-gold hover:bg-gold-dark text-primary transition-smooth"
-                      onClick={() => processPayment("Cash")}
+                      onClick={() => {
+                        if (cart.length === 0) {
+                          toast({
+                            title: "Empty Cart",
+                            description: "Please add items to the cart before processing payment.",
+                            variant: "destructive"
+                          });
+                          return;
+                        }
+                        setCashPaymentData({ amountReceived: "" });
+                        setShowCashPaymentDialog(true);
+                      }}
                     >
                       <DollarSign className="h-4 w-4 mr-2" />
                       Cash Payment
@@ -1237,7 +1118,18 @@ const POS = () => {
                     <Button
                       className="w-full"
                       variant="outline"
-                      onClick={() => processPayment("Card")}
+                      onClick={() => {
+                        if (cart.length === 0) {
+                          toast({
+                            title: "Empty Cart",
+                            description: "Please add items to the cart before processing payment.",
+                            variant: "destructive"
+                          });
+                          return;
+                        }
+                        setCardPaymentData({ cardNumber: "" });
+                        setShowCardPaymentDialog(true);
+                      }}
                     >
                       <CreditCard className="h-4 w-4 mr-2" />
                       Card Payment
@@ -1258,6 +1150,209 @@ const POS = () => {
           </div>
         </div>
       </main>
+
+      {/* Cash Payment Confirmation Dialog */}
+      <Dialog open={showCashPaymentDialog} onOpenChange={setShowCashPaymentDialog}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <DollarSign className="h-5 w-5 text-green-600" />
+              Cash Payment Confirmation
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            {/* Order Summary */}
+            <div className="p-4 bg-gray-50 rounded-lg border">
+              <h3 className="font-semibold mb-2">Order Summary</h3>
+              <div className="space-y-1 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Subtotal:</span>
+                  <span className="font-medium">₹{subtotal.toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Tax:</span>
+                  <span className="font-medium">₹{tax.toFixed(2)}</span>
+                </div>
+                <Separator />
+                <div className="flex justify-between text-lg font-bold">
+                  <span>Total Amount:</span>
+                  <span className="text-green-600">₹{total.toFixed(2)}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Amount Received */}
+            <div>
+              <Label htmlFor="cash-amount-received">
+                Amount Received (₹) *
+              </Label>
+              <Input
+                id="cash-amount-received"
+                type="number"
+                step="0.01"
+                value={cashPaymentData.amountReceived}
+                onChange={(e) => setCashPaymentData(prev => ({ ...prev, amountReceived: e.target.value }))}
+                placeholder="Enter amount received"
+                className="text-lg font-semibold"
+                autoFocus
+              />
+            </div>
+
+            {/* Refund/Change Calculation */}
+            {cashPaymentData.amountReceived && parseFloat(cashPaymentData.amountReceived) > 0 && (
+              <div className="p-4 rounded-lg border-2" style={{
+                backgroundColor: parseFloat(cashPaymentData.amountReceived) >= total 
+                  ? '#f0fdf4' 
+                  : '#fef2f2',
+                borderColor: parseFloat(cashPaymentData.amountReceived) >= total 
+                  ? '#86efac' 
+                  : '#fca5a5'
+              }}>
+                {parseFloat(cashPaymentData.amountReceived) >= total ? (
+                  <div>
+                    <div className="flex justify-between items-center mb-2">
+                      <span className="text-sm font-medium text-gray-700">Refund Amount:</span>
+                      <span className="text-2xl font-bold text-green-600">
+                        ₹{(parseFloat(cashPaymentData.amountReceived) - total).toFixed(2)}
+                      </span>
+                    </div>
+                    <p className="text-xs text-gray-600">
+                      Amount received is sufficient. Refund to customer.
+                    </p>
+                  </div>
+                ) : (
+                  <div>
+                    <div className="flex justify-between items-center mb-2">
+                      <span className="text-sm font-medium text-gray-700">Amount Short:</span>
+                      <span className="text-2xl font-bold text-red-600">
+                        ₹{(total - parseFloat(cashPaymentData.amountReceived)).toFixed(2)}
+                      </span>
+                    </div>
+                    <p className="text-xs text-red-600">
+                      Insufficient amount. Please collect more cash.
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowCashPaymentDialog(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={() => {
+                const amountReceived = parseFloat(cashPaymentData.amountReceived);
+                if (!amountReceived || amountReceived <= 0) {
+                  toast({
+                    title: "Invalid Amount",
+                    description: "Please enter a valid amount received.",
+                    variant: "destructive"
+                  });
+                  return;
+                }
+                if (amountReceived < total) {
+                  toast({
+                    title: "Insufficient Amount",
+                    description: `Amount received (₹${amountReceived.toFixed(2)}) is less than total (₹${total.toFixed(2)}).`,
+                    variant: "destructive"
+                  });
+                  return;
+                }
+                setShowCashPaymentDialog(false);
+                processPayment("Cash");
+              }}
+              className="bg-green-600 hover:bg-green-700 text-white"
+              disabled={!cashPaymentData.amountReceived || parseFloat(cashPaymentData.amountReceived) < total}
+            >
+              <CheckCircle className="h-4 w-4 mr-2" />
+              Confirm Cash Payment
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Card Payment Confirmation Dialog */}
+      <Dialog open={showCardPaymentDialog} onOpenChange={setShowCardPaymentDialog}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <CreditCard className="h-5 w-5 text-blue-600" />
+              Card Payment Confirmation
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            {/* Order Summary */}
+            <div className="p-4 bg-gray-50 rounded-lg border">
+              <h3 className="font-semibold mb-2">Order Summary</h3>
+              <div className="space-y-1 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Subtotal:</span>
+                  <span className="font-medium">₹{subtotal.toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Tax:</span>
+                  <span className="font-medium">₹{tax.toFixed(2)}</span>
+                </div>
+                <Separator />
+                <div className="flex justify-between text-lg font-bold">
+                  <span>Total Amount:</span>
+                  <span className="text-blue-600">₹{total.toFixed(2)}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Card Number */}
+            <div>
+              <Label htmlFor="card-number">
+                Card Number *
+              </Label>
+              <Input
+                id="card-number"
+                type="text"
+                value={cardPaymentData.cardNumber}
+                onChange={(e) => {
+                  // Format card number with spaces (XXXX XXXX XXXX XXXX)
+                  const value = e.target.value.replace(/\s/g, '').replace(/\D/g, '');
+                  const formatted = value.match(/.{1,4}/g)?.join(' ') || value;
+                  setCardPaymentData(prev => ({ ...prev, cardNumber: formatted }));
+                }}
+                placeholder="1234 5678 9012 3456"
+                maxLength={19}
+                className="text-lg font-mono"
+                autoFocus
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                Enter the last 4 digits or full card number
+              </p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowCardPaymentDialog(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={() => {
+                if (!cardPaymentData.cardNumber || cardPaymentData.cardNumber.trim().replace(/\s/g, '').length < 4) {
+                  toast({
+                    title: "Invalid Card Number",
+                    description: "Please enter at least the last 4 digits of the card.",
+                    variant: "destructive"
+                  });
+                  return;
+                }
+                setShowCardPaymentDialog(false);
+                processPayment("Card");
+              }}
+              className="bg-blue-600 hover:bg-blue-700 text-white"
+              disabled={!cardPaymentData.cardNumber || cardPaymentData.cardNumber.trim().replace(/\s/g, '').length < 4}
+            >
+              <CheckCircle className="h-4 w-4 mr-2" />
+              Confirm Card Payment
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Repayment Dialog */}
       <Dialog open={showRepaymentDialog} onOpenChange={setShowRepaymentDialog}>

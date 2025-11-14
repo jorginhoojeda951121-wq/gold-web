@@ -43,6 +43,14 @@ export interface RawMaterial {
   agreedAmount?: number;          // Amount agreed for this work
   amountPaid?: number;            // Amount paid for this specific work
   paymentStatus?: 'unpaid' | 'partial' | 'paid'; // Payment status
+  // Inventory item assignment support
+  assignmentType?: 'raw_material' | 'inventory_item'; // Type of assignment
+  inventoryItemId?: string;        // ID of inventory item if assigned from inventory
+  inventoryItemName?: string;      // Name of inventory item
+  inventoryItemType?: string;      // Type of inventory item (jewelry, gold, stone, artificial)
+  // Delivery tracking
+  estimatedDelivery?: string;      // Estimated delivery date (YYYY-MM-DD format)
+  status?: 'pending' | 'in-progress' | 'completed' | 'delayed'; // Task status
 }
 
 export interface PaymentRecord {

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -48,7 +48,24 @@ export default function Vendors() {
   const { toast } = useToast();
   
   // CRITICAL: Use IndexedDB first for instant loading (no loading screen!)
-  const { data: vendors, updateData: setVendors, loaded } = useUserStorage<Vendor[]>('vendors', []);
+  const { data: vendorsRaw, updateData: setVendors, loaded } = useUserStorage<Vendor[]>('vendors', []);
+  
+  // Parse JSON fields when loading from IndexedDB - useMemo to prevent infinite loops
+  const vendors = useMemo(() => {
+    return vendorsRaw.map((vendor: any) => {
+      // Create a copy to avoid mutating the original
+      const parsedVendor = { ...vendor };
+      if (parsedVendor.specialization && typeof parsedVendor.specialization === 'string') {
+        try {
+          parsedVendor.specialization = JSON.parse(parsedVendor.specialization);
+        } catch {
+          // If parsing fails, try comma-separated
+          parsedVendor.specialization = parsedVendor.specialization.split(',').map((s: string) => s.trim()).filter(Boolean);
+        }
+      }
+      return parsedVendor;
+    });
+  }, [vendorsRaw]);
   
   const [filteredVendors, setFilteredVendors] = useState<Vendor[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -96,6 +113,55 @@ export default function Vendors() {
 
     syncFromSupabase();
   }, [loaded, setVendors]);
+
+  // Listen for sync completion events to reload data after sync
+  useEffect(() => {
+    const handleDataSynced = () => {
+      // Reload vendors after sync to show newly synced data
+      const syncFromSupabase = async () => {
+        try {
+          const supabase = getSupabase();
+          const { data: { session } } = await supabase.auth.getSession();
+          if (!session) return;
+          
+          const { data, error } = await supabase
+            .from('vendors')
+            .select('*')
+            .order('name', { ascending: true });
+
+          if (error) {
+            if (error.code === 'PGRST301' || error.message.includes('JWT') || error.message.includes('schema cache')) {
+              return;
+            }
+            throw error;
+          }
+
+          // Parse specialization fields from JSON strings
+          const parsedData = (data || []).map((vendor: any) => {
+            if (vendor.specialization && typeof vendor.specialization === 'string') {
+              try {
+                vendor.specialization = JSON.parse(vendor.specialization);
+              } catch {
+                // If parsing fails, try comma-separated
+                vendor.specialization = vendor.specialization.split(',').map((s: string) => s.trim()).filter(Boolean);
+              }
+            }
+            return vendor;
+          });
+          await setVendors(parsedData);
+        } catch (error: any) {
+          console.error('Background sync error for vendors:', error);
+        }
+      };
+      syncFromSupabase();
+    };
+
+    window.addEventListener('data-synced', handleDataSynced);
+    
+    return () => {
+      window.removeEventListener('data-synced', handleDataSynced);
+    };
+  }, [setVendors]);
 
   useEffect(() => {
     filterVendors();
@@ -426,16 +492,33 @@ export default function Vendors() {
                           </div>
 
                           {/* Specialization */}
-                          {vendor.specialization && vendor.specialization.length > 0 && (
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <span className="text-sm text-muted-foreground">Specialization:</span>
-                              {vendor.specialization.map((spec, idx) => (
-                                <Badge key={idx} variant="secondary" className="text-xs">
-                                  {spec}
-                                </Badge>
-                              ))}
-                            </div>
-                          )}
+                          {(() => {
+                            // Parse specialization if it's a JSON string
+                            let specializationArray: string[] = [];
+                            if (vendor.specialization) {
+                              if (typeof vendor.specialization === 'string') {
+                                try {
+                                  specializationArray = JSON.parse(vendor.specialization);
+                                } catch {
+                                  // If parsing fails, treat as comma-separated string
+                                  specializationArray = vendor.specialization.split(',').map(s => s.trim()).filter(Boolean);
+                                }
+                              } else if (Array.isArray(vendor.specialization)) {
+                                specializationArray = vendor.specialization;
+                              }
+                            }
+                            
+                            return specializationArray.length > 0 ? (
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="text-sm text-muted-foreground">Specialization:</span>
+                                {specializationArray.map((spec, idx) => (
+                                  <Badge key={idx} variant="secondary" className="text-xs">
+                                    {spec}
+                                  </Badge>
+                                ))}
+                              </div>
+                            ) : null;
+                          })()}
                         </div>
 
                         {/* Actions */}

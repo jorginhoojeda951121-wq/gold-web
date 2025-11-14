@@ -6,7 +6,8 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { getSupabase } from '@/lib/supabase';
+import { enqueueChange } from '@/lib/sync';
+import { getUserData, setUserData, getCurrentUserId } from '@/lib/userStorage';
 import { Loader2 } from 'lucide-react';
 
 interface AddVendorDialogProps {
@@ -55,21 +56,19 @@ export function AddVendorDialog({ open, onOpenChange, onSuccess }: AddVendorDial
 
     try {
       setLoading(true);
-      const supabase = getSupabase();
 
       const vendorId = `VEN-${Date.now()}`;
+      const userId = await getCurrentUserId();
+      if (!userId) throw new Error('No authenticated user');
 
       // Parse specialization
       const specialization = formData.specialization
         ? formData.specialization.split(',').map(s => s.trim()).filter(Boolean)
         : [];
 
-      const { data: userData } = await supabase.auth.getUser();
-      if (!userData.user) throw new Error('No authenticated user');
-
-      const { error } = await supabase.from('vendors').insert({
+      const newVendor = {
         id: vendorId,
-        user_id: userData.user.id,
+        user_id: userId,
         name: formData.name,
         contact_person: formData.contact_person || null,
         phone: formData.phone,
@@ -90,9 +89,24 @@ export function AddVendorDialog({ open, onOpenChange, onSuccess }: AddVendorDial
         upi_id: formData.upi_id || null,
         notes: formData.notes || null,
         status: 'active',
-      });
+        total_purchases: 0,
+        outstanding_balance: 0,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
 
-      if (error) throw error;
+      // Save to IndexedDB first
+      const vendors = (await getUserData<any[]>('vendors')) || [];
+      vendors.push(newVendor);
+      await setUserData('vendors', vendors);
+
+      // Queue for sync to Supabase
+      try {
+        await enqueueChange('vendors', 'upsert', newVendor);
+      } catch (syncError) {
+        console.warn('Failed to queue sync, but vendor saved locally:', syncError);
+        // Don't fail the operation if sync fails - data is saved locally
+      }
 
       toast({
         title: 'Success',
@@ -106,7 +120,7 @@ export function AddVendorDialog({ open, onOpenChange, onSuccess }: AddVendorDial
       console.error('Error creating vendor:', error);
       toast({
         title: 'Error',
-        description: 'Failed to create vendor. Please try again.',
+        description: error instanceof Error ? error.message : 'Failed to create vendor. Please try again.',
         variant: 'destructive',
       });
     } finally {

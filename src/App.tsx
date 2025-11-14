@@ -21,6 +21,7 @@ import PublicSupport from "./pages/PublicSupport";
 import GoldCollection from "./pages/GoldCollection";
 import PreciousStones from "./pages/PreciousStones";
 import JewelryCollection from "./pages/JewelryCollection";
+import ArtificialStones from "./pages/ArtificialStones";
 import CraftsmenTracking from "./pages/CraftsmenTracking";
 import NotFound from "./pages/NotFound";
 import SyncApi from "./pages/SyncApi";
@@ -28,6 +29,8 @@ import { Subscription } from "./pages/Subscription";
 import Reservations from "./pages/Reservations";
 import Vendors from "./pages/Vendors";
 import { restoreUserIdFromSession } from "./lib/userStorage";
+import { migrateToSingleSource, isMigrationComplete } from "./lib/dataMigration";
+import { useEffect } from "react";
 
 const queryClient = new QueryClient();
 
@@ -35,6 +38,27 @@ const queryClient = new QueryClient();
 restoreUserIdFromSession();
 
 const App = () => {
+  // Run migration on app startup if not already completed
+  useEffect(() => {
+    const runMigration = async () => {
+      try {
+        const migrationComplete = await isMigrationComplete();
+        if (!migrationComplete) {
+          console.log('🔄 Starting data migration to single source of truth...');
+          const result = await migrateToSingleSource();
+          if (result.success) {
+            console.log(`✅ Migration complete: ${result.migrated} items migrated`);
+          } else {
+            console.error('❌ Migration failed:', result.errors);
+          }
+        }
+      } catch (error) {
+        console.error('Error during migration:', error);
+      }
+    };
+    
+    runMigration();
+  }, []);
   return (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
@@ -54,6 +78,7 @@ const App = () => {
             <Route path="/dashboard" element={<RequireAuth><Index /></RequireAuth>} />
             <Route path="/gold-collection" element={<GoldCollection />} />
             <Route path="/precious-stones" element={<PreciousStones />} />
+            <Route path="/artificial-stones" element={<ArtificialStones />} />
             <Route path="/jewelry-collection" element={<JewelryCollection />} />
             <Route path="/inventory" element={<Index />} />
             <Route path="/craftsmen" element={<CraftsmenTracking />} />

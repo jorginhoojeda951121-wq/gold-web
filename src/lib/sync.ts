@@ -345,23 +345,53 @@ export async function syncAll() {
 		const all = (await getUserData<any[]>('inventory_items')) ?? [];
 		const idx = all.findIndex((e) => e.id === row.id);
 		
+		// CRITICAL: Map category to item_type BEFORE processing
+		// Server uses: category: 'stones' (plural), but we need item_type: 'stone' (singular)
+		const category = (row.category || row.item_type || 'jewelry').toLowerCase();
+		let itemType = category;
+		
+		// Map server category format to local item_type format
+		if (category === 'stones') {
+			itemType = 'stone';
+		} else if (category === 'gold' || category === 'jewelry' || category === 'artificial') {
+			itemType = category; // Keep as-is
+		} else {
+			itemType = 'jewelry'; // Default fallback
+		}
+		
 		// Conflict resolution: Prefer local changes if they're more recent
 		if (idx >= 0) {
 			const localItem = all[idx];
 			const localUpdatedAt = localItem.updated_at ? new Date(localItem.updated_at).getTime() : 0;
 			const serverUpdatedAt = row.updated_at ? new Date(row.updated_at).getTime() : 0;
 			
+			// Preserve local item_type if it exists and is valid
+			const finalItemType = localItem.item_type || itemType;
+			
+			// CRITICAL: Always preserve local image_1-4 fields - they are NOT synced to server
+			// Server only has image/image_url, but local has image_1, image_2, image_3, image_4
+			const preservedImages = {
+				image_1: localItem.image_1 || '',
+				image_2: localItem.image_2 || '',
+				image_3: localItem.image_3 || '',
+				image_4: localItem.image_4 || '',
+			};
+			
 			// If local has more recent update, keep local and merge only non-critical fields
 			if (localUpdatedAt > serverUpdatedAt && localItem.inStock !== undefined) {
 			// Merge server data but keep local inStock and timestamp
 			const mergedItem: any = {
 				...row,
+				item_type: finalItemType, // CRITICAL: Set item_type for filtering
+				category: category, // Preserve original category
 				inStock: localItem.inStock, // Preserve local stock quantity
 				stock: localItem.inStock, // Also set stock field
 				updated_at: localItem.updated_at, // Keep local timestamp
 				// Preserve image from Supabase image_url field (prioritize image_url from Supabase, then local)
 				image: (row.image_url && row.image_url.trim()) || (localItem.image && localItem.image.trim()) || (row.image && row.image.trim()) || '',
 				image_url: (row.image_url && row.image_url.trim()) || (row.image && row.image.trim()) || (localItem.image_url && localItem.image_url.trim()) || (localItem.image && localItem.image.trim()) || '',
+				// CRITICAL: Always preserve local multi-image fields (NOT synced to server)
+				...preservedImages,
 			};
 				// Only include isMissing/isArtificial if they exist in local item (they may not exist in Supabase schema)
 				if (localItem.isMissing !== undefined) mergedItem.isMissing = localItem.isMissing;
@@ -371,10 +401,15 @@ export async function syncAll() {
 				// Server data is newer or local doesn't have stock, use server data
 				const mergedItem: any = {
 					...row,
+					item_type: finalItemType, // CRITICAL: Set item_type for filtering
+					category: category, // Preserve original category
 					inStock: row.stock ?? row.inStock ?? all[idx].inStock ?? 0, // Map stock to inStock
+					stock: row.stock ?? row.inStock ?? all[idx].inStock ?? 0, // Also set stock field
 					// Preserve image from Supabase image_url field (prioritize image_url from Supabase)
 					image: (row.image_url && row.image_url.trim()) || (row.image && row.image.trim()) || (all[idx].image && all[idx].image.trim()) || '',
 					image_url: (row.image_url && row.image_url.trim()) || (row.image && row.image.trim()) || (all[idx].image_url && all[idx].image_url.trim()) || (all[idx].image && all[idx].image.trim()) || '',
+					// CRITICAL: Always preserve local multi-image fields (NOT synced to server)
+					...preservedImages,
 				};
 				// Only include isMissing/isArtificial if they exist in server data
 				if (row.isMissing !== undefined) mergedItem.isMissing = row.isMissing;
@@ -382,23 +417,32 @@ export async function syncAll() {
 				all[idx] = mergedItem;
 			}
 		} else {
+			// New item from server - itemType already calculated above
+			// Extract image from server data and map to image_1 (first image)
+			const serverImage = (row.image_url && row.image_url.trim()) || (row.image && row.image.trim()) || '';
+			
 			const newItem: any = {
 				...row,
+				item_type: itemType, // CRITICAL: Set item_type for filtering
+				category: category, // Preserve original category
 				inStock: row.stock ?? row.inStock ?? 0, // Map stock to inStock
+				stock: row.stock ?? row.inStock ?? 0, // Also set stock field
 				// Preserve image from Supabase image_url field (prioritize image_url from Supabase)
-				image: (row.image_url && row.image_url.trim()) || (row.image && row.image.trim()) || '',
-				image_url: (row.image_url && row.image_url.trim()) || (row.image && row.image.trim()) || '',
+				image: serverImage,
+				image_url: serverImage,
+				// Map server's single image to image_1 (multi-image fields are local-only)
+				image_1: serverImage || '',
+				image_2: '',
+				image_3: '',
+				image_4: '',
 			};
 			// Only include isMissing/isArtificial if they exist in server data
 			if (row.isMissing !== undefined) newItem.isMissing = row.isMissing;
 			if (row.isArtificial !== undefined) newItem.isArtificial = row.isArtificial;
 			all.push(newItem);
 		}
+		
 		await setUserData('inventory_items', all);
-
-		// Map Supabase inventory fields to web app format
-		// Determine item_type from category or row data
-		const itemType = (row.category || row.item_type || 'jewelry').toLowerCase();
 		
 		// CRITICAL: Project into per-page keys with inStock preserved
 		if (itemType === 'gold' || row.category === 'gold') {
@@ -765,6 +809,102 @@ export async function syncAll() {
 	}, async (id: string) => {
 		const list = (await getUserData<any[]>('customers')) ?? [];
 		await setUserData('customers', list.filter((e) => e.id !== id));
+	}));
+
+	// Reservations - Direct mapping
+	await run('reservations', () => syncTable('reservations', async (row: any) => {
+		const list = (await getUserData<any[]>('reservations')) ?? [];
+		const idx = list.findIndex((e) => e.id === row.id);
+		// Map Supabase reservation fields to web app format
+		const mapped = {
+			id: row.id,
+			customer_name: row.customer_name,
+			customer_phone: row.customer_phone,
+			customer_email: row.customer_email,
+			event_type: row.event_type,
+			event_date: row.event_date,
+			reservation_date: row.reservation_date,
+			event_description: row.event_description,
+			pickup_date: row.pickup_date,
+			return_date: row.return_date,
+			status: row.status || 'pending',
+			total_amount: parseFloat(String(row.total_amount ?? 0)) || 0,
+			advance_paid: parseFloat(String(row.advance_paid ?? 0)) || 0,
+			balance_due: parseFloat(String(row.balance_due ?? 0)) || 0,
+			special_requests: row.special_requests,
+			category_preferences: row.category_preferences,
+			color_preferences: row.color_preferences,
+			polish_quality: row.polish_quality,
+			polish_service: row.polish_service || false,
+			polish_rate: row.polish_rate ? parseFloat(String(row.polish_rate)) : null,
+			notes: row.notes,
+			is_overdue: row.status !== 'cancelled' && 
+			           row.status !== 'returned' && 
+			           new Date(row.event_date) < new Date(),
+			created_at: row.created_at,
+			updated_at: row.updated_at,
+		};
+		if (idx >= 0) list[idx] = mapped;
+		else list.push(mapped);
+		await setUserData('reservations', list);
+	}, async (id: string) => {
+		const list = (await getUserData<any[]>('reservations')) ?? [];
+		const filtered = list.filter((e) => e.id !== id);
+		await setUserData('reservations', filtered);
+	}));
+
+	// Vendors - Direct mapping
+	await run('vendors', () => syncTable('vendors', async (row: any) => {
+		const list = (await getUserData<any[]>('vendors')) ?? [];
+		const idx = list.findIndex((e) => e.id === row.id);
+		
+		// Parse specialization if it's a JSON string
+		let specialization = row.specialization;
+		if (specialization && typeof specialization === 'string') {
+			try {
+				const parsed = JSON.parse(specialization);
+				specialization = Array.isArray(parsed) ? parsed : specialization;
+			} catch {
+				// If parsing fails, keep as string (will be handled in UI)
+				specialization = specialization;
+			}
+		}
+		
+		// Map Supabase vendor fields to web app format
+		const mapped = {
+			id: row.id,
+			name: row.name,
+			contact_person: row.contact_person,
+			phone: row.phone,
+			email: row.email,
+			address: row.address,
+			city: row.city,
+			state: row.state,
+			pincode: row.pincode,
+			vendor_type: row.vendor_type,
+			gst_number: row.gst_number,
+			pan_number: row.pan_number,
+			specialization: specialization,
+			credit_limit: parseFloat(String(row.credit_limit ?? 0)) || 0,
+			payment_terms: row.payment_terms,
+			bank_name: row.bank_name,
+			account_number: row.account_number,
+			ifsc_code: row.ifsc_code,
+			upi_id: row.upi_id,
+			notes: row.notes,
+			status: row.status || 'active',
+			total_purchases: parseFloat(String(row.total_purchases ?? 0)) || 0,
+			outstanding_balance: parseFloat(String(row.outstanding_balance ?? 0)) || 0,
+			created_at: row.created_at,
+			updated_at: row.updated_at,
+		};
+		if (idx >= 0) list[idx] = mapped;
+		else list.push(mapped);
+		await setUserData('vendors', list);
+	}, async (id: string) => {
+		const list = (await getUserData<any[]>('vendors')) ?? [];
+		const filtered = list.filter((e) => e.id !== id);
+		await setUserData('vendors', filtered);
 	}));
 
 	// Customer Ledger (mapped from Supabase 'customer_ledger' to web 'customer_transactions')
@@ -1843,7 +1983,8 @@ async function pushQueue() {
 				} else if (change.table === 'inventory_items') {
 					// Transform inventory_items to inventory format - EXACT schema match
 					// IMPORTANT: Remove image fields from payload to avoid syncing large base64 data
-					const { image, image_url, images, ...itemWithoutImages } = change.payload;
+					// NOTE: image_1, image_2, image_3, image_4 are LOCAL-ONLY and NOT synced to server
+					const { image, image_url, images, image_1, image_2, image_3, image_4, ...itemWithoutImages } = change.payload;
 					const item = itemWithoutImages;
 					
 					// Map item_type to category (must be: gold, stones, jewelry, artificial)
@@ -2286,6 +2427,68 @@ async function pushQueue() {
 						notes: customer.notes || null,
 						is_active: (customer.status === 'active' || customer.is_active === 1) ? 1 : 1,
 						updated_at: customer.updated_at || new Date().toISOString(),
+					}, { onConflict: 'id' });
+					successfulChanges.push(change.id);
+				} else if (change.table === 'reservations') {
+					// Reservations - direct mapping
+					const reservation = change.payload;
+					await sb.from('reservations').upsert({
+						id: reservation.id,
+						user_id: userId, // CRITICAL: Include user_id for data isolation
+						customer_name: String(reservation.customer_name || ''),
+						customer_phone: String(reservation.customer_phone || ''),
+						customer_email: reservation.customer_email || null,
+						event_type: reservation.event_type || 'other',
+						event_date: reservation.event_date || null,
+						reservation_date: reservation.reservation_date || new Date().toISOString().split('T')[0],
+						event_description: reservation.event_description || null,
+						pickup_date: reservation.pickup_date || null,
+						return_date: reservation.return_date || null,
+						status: reservation.status || 'pending',
+						total_amount: parseFloat(String(reservation.total_amount || 0)),
+						advance_paid: parseFloat(String(reservation.advance_paid || 0)),
+						balance_due: parseFloat(String(reservation.balance_due || 0)),
+						special_requests: reservation.special_requests || null,
+						category_preferences: reservation.category_preferences || null,
+						color_preferences: reservation.color_preferences || null,
+						polish_quality: reservation.polish_quality || null,
+						polish_service: reservation.polish_service || false,
+						polish_rate: reservation.polish_rate ? parseFloat(String(reservation.polish_rate)) : null,
+						notes: reservation.notes || null,
+						created_at: reservation.created_at || new Date().toISOString(),
+						updated_at: reservation.updated_at || new Date().toISOString(),
+					}, { onConflict: 'id' });
+					successfulChanges.push(change.id);
+				} else if (change.table === 'vendors') {
+					// Vendors - direct mapping
+					const vendor = change.payload;
+					await sb.from('vendors').upsert({
+						id: vendor.id,
+						user_id: userId, // CRITICAL: Include user_id for data isolation
+						name: String(vendor.name || ''),
+						contact_person: vendor.contact_person || null,
+						phone: String(vendor.phone || ''),
+						email: vendor.email || null,
+						address: vendor.address || null,
+						city: vendor.city || null,
+						state: vendor.state || null,
+						pincode: vendor.pincode || null,
+						vendor_type: vendor.vendor_type || 'supplier',
+						gst_number: vendor.gst_number || null,
+						pan_number: vendor.pan_number || null,
+						specialization: vendor.specialization || null,
+						credit_limit: parseFloat(String(vendor.credit_limit || 0)),
+						payment_terms: vendor.payment_terms || null,
+						bank_name: vendor.bank_name || null,
+						account_number: vendor.account_number || null,
+						ifsc_code: vendor.ifsc_code || null,
+						upi_id: vendor.upi_id || null,
+						notes: vendor.notes || null,
+						status: vendor.status || 'active',
+						total_purchases: parseFloat(String(vendor.total_purchases || 0)),
+						outstanding_balance: parseFloat(String(vendor.outstanding_balance || 0)),
+						created_at: vendor.created_at || new Date().toISOString(),
+						updated_at: vendor.updated_at || new Date().toISOString(),
 					}, { onConflict: 'id' });
 					successfulChanges.push(change.id);
 				} else {

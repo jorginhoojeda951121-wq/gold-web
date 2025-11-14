@@ -31,11 +31,14 @@ export const ReportingDashboard = () => {
     
     try {
       // Load all user-scoped data with proper null/undefined handling
-      const [invoicesRaw, inventoryItemsRaw, customersRaw, employeesRaw] = await Promise.all([
+      const [invoicesRaw, inventoryItemsRaw, customersRaw, employeesRaw, vendorsRaw, craftsmenRaw, transactionsRaw] = await Promise.all([
         getUserData<any[]>('pos_recentInvoices'),
         getUserData<any[]>('inventory_items'),
         getUserData<any[]>('customers'),
         getUserData<any[]>('staff_employees'),
+        getUserData<any[]>('vendors'),
+        getUserData<any[]>('craftsmen'),
+        getUserData<any[]>('customer_transactions'),
       ]);
 
       // Ensure all data is an array (handle undefined/null)
@@ -43,20 +46,51 @@ export const ReportingDashboard = () => {
       const inventoryItems = Array.isArray(inventoryItemsRaw) ? inventoryItemsRaw : [];
       const customers = Array.isArray(customersRaw) ? customersRaw : [];
       const employees = Array.isArray(employeesRaw) ? employeesRaw : [];
+      const vendors = Array.isArray(vendorsRaw) ? vendorsRaw : [];
+      const craftsmen = Array.isArray(craftsmenRaw) ? craftsmenRaw : [];
+      const transactions = Array.isArray(transactionsRaw) ? transactionsRaw : [];
+
+      // Filter invoices by selected period
+      const now = new Date();
+      let periodStart: Date;
+      
+      switch (selectedPeriod) {
+        case 'week':
+          periodStart = new Date(now);
+          periodStart.setDate(periodStart.getDate() - 7);
+          break;
+        case 'month':
+          periodStart = new Date(now.getFullYear(), now.getMonth(), 1);
+          break;
+        case 'quarter':
+          const quarter = Math.floor(now.getMonth() / 3);
+          periodStart = new Date(now.getFullYear(), quarter * 3, 1);
+          break;
+        case 'year':
+          periodStart = new Date(now.getFullYear(), 0, 1);
+          break;
+        default:
+          periodStart = new Date(now.getFullYear(), now.getMonth(), 1);
+      }
+
+      const filteredInvoices = Array.isArray(invoices)
+        ? invoices.filter((inv: any) => {
+            if (!inv?.date) return false;
+            const invDate = new Date(inv.date);
+            return invDate >= periodStart && invDate <= now;
+          })
+        : [];
 
       // Calculate sales report data - with safe array operations
-      const totalSales = Array.isArray(invoices) 
-        ? invoices.reduce((sum: number, inv: any) => sum + (inv?.total || 0), 0)
-        : 0;
-      const totalOrders = Array.isArray(invoices) ? invoices.length : 0;
+      const totalSales = filteredInvoices.reduce((sum: number, inv: any) => sum + (inv?.total || 0), 0);
+      const totalOrders = filteredInvoices.length;
       const averageOrderValue = totalOrders > 0 ? totalSales / totalOrders : 0;
 
-      // Top products by revenue
+      // Top products by revenue (from filtered invoices)
       const productRevenueMap = new Map<string, { revenue: number; orders: number }>();
-      if (Array.isArray(invoices)) {
-        invoices.forEach((inv: any) => {
-          if (inv?.items && Array.isArray(inv.items)) {
-            inv.items.forEach((item: any) => {
+      filteredInvoices.forEach((inv: any) => {
+        if (inv?.items && Array.isArray(inv.items)) {
+          inv.items.forEach((item: any) => {
             const itemName = item.name || 'Unknown Item';
             const revenue = (item.price || 0) * (item.quantity || 0);
             const existing = productRevenueMap.get(itemName);
@@ -66,10 +100,9 @@ export const ReportingDashboard = () => {
             } else {
               productRevenueMap.set(itemName, { revenue, orders: 1 });
             }
-            });
-          }
-        });
-      }
+          });
+        }
+      });
 
       const topProducts = Array.from(productRevenueMap.entries())
         .map(([name, data]) => ({ name, revenue: data.revenue, orders: data.orders }))
@@ -88,9 +121,58 @@ export const ReportingDashboard = () => {
         ? inventoryItems.filter((item: any) => (item?.inStock || item?.stock || 0) === 0).length
         : 0;
 
+      // Calculate expense breakdown
+      // 1. Salary expenses (monthly salaries from employees)
+      const monthlySalaries = Array.isArray(employees)
+        ? employees.reduce((sum: number, emp: any) => {
+            const salary = parseFloat(String(emp?.salary || 0)) || 0;
+            return sum + salary;
+          }, 0)
+        : 0;
+
+      // 2. Vendor payments (outstanding balances + total purchases)
+      const vendorPayments = Array.isArray(vendors)
+        ? vendors.reduce((sum: number, vendor: any) => {
+            const outstanding = parseFloat(String(vendor?.outstanding_balance || 0)) || 0;
+            const totalPurchases = parseFloat(String(vendor?.total_purchases || 0)) || 0;
+            // Use outstanding balance if available, otherwise use total purchases as estimate
+            return sum + (outstanding > 0 ? outstanding : totalPurchases * 0.1); // 10% of purchases as estimate if no outstanding
+          }, 0)
+        : 0;
+
+      // 3. Vendor invoices (from vendor data - total purchases can represent invoices)
+      const vendorInvoices = Array.isArray(vendors)
+        ? vendors.reduce((sum: number, vendor: any) => {
+            const totalPurchases = parseFloat(String(vendor?.total_purchases || 0)) || 0;
+            return sum + totalPurchases;
+          }, 0)
+        : 0;
+
+      // 4. Craftsmen payments (from payment history)
+      const craftsmenPayments = Array.isArray(craftsmen)
+        ? craftsmen.reduce((sum: number, craftsman: any) => {
+            const paymentHistory = Array.isArray(craftsman?.paymentHistory) ? craftsman.paymentHistory : [];
+            const totalPaid = paymentHistory.reduce((paySum: number, payment: any) => {
+              return paySum + (parseFloat(String(payment?.amount || 0)) || 0);
+            }, 0);
+            return sum + totalPaid;
+          }, 0)
+        : 0;
+
+      // 5. Customer ledger (outstanding balances from customers)
+      const customerLedgerOutstanding = Array.isArray(customers)
+        ? customers.reduce((sum: number, customer: any) => {
+            const balance = parseFloat(String(customer?.currentBalance || 0)) || 0;
+            return sum + balance;
+          }, 0)
+        : 0;
+
+      // Total expenses (excluding bills and marketing as per requirements)
+      const totalExpenses = monthlySalaries + vendorPayments + vendorInvoices + craftsmenPayments + customerLedgerOutstanding;
+
       // Calculate financial report data
       const revenue = totalSales;
-      const expenses = 0; // Would need expense tracking
+      const expenses = totalExpenses;
       const profit = revenue - expenses;
       const profitMargin = revenue > 0 ? (profit / revenue) * 100 : 0;
       const taxes = revenue * 0.03; // 3% GST estimate
@@ -166,11 +248,18 @@ export const ReportingDashboard = () => {
             change: revenue
           },
           expenseBreakdown: {
-            inventory: 0,
-            salaries: totalSalaries > 0 ? 100 : 0,
-            utilities: 0,
-            marketing: 0,
-            other: 0
+            salaries: totalExpenses > 0 ? (monthlySalaries / totalExpenses) * 100 : 0,
+            vendorPay: totalExpenses > 0 ? (vendorPayments / totalExpenses) * 100 : 0,
+            vendorInvoices: totalExpenses > 0 ? (vendorInvoices / totalExpenses) * 100 : 0,
+            craftsmenPay: totalExpenses > 0 ? (craftsmenPayments / totalExpenses) * 100 : 0,
+            customerLedger: totalExpenses > 0 ? (customerLedgerOutstanding / totalExpenses) * 100 : 0
+          },
+          expenseDetails: {
+            salaries: monthlySalaries,
+            vendorPay: vendorPayments,
+            vendorInvoices: vendorInvoices,
+            craftsmenPay: craftsmenPayments,
+            customerLedger: customerLedgerOutstanding
           }
         },
         employee: {
@@ -197,14 +286,14 @@ export const ReportingDashboard = () => {
       setReportData({
         sales: { totalSales: 0, totalOrders: 0, averageOrderValue: 0, topProducts: [], salesByCategory: {}, monthlyTrend: [] },
         inventory: { totalItems: 0, totalValue: 0, lowStock: 0, outOfStock: 0, categories: {}, topMoving: [] },
-        financial: { revenue: 0, expenses: 0, profit: 0, profitMargin: 0, taxes: 0, netProfit: 0, cashFlow: {}, expenseBreakdown: {} },
+        financial: { revenue: 0, expenses: 0, profit: 0, profitMargin: 0, taxes: 0, netProfit: 0, cashFlow: {}, expenseBreakdown: {}, expenseDetails: {} },
         employee: { totalEmployees: 0, activeEmployees: 0, onLeave: 0, totalSalaries: 0, averageSalary: 0, attendance: 0, productivity: 0, departments: {} }
       });
     }
     
     // Always set loading to false, even if there was an error
     setLoading(false);
-  }, []);
+  }, [selectedPeriod]);
 
   // Listen for sync completion events to reload data in background
   useEffect(() => {
@@ -241,7 +330,7 @@ export const ReportingDashboard = () => {
         setReportData({
           sales: { totalSales: 0, totalOrders: 0, averageOrderValue: 0, topProducts: [], salesByCategory: {}, monthlyTrend: [] },
           inventory: { totalItems: 0, totalValue: 0, lowStock: 0, outOfStock: 0, categories: {}, topMoving: [] },
-          financial: { revenue: 0, expenses: 0, profit: 0, profitMargin: 0, taxes: 0, netProfit: 0, cashFlow: {}, expenseBreakdown: {} },
+          financial: { revenue: 0, expenses: 0, profit: 0, profitMargin: 0, taxes: 0, netProfit: 0, cashFlow: {}, expenseBreakdown: {}, expenseDetails: {} },
           employee: { totalEmployees: 0, activeEmployees: 0, onLeave: 0, totalSalaries: 0, averageSalary: 0, attendance: 0, productivity: 0, departments: {} }
         });
       }
@@ -309,8 +398,12 @@ export const ReportingDashboard = () => {
       doc.setFontSize(20);
       doc.text(`${selectedReport.charAt(0).toUpperCase() + selectedReport.slice(1)} Report`, 20, 30);
       
+      doc.setFontSize(10);
+      doc.text(`Period: ${selectedPeriod.charAt(0).toUpperCase() + selectedPeriod.slice(1)}`, 20, 40);
+      doc.text(`Generated: ${new Date().toLocaleDateString()}`, 20, 45);
+      
       doc.setFontSize(12);
-      let yPos = 50;
+      let yPos = 55;
       
       if (selectedReport === 'sales') {
         const sales = currentData as typeof reportData.sales;
@@ -330,18 +423,51 @@ export const ReportingDashboard = () => {
         doc.text(`Total Value: ₹${inventory.totalValue.toLocaleString()}`, 20, yPos + 10);
         doc.text(`Low Stock Items: ${inventory.lowStock}`, 20, yPos + 20);
         doc.text(`Out of Stock Items: ${inventory.outOfStock}`, 20, yPos + 30);
+        
+        if (inventory.topMoving && inventory.topMoving.length > 0) {
+          yPos += 40;
+          doc.text('Fast Moving Items:', 20, yPos);
+          inventory.topMoving.forEach((item, index) => {
+            yPos += 10;
+            doc.text(`${index + 1}. ${item.name} - ${item.sold} sold, ${item.remaining} remaining`, 25, yPos);
+          });
+        }
       } else if (selectedReport === 'financial') {
         const financial = currentData as typeof reportData.financial;
         doc.text(`Revenue: ₹${financial.revenue.toLocaleString()}`, 20, yPos);
         doc.text(`Expenses: ₹${financial.expenses.toLocaleString()}`, 20, yPos + 10);
         doc.text(`Net Profit: ₹${financial.netProfit.toLocaleString()}`, 20, yPos + 20);
         doc.text(`Profit Margin: ${financial.profitMargin}%`, 20, yPos + 30);
+        
+        yPos += 50;
+        doc.text('Expense Breakdown:', 20, yPos);
+        if (financial.expenseDetails) {
+          Object.entries(financial.expenseDetails).forEach(([category, amount]) => {
+            yPos += 10;
+            const categoryLabel = category === 'vendorPay' ? 'Vendor Payments' :
+                                 category === 'vendorInvoices' ? 'Vendor Invoices' :
+                                 category === 'craftsmenPay' ? 'Craftsmen Payments' :
+                                 category === 'customerLedger' ? 'Customer Ledger' :
+                                 category.charAt(0).toUpperCase() + category.slice(1);
+            doc.text(`${categoryLabel}: ₹${(amount as number).toLocaleString()}`, 25, yPos);
+          });
+        }
       } else if (selectedReport === 'employee') {
         const employee = currentData as typeof reportData.employee;
         doc.text(`Total Employees: ${employee.totalEmployees}`, 20, yPos);
         doc.text(`Active Employees: ${employee.activeEmployees}`, 20, yPos + 10);
-        doc.text(`Average Salary: ₹${employee.averageSalary.toLocaleString()}`, 20, yPos + 20);
-        doc.text(`Attendance Rate: ${employee.attendance}%`, 20, yPos + 30);
+        doc.text(`On Leave: ${employee.onLeave}`, 20, yPos + 20);
+        doc.text(`Total Monthly Salaries: ₹${Math.round((employee.totalSalaries || 0) / 12).toLocaleString()}`, 20, yPos + 30);
+        doc.text(`Average Monthly Salary: ₹${Math.round((employee.averageSalary || 0) / 12).toLocaleString()}`, 20, yPos + 40);
+        
+        if (employee.departments && Object.keys(employee.departments).length > 0) {
+          yPos += 50;
+          doc.text('Department Breakdown:', 20, yPos);
+          Object.entries(employee.departments).forEach(([dept, count]) => {
+            yPos += 10;
+            doc.text(`${dept.charAt(0).toUpperCase() + dept.slice(1)}: ${count}`, 25, yPos);
+          });
+        }
       }
       
       doc.save(`${selectedReport}_report_${new Date().toISOString().split('T')[0]}.pdf`);
@@ -375,7 +501,20 @@ export const ReportingDashboard = () => {
         csvContent += `Revenue,₹${financial.revenue.toLocaleString()}\n`;
         csvContent += `Expenses,₹${financial.expenses.toLocaleString()}\n`;
         csvContent += `Net Profit,₹${financial.netProfit.toLocaleString()}\n`;
-        csvContent += `Profit Margin,${financial.profitMargin}%\n`;
+        csvContent += `Profit Margin,${financial.profitMargin}%\n\n`;
+        csvContent += 'Expense Breakdown\n';
+        csvContent += 'Category,Amount,Percentage\n';
+        if (financial.expenseDetails) {
+          Object.entries(financial.expenseDetails).forEach(([category, amount]) => {
+            const categoryLabel = category === 'vendorPay' ? 'Vendor Payments' :
+                                 category === 'vendorInvoices' ? 'Vendor Invoices' :
+                                 category === 'craftsmenPay' ? 'Craftsmen Payments' :
+                                 category === 'customerLedger' ? 'Customer Ledger' :
+                                 category.charAt(0).toUpperCase() + category.slice(1);
+            const percentage = financial.expenses > 0 ? ((amount as number) / financial.expenses) * 100 : 0;
+            csvContent += `${categoryLabel},₹${(amount as number).toLocaleString()},${percentage.toFixed(1)}%\n`;
+          });
+        }
       } else if (selectedReport === 'employee') {
         const employee = currentData as typeof reportData.employee;
         csvContent = 'Metric,Value\n';
@@ -765,16 +904,42 @@ export const ReportingDashboard = () => {
                 <CardTitle>Expense Breakdown</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="space-y-3">
-                  {Object.entries(reportData.financial.expenseBreakdown).map(([category, percentage]) => (
-                    <div key={category}>
-                      <div className="flex justify-between text-sm mb-1">
-                        <span className="capitalize">{category}</span>
-                        <span>{percentage}%</span>
+                <div className="space-y-4">
+                  {reportData.financial.expenseDetails && Object.keys(reportData.financial.expenseDetails).length > 0 ? (
+                    <>
+                      {Object.entries(reportData.financial.expenseDetails).map(([category, amount]) => {
+                        const percentage = reportData.financial.expenses > 0 
+                          ? ((amount as number) / reportData.financial.expenses) * 100 
+                          : 0;
+                        const categoryLabel = category === 'vendorPay' ? 'Vendor Payments' :
+                                             category === 'vendorInvoices' ? 'Vendor Invoices' :
+                                             category === 'craftsmenPay' ? 'Craftsmen Payments' :
+                                             category === 'customerLedger' ? 'Customer Ledger (Outstanding)' :
+                                             category.charAt(0).toUpperCase() + category.slice(1);
+                        
+                        return (
+                          <div key={category}>
+                            <div className="flex justify-between text-sm mb-1">
+                              <span className="font-medium">{categoryLabel}</span>
+                              <div className="text-right">
+                                <span className="font-bold">₹{(amount as number).toLocaleString()}</span>
+                                <span className="text-muted-foreground ml-2">({percentage.toFixed(1)}%)</span>
+                              </div>
+                            </div>
+                            <Progress value={percentage} className="h-2" />
+                          </div>
+                        );
+                      })}
+                      <div className="pt-3 border-t">
+                        <div className="flex justify-between font-bold">
+                          <span>Total Expenses</span>
+                          <span className="text-red-600">₹{reportData.financial.expenses.toLocaleString()}</span>
+                        </div>
                       </div>
-                      <Progress value={percentage} className="h-2" />
-                    </div>
-                  ))}
+                    </>
+                  ) : (
+                    <div className="text-center py-4 text-muted-foreground">No expense data available</div>
+                  )}
                 </div>
               </CardContent>
             </Card>

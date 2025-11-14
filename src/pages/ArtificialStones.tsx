@@ -1,5 +1,5 @@
-import { useState, useRef, useEffect, useCallback } from "react";
-import { Search, Grid, List, ArrowLeft, Plus, Edit, Trash2, Upload, X, ShoppingCart, AlertTriangle, Gem } from "lucide-react";
+import { useState, useEffect, useCallback } from "react";
+import { Search, Grid, List, ArrowLeft, Plus, Edit, Trash2, ShoppingCart, Sparkles } from "lucide-react";
 import { Navigation } from "@/components/Navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,66 +13,65 @@ import { useToast } from "@/hooks/use-toast";
 import { enqueueChange } from "@/lib/sync";
 import { getUserData, setUserData } from "@/lib/userStorage";
 import { MultiImageUpload } from "@/components/MultiImageUpload";
-import { StoneItemCard, StoneItem } from "@/components/StoneItemCard";
-import { StoneItemDetailsDialog } from "@/components/StoneItemDetailsDialog";
+import { ArtificialStoneCard, ArtificialStoneItem } from "@/components/ArtificialStoneCard";
+import { ArtificialStoneDetailsDialog } from "@/components/ArtificialStoneDetailsDialog";
 
-const PreciousStones = () => {
+const ArtificialStones = () => {
   const { toast } = useToast();
   const navigate = useNavigate();
-  const { data: searchQuery, updateData: setSearchQuery } = useOfflineStorage<string>("stones_search", "");
-  const { data: viewMode, updateData: setViewMode } = useOfflineStorage<'grid' | 'list'>("stones_viewMode", 'grid');
-  // Use stones_items key - data will be auto-populated by seedWebData
-  // CRITICAL: Use useUserStorage for user-scoped data isolation
-  const { data: stones, updateData: setStones } = useUserStorage<StoneItem[]>("stones_items", []);
+  const { data: searchQuery, updateData: setSearchQuery } = useOfflineStorage<string>("artificial_stones_search", "");
+  const { data: viewMode, updateData: setViewMode } = useOfflineStorage<'grid' | 'list'>("artificial_stones_viewMode", 'grid');
+  const { data: artificialStones, updateData: setArtificialStones } = useUserStorage<ArtificialStoneItem[]>("artificial_stones_items", []);
   const { data: posCart, updateData: setPosCart } = useOfflineStorage<any[]>("pos_cart", []);
 
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [showDetailsDialog, setShowDetailsDialog] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const [itemToDelete, setItemToDelete] = useState<StoneItem | null>(null);
-  const [selectedItem, setSelectedItem] = useState<StoneItem | null>(null);
+  const [itemToDelete, setItemToDelete] = useState<ArtificialStoneItem | null>(null);
+  const [selectedItem, setSelectedItem] = useState<ArtificialStoneItem | null>(null);
   const [formData, setFormData] = useState({
     name: "",
-    carat: "",
-    clarity: "",
+    color: "",
+    size: "",
     cut: "",
+    clarity: "",
     price: "",
     stock: ""
   });
   const [images, setImages] = useState<(string | null)[]>([null, null, null, null]);
 
   // Dropdown options
-  const clarityOptions = ['IF', 'VVS1', 'VVS2', 'VS1', 'VS2', 'SI1', 'SI2', 'I1', 'I2', 'I3'];
-  const cutOptions = ['Excellent', 'Very Good', 'Good', 'Fair', 'Poor', 'Round Brilliant', 'Princess', 'Cushion', 'Emerald', 'Oval', 'Pear', 'Marquise'];
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const editFileInputRef = useRef<HTMLInputElement>(null);
+  const colorOptions = ['Red', 'Blue', 'Green', 'Yellow', 'Pink', 'Purple', 'White', 'Black', 'Orange', 'Clear', 'Multi-color'];
+  const sizeOptions = ['1mm', '2mm', '3mm', '4mm', '5mm', '6mm', '8mm', '10mm', '12mm', '15mm', '20mm', 'Custom'];
+  const cutOptions = ['Round Brilliant', 'Princess', 'Cushion', 'Emerald', 'Oval', 'Pear', 'Marquise', 'Heart', 'Radiant', 'Asscher', 'Trillion', 'Baguette'];
+  const clarityOptions = ['IF', 'VVS1', 'VVS2', 'VS1', 'VS2', 'SI1', 'SI2', 'I1', 'I2', 'I3', 'AAA', 'AA', 'A', 'B', 'C'];
 
-  // Load stones from unified inventory_items table (Single Source of Truth)
-  const loadStoneItems = useCallback(async () => {
+  // Load artificial stones from unified inventory_items table (Single Source of Truth)
+  const loadArtificialStones = useCallback(async () => {
     try {
       const inventoryData = await getUserData<any[]>('inventory_items') || [];
 
-      // Filter only stone items
-      const stoneItems = inventoryData
+      // Filter only artificial stone items
+      const artificialStoneItems = inventoryData
         .filter((item: any) => {
-          // Check item_type first, then category, then type field
+          // Check item_type first, then category
           const itemType = item.item_type || 
-            (item.category === 'stones' ? 'stone' :
+            (item.category === 'artificial' ? 'artificial' :
+             item.category === 'stones' ? 'stone' :
              item.category === 'stone' ? 'stone' :
-             item.category === 'gold' ? 'gold' :
-             item.type === 'Gold Bar' ? 'gold' : 
-             item.type === 'Gemstone' ? 'stone' : 'jewelry');
-          return itemType === 'stone';
+             item.category === 'gold' ? 'gold' : 'jewelry');
+          return itemType === 'artificial';
         })
         .map((item: any) => ({
           id: item.id,
           name: item.name || 'Unknown Stone',
-          carat: item.attributes?.carat || item.carat || '',
-          clarity: item.attributes?.clarity || item.clarity || '',
+          color: item.attributes?.color || item.color || '',
+          size: item.attributes?.size || item.size || '',
           cut: item.attributes?.cut || item.cut || '',
+          clarity: item.attributes?.clarity || item.clarity || '',
           price: item.price || 0,
-          stock: item.stock ?? item.inStock ?? item.in_stock ?? 10,
+          stock: item.stock ?? item.inStock ?? item.in_stock ?? 0,
           image: item.image || item.image_1 || item.image_url || '',
           image_1: item.image_1 || item.image || item.image_url || '',
           image_2: item.image_2 || '',
@@ -80,22 +79,22 @@ const PreciousStones = () => {
           image_4: item.image_4 || '',
         }));
 
-      setStones(stoneItems);
+      setArtificialStones(artificialStoneItems);
     } catch (error) {
-      console.error('Error loading stone items:', error);
+      console.error('Error loading artificial stones:', error);
     }
-  }, [setStones]);
+  }, [setArtificialStones]);
 
-  // Load stones on mount
+  // Load artificial stones on mount
   useEffect(() => {
-    loadStoneItems();
-  }, [loadStoneItems]);
+    loadArtificialStones();
+  }, [loadArtificialStones]);
 
   // Listen for sync completion events to reload data after sync
   useEffect(() => {
     const handleDataSynced = () => {
       // Reload items after sync to show newly synced data
-      loadStoneItems();
+      loadArtificialStones();
     };
 
     window.addEventListener('data-synced', handleDataSynced);
@@ -103,15 +102,16 @@ const PreciousStones = () => {
     return () => {
       window.removeEventListener('data-synced', handleDataSynced);
     };
-  }, [loadStoneItems]);
+  }, [loadArtificialStones]);
 
-  const filteredItems = stones.filter(item =>
-    item.name.toLowerCase().includes(searchQuery.toLowerCase())
+  const filteredItems = artificialStones.filter(item =>
+    item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    item.color.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   const handleAddItem = async () => {
     try {
-      if (!formData.name || !formData.carat || !formData.clarity || !formData.cut || !formData.price || !formData.stock) {
+      if (!formData.name || !formData.color || !formData.size || !formData.cut || !formData.clarity || !formData.price || !formData.stock) {
         toast({
           title: "Missing Information",
           description: "Please fill in all required fields.",
@@ -133,20 +133,21 @@ const PreciousStones = () => {
         return;
       }
 
-      const newItem: StoneItem & { user_id?: string } = {
+      const newItem: ArtificialStoneItem & { user_id?: string } = {
         id: Date.now().toString(),
         name: formData.name,
-        carat: formData.carat,
-        clarity: formData.clarity,
+        color: formData.color,
+        size: formData.size,
         cut: formData.cut,
+        clarity: formData.clarity,
         price: parseFloat(formData.price) || 0,
         stock: parseInt(formData.stock) || 0,
-        image: images[0] || "https://images.unsplash.com/photo-1631832724508-ea8df04ad455?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3wzNzg4OTl8MHwxfHNlYXJjaHwxfHxwcmVjaW91cy1zdG9uZXN8ZW58MXwwfHx8MTc1Mzc2NjkyMHww&ixlib=rb-4.1.0&q=80&w=1080",
+        image: images[0] || "",
         image_1: images[0] || undefined,
         image_2: images[1] || undefined,
         image_3: images[2] || undefined,
         image_4: images[3] || undefined,
-        user_id: userId, // CRITICAL: Include user_id for data isolation
+        user_id: userId,
       };
 
       // Save to unified inventory_items table (Single Source of Truth)
@@ -154,10 +155,20 @@ const PreciousStones = () => {
       const newInventoryItem = {
         id: newItem.id,
         user_id: userId,
-        item_type: 'stone',
+        item_type: 'artificial',
+        category: 'artificial',
         name: newItem.name,
-        type: 'Gemstone',
-        attributes: { carat: newItem.carat, clarity: newItem.clarity, cut: newItem.cut },
+        type: 'Artificial Stone',
+        attributes: { 
+          color: newItem.color, 
+          size: newItem.size, 
+          cut: newItem.cut, 
+          clarity: newItem.clarity 
+        },
+        color: newItem.color,
+        size: newItem.size,
+        cut: newItem.cut,
+        clarity: newItem.clarity,
         price: newItem.price,
         inStock: newItem.stock,
         stock: newItem.stock,
@@ -176,12 +187,12 @@ const PreciousStones = () => {
       enqueueChange('inventory_items', 'upsert', newInventoryItem);
       
       // Update UI state
-      setStones(prev => [...prev, newItem]);
+      setArtificialStones(prev => [...prev, newItem]);
       
-      // Reload stones to show the new item
-      await loadStoneItems();
+      // Reload to show the new item
+      await loadArtificialStones();
       
-      setFormData({ name: "", carat: "", clarity: "", cut: "", price: "", stock: "" });
+      setFormData({ name: "", color: "", size: "", cut: "", clarity: "", price: "", stock: "" });
       setImages([null, null, null, null]);
       setShowAddDialog(false);
       toast({
@@ -189,7 +200,7 @@ const PreciousStones = () => {
         description: `${newItem.name} has been added to the collection.`
       });
     } catch (error) {
-      console.error('Error adding stone item:', error);
+      console.error('Error adding artificial stone item:', error);
       toast({
         title: "Error",
         description: "Failed to add item. Please try again.",
@@ -198,21 +209,21 @@ const PreciousStones = () => {
     }
   };
 
-  const handleViewItem = (item: StoneItem) => {
+  const handleViewItem = (item: ArtificialStoneItem) => {
     setSelectedItem(item);
     setShowDetailsDialog(true);
   };
 
-  const handleEditItem = (item: StoneItem) => {
+  const handleEditItem = (item: ArtificialStoneItem) => {
     setSelectedItem(item);
     setFormData({
       name: item.name,
-      carat: item.carat,
-      clarity: item.clarity,
+      color: item.color,
+      size: item.size,
       cut: item.cut,
+      clarity: item.clarity,
       price: item.price.toString(),
       stock: item.stock.toString(),
-      image: item.image
     });
     // Load existing images into the images state
     setImages([
@@ -227,7 +238,7 @@ const PreciousStones = () => {
 
   const handleUpdateItem = async () => {
     try {
-      if (!selectedItem || !formData.name || !formData.carat || !formData.clarity || !formData.cut || !formData.price || !formData.stock) {
+      if (!selectedItem || !formData.name || !formData.color || !formData.size || !formData.cut || !formData.clarity || !formData.price || !formData.stock) {
         toast({
           title: "Missing Information",
           description: "Please fill in all required fields.",
@@ -236,15 +247,16 @@ const PreciousStones = () => {
         return;
       }
 
-      const updatedItem: StoneItem & { image_1?: string; image_2?: string; image_3?: string; image_4?: string } = {
+      const updatedItem: ArtificialStoneItem & { image_1?: string; image_2?: string; image_3?: string; image_4?: string } = {
         ...selectedItem,
         name: formData.name,
-        carat: formData.carat,
-        clarity: formData.clarity,
+        color: formData.color,
+        size: formData.size,
         cut: formData.cut,
+        clarity: formData.clarity,
         price: parseFloat(formData.price) || 0,
         stock: parseInt(formData.stock) || 0,
-        image: images[0] || selectedItem.image || "", // Use images array
+        image: images[0] || selectedItem.image || "",
         image_1: images[0] || selectedItem.image_1,
         image_2: images[1] || selectedItem.image_2,
         image_3: images[2] || selectedItem.image_3,
@@ -257,10 +269,20 @@ const PreciousStones = () => {
       
       const inventoryUpdate = {
         id: updatedItem.id,
-        item_type: 'stone',
+        item_type: 'artificial',
+        category: 'artificial',
         name: updatedItem.name,
-        type: 'Gemstone',
-        attributes: { carat: updatedItem.carat, clarity: updatedItem.clarity, cut: updatedItem.cut },
+        type: 'Artificial Stone',
+        attributes: { 
+          color: updatedItem.color, 
+          size: updatedItem.size, 
+          cut: updatedItem.cut, 
+          clarity: updatedItem.clarity 
+        },
+        color: updatedItem.color,
+        size: updatedItem.size,
+        cut: updatedItem.cut,
+        clarity: updatedItem.clarity,
         price: updatedItem.price,
         inStock: updatedItem.stock,
         stock: updatedItem.stock,
@@ -285,12 +307,12 @@ const PreciousStones = () => {
       enqueueChange('inventory_items', 'upsert', inventoryUpdate);
       
       // Update UI state
-      setStones(prev => prev.map(item => item.id === selectedItem.id ? updatedItem : item));
+      setArtificialStones(prev => prev.map(item => item.id === selectedItem.id ? updatedItem : item));
       
-      // Reload stones to show the updated item
-      await loadStoneItems();
+      // Reload to show the updated item
+      await loadArtificialStones();
       
-      setFormData({ name: "", carat: "", clarity: "", cut: "", price: "", stock: "" });
+      setFormData({ name: "", color: "", size: "", cut: "", clarity: "", price: "", stock: "" });
       setImages([null, null, null, null]);
       setSelectedItem(null);
       setShowEditDialog(false);
@@ -299,7 +321,7 @@ const PreciousStones = () => {
         description: `${updatedItem.name} has been updated.`
       });
     } catch (error) {
-      console.error('Error updating stone item:', error);
+      console.error('Error updating artificial stone item:', error);
       toast({
         title: "Error",
         description: "Failed to update item. Please try again.",
@@ -308,7 +330,7 @@ const PreciousStones = () => {
     }
   };
 
-  const handleDeleteClick = (item: StoneItem) => {
+  const handleDeleteClick = (item: ArtificialStoneItem) => {
     setItemToDelete(item);
     setShowDeleteConfirm(true);
   };
@@ -317,7 +339,7 @@ const PreciousStones = () => {
     if (itemToDelete) {
       try {
         const id = itemToDelete.id;
-        const item = stones.find(i => i.id === id);
+        const item = artificialStones.find(i => i.id === id);
         
         // Remove from unified inventory_items table (Single Source of Truth)
         const inventoryItems = (await getUserData<any[]>('inventory_items')) || [];
@@ -327,10 +349,10 @@ const PreciousStones = () => {
         enqueueChange('inventory_items', 'delete', { id });
         
         // Update UI state
-        setStones(prev => prev.filter(item => item.id !== id));
+        setArtificialStones(prev => prev.filter(item => item.id !== id));
         
         // Reload to ensure consistency
-        await loadStoneItems();
+        await loadArtificialStones();
         
         toast({
           title: "Item Removed",
@@ -340,7 +362,7 @@ const PreciousStones = () => {
         setShowDeleteConfirm(false);
         setItemToDelete(null);
       } catch (error) {
-        console.error('Error deleting stone item:', error);
+        console.error('Error deleting artificial stone item:', error);
         toast({
           title: "Error",
           description: "Failed to delete item. Please try again.",
@@ -350,14 +372,14 @@ const PreciousStones = () => {
     }
   };
 
-  const handleOrderNow = (item: StoneItem) => {
-    // Convert StoneItem to cart item format
+  const handleOrderNow = (item: ArtificialStoneItem) => {
+    // Convert ArtificialStoneItem to cart item format
     const cartItem = {
       id: item.id,
       name: item.name,
       price: item.price,
       quantity: 1,
-      type: 'stone'
+      type: 'artificial'
     };
 
     // Check if item already exists in cart
@@ -384,7 +406,6 @@ const PreciousStones = () => {
     navigate('/pos');
   };
 
-
   return (
     <div className="min-h-screen bg-gray-50">
       <Navigation />
@@ -395,12 +416,12 @@ const PreciousStones = () => {
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center justify-between w-full">
               <div>
-                <h1 className="text-2xl font-bold text-green-600 mb-2">Precious Stones</h1>
-                <p className="text-green-500">Discover our rare and beautiful stones.</p>
+                <h1 className="text-2xl font-bold text-pink-600 mb-2">Artificial Stones</h1>
+                <p className="text-pink-500">Manage synthetic and artificial stones inventory.</p>
               </div>
               <Button 
                 onClick={() => setShowAddDialog(true)}
-                className="bg-green-600 hover:bg-green-700 text-white"
+                className="bg-pink-600 hover:bg-pink-700 text-white"
               >
                 <Plus className="h-4 w-4 mr-2" />
                 Add Item
@@ -419,10 +440,10 @@ const PreciousStones = () => {
             <div className="relative flex-1 max-w-md">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
               <Input
-                placeholder="Search Products"
+                placeholder="Search by name or color..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-10 border-gray-300 focus:border-green-500 focus:ring-green-500"
+                className="pl-10 border-gray-300 focus:border-pink-500 focus:ring-pink-500"
               />
             </div>
             <div className="flex items-center space-x-2 ml-4">
@@ -444,10 +465,10 @@ const PreciousStones = () => {
           </div>
         </div>
 
-        {/* Precious Stones */}
+        {/* Artificial Stones Grid */}
         <div className={`grid gap-4 ${viewMode === 'grid' ? 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4' : 'grid-cols-1'}`}>
           {filteredItems.map(item => (
-            <StoneItemCard
+            <ArtificialStoneCard
               key={`${item.id}-${item.image || 'no-image'}-${item.name}`}
               item={item}
               onView={handleViewItem}
@@ -460,17 +481,21 @@ const PreciousStones = () => {
 
         {filteredItems.length === 0 && (
           <div className="text-center py-12">
-            <h3 className="text-lg font-semibold text-gray-800 mb-2">No items found</h3>
-            <p className="text-gray-600">Try adjusting your search criteria</p>
+            <Sparkles className="h-16 w-16 mx-auto text-pink-300 mb-4" />
+            <h3 className="text-lg font-semibold text-gray-800 mb-2">No artificial stones found</h3>
+            <p className="text-gray-600">Try adjusting your search criteria or add a new item</p>
           </div>
         )}
       </main>
 
       {/* Add Item Dialog */}
       <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
-        <DialogContent className="sm:max-w-[500px]">
+        <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Add New Precious Stone</DialogTitle>
+            <DialogTitle>Add New Artificial Stone</DialogTitle>
+            <DialogDescription>
+              Add a new artificial stone to your inventory
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div>
@@ -479,91 +504,113 @@ const PreciousStones = () => {
                 id="name"
                 value={formData.name}
                 onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
-                placeholder="e.g., Natural Diamond"
+                placeholder="e.g., Synthetic Ruby"
               />
             </div>
+            
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <Label htmlFor="carat">Carat *</Label>
-                <Input
-                  id="carat"
-                  value={formData.carat}
-                  onChange={(e) => setFormData(prev => ({ ...prev, carat: e.target.value }))}
-                  placeholder="e.g., 2.5ct"
-                />
+                <Label htmlFor="color">Color *</Label>
+                <Select value={formData.color} onValueChange={(value) => setFormData(prev => ({ ...prev, color: value }))}>
+                  <SelectTrigger id="color">
+                    <SelectValue placeholder="Select color" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {colorOptions.map(color => (
+                      <SelectItem key={color} value={color}>{color}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label htmlFor="size">Size *</Label>
+                <Select value={formData.size} onValueChange={(value) => setFormData(prev => ({ ...prev, size: value }))}>
+                  <SelectTrigger id="size">
+                    <SelectValue placeholder="Select size" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {sizeOptions.map(size => (
+                      <SelectItem key={size} value={size}>{size}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="cut">Cutting Type *</Label>
+                <Select value={formData.cut} onValueChange={(value) => setFormData(prev => ({ ...prev, cut: value }))}>
+                  <SelectTrigger id="cut">
+                    <SelectValue placeholder="Select cut" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {cutOptions.map(cut => (
+                      <SelectItem key={cut} value={cut}>{cut}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               <div>
                 <Label htmlFor="clarity">Clarity *</Label>
                 <Select value={formData.clarity} onValueChange={(value) => setFormData(prev => ({ ...prev, clarity: value }))}>
                   <SelectTrigger id="clarity">
-                    <SelectValue placeholder="e.g., VVS1" />
+                    <SelectValue placeholder="Select clarity" />
                   </SelectTrigger>
                   <SelectContent>
-                    {clarityOptions.map((clarity) => (
+                    {clarityOptions.map(clarity => (
                       <SelectItem key={clarity} value={clarity}>{clarity}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
             </div>
-            <div>
-              <Label htmlFor="cut">Cut *</Label>
-              <Select value={formData.cut} onValueChange={(value) => setFormData(prev => ({ ...prev, cut: value }))}>
-                <SelectTrigger id="cut">
-                  <SelectValue placeholder="e.g., Round Brilliant" />
-                </SelectTrigger>
-                <SelectContent>
-                  {cutOptions.map((cut) => (
-                    <SelectItem key={cut} value={cut}>{cut}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <Label htmlFor="price">Price (₹) *</Label>
+                <Label htmlFor="price">Rate (Price) *</Label>
                 <Input
                   id="price"
                   type="number"
                   value={formData.price}
                   onChange={(e) => setFormData(prev => ({ ...prev, price: e.target.value }))}
-                  placeholder="250000"
+                  placeholder="e.g., 5000"
                 />
               </div>
               <div>
-                <Label htmlFor="stock">Stock Quantity *</Label>
+                <Label htmlFor="stock">Quantity *</Label>
                 <Input
                   id="stock"
                   type="number"
                   value={formData.stock}
                   onChange={(e) => setFormData(prev => ({ ...prev, stock: e.target.value }))}
-                  placeholder="0"
+                  placeholder="e.g., 100"
                 />
               </div>
             </div>
-            <MultiImageUpload 
+
+            <MultiImageUpload
               images={images}
               onImagesChange={setImages}
               maxImages={4}
-              label="Item Images"
+              label="Product Images"
             />
-            <div className="flex justify-end space-x-2 pt-4">
-              <Button variant="outline" onClick={() => setShowAddDialog(false)}>
-                Cancel
-              </Button>
-              <Button onClick={handleAddItem} className="bg-green-600 hover:bg-green-700">
-                Add Item
-              </Button>
-            </div>
           </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowAddDialog(false)}>Cancel</Button>
+            <Button onClick={handleAddItem}>Add Item</Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 
       {/* Edit Item Dialog */}
       <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
-        <DialogContent className="sm:max-w-[500px]">
+        <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Edit Precious Stone</DialogTitle>
+            <DialogTitle>Edit Artificial Stone</DialogTitle>
+            <DialogDescription>
+              Update artificial stone information
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div>
@@ -572,127 +619,128 @@ const PreciousStones = () => {
                 id="edit-name"
                 value={formData.name}
                 onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
-                placeholder="e.g., Natural Diamond"
+                placeholder="e.g., Synthetic Ruby"
               />
             </div>
+            
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <Label htmlFor="edit-carat">Carat *</Label>
-                <Input
-                  id="edit-carat"
-                  value={formData.carat}
-                  onChange={(e) => setFormData(prev => ({ ...prev, carat: e.target.value }))}
-                  placeholder="e.g., 2.5ct"
-                />
+                <Label htmlFor="edit-color">Color *</Label>
+                <Select value={formData.color} onValueChange={(value) => setFormData(prev => ({ ...prev, color: value }))}>
+                  <SelectTrigger id="edit-color">
+                    <SelectValue placeholder="Select color" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {colorOptions.map(color => (
+                      <SelectItem key={color} value={color}>{color}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label htmlFor="edit-size">Size *</Label>
+                <Select value={formData.size} onValueChange={(value) => setFormData(prev => ({ ...prev, size: value }))}>
+                  <SelectTrigger id="edit-size">
+                    <SelectValue placeholder="Select size" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {sizeOptions.map(size => (
+                      <SelectItem key={size} value={size}>{size}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="edit-cut">Cutting Type *</Label>
+                <Select value={formData.cut} onValueChange={(value) => setFormData(prev => ({ ...prev, cut: value }))}>
+                  <SelectTrigger id="edit-cut">
+                    <SelectValue placeholder="Select cut" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {cutOptions.map(cut => (
+                      <SelectItem key={cut} value={cut}>{cut}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               <div>
                 <Label htmlFor="edit-clarity">Clarity *</Label>
                 <Select value={formData.clarity} onValueChange={(value) => setFormData(prev => ({ ...prev, clarity: value }))}>
                   <SelectTrigger id="edit-clarity">
-                    <SelectValue placeholder="e.g., VVS1" />
+                    <SelectValue placeholder="Select clarity" />
                   </SelectTrigger>
                   <SelectContent>
-                    {clarityOptions.map((clarity) => (
+                    {clarityOptions.map(clarity => (
                       <SelectItem key={clarity} value={clarity}>{clarity}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
             </div>
-            <div>
-              <Label htmlFor="edit-cut">Cut *</Label>
-              <Select value={formData.cut} onValueChange={(value) => setFormData(prev => ({ ...prev, cut: value }))}>
-                <SelectTrigger id="edit-cut">
-                  <SelectValue placeholder="e.g., Round Brilliant" />
-                </SelectTrigger>
-                <SelectContent>
-                  {cutOptions.map((cut) => (
-                    <SelectItem key={cut} value={cut}>{cut}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <Label htmlFor="edit-price">Price (₹) *</Label>
+                <Label htmlFor="edit-price">Rate (Price) *</Label>
                 <Input
                   id="edit-price"
                   type="number"
                   value={formData.price}
                   onChange={(e) => setFormData(prev => ({ ...prev, price: e.target.value }))}
-                  placeholder="250000"
+                  placeholder="e.g., 5000"
                 />
               </div>
               <div>
-                <Label htmlFor="edit-stock">Stock Quantity *</Label>
+                <Label htmlFor="edit-stock">Quantity *</Label>
                 <Input
                   id="edit-stock"
                   type="number"
                   value={formData.stock}
                   onChange={(e) => setFormData(prev => ({ ...prev, stock: e.target.value }))}
-                  placeholder="0"
+                  placeholder="e.g., 100"
                 />
               </div>
             </div>
-            <MultiImageUpload 
+
+            <MultiImageUpload
               images={images}
               onImagesChange={setImages}
               maxImages={4}
-              label="Item Images"
+              label="Product Images"
             />
-            <div className="flex justify-end space-x-2 pt-4">
-              <Button variant="outline" onClick={() => setShowEditDialog(false)}>
-                Cancel
-              </Button>
-              <Button onClick={handleUpdateItem} className="bg-green-600 hover:bg-green-700">
-                Update Item
-              </Button>
-            </div>
           </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowEditDialog(false)}>Cancel</Button>
+            <Button onClick={handleUpdateItem}>Update Item</Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* View Details Dialog */}
-      <StoneItemDetailsDialog
+      {/* Details Dialog */}
+      <ArtificialStoneDetailsDialog
         item={selectedItem}
         open={showDetailsDialog}
         onClose={() => {
           setShowDetailsDialog(false);
           setSelectedItem(null);
         }}
-        onEdit={(item) => {
-          handleEditItem(item);
-        }}
+        onEdit={handleEditItem}
       />
 
       {/* Delete Confirmation Dialog */}
       <Dialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
-        <DialogContent className="sm:max-w-[425px]">
+        <DialogContent>
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-red-600">
-              <AlertTriangle className="h-5 w-5" />
-              Confirm Delete
-            </DialogTitle>
+            <DialogTitle>Confirm Delete</DialogTitle>
             <DialogDescription>
-              Are you sure you want to delete <strong>{itemToDelete?.name}</strong>? This action cannot be undone.
+              Are you sure you want to delete this item? This action cannot be undone.
             </DialogDescription>
           </DialogHeader>
-          <DialogFooter className="gap-2">
-            <Button
-              variant="outline"
-              onClick={() => {
-                setShowDeleteConfirm(false);
-                setItemToDelete(null);
-              }}
-            >
-              Cancel
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={handleConfirmDelete}
-            >
-              Delete
-            </Button>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowDeleteConfirm(false)}>Cancel</Button>
+            <Button variant="destructive" onClick={handleConfirmDelete}>Delete</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -700,5 +748,5 @@ const PreciousStones = () => {
   );
 };
 
-export default PreciousStones;
+export default ArtificialStones;
 

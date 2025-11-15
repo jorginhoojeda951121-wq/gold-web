@@ -107,10 +107,30 @@ export function useUserStorage<T>(key: string, initialValue: T) {
       const valueToStore = value instanceof Function ? value(storedValue) : value;
       setStoredValue(valueToStore);
       await setUserData<T>(key, valueToStore);
+      
+      // Dispatch custom event to notify other components using the same key
+      window.dispatchEvent(new CustomEvent(`user-storage-updated:${key}`, {
+        detail: { key, value: valueToStore }
+      }));
     } catch (error) {
       console.error(`Error saving user data for key ${key}:`, error);
     }
   };
+
+  // Listen for updates to this key from other components
+  useEffect(() => {
+    const handleKeyUpdate = (event: CustomEvent) => {
+      if (event.detail && event.detail.value !== undefined) {
+        setStoredValue(event.detail.value as T);
+      }
+    };
+
+    window.addEventListener(`user-storage-updated:${key}`, handleKeyUpdate as EventListener);
+    
+    return () => {
+      window.removeEventListener(`user-storage-updated:${key}`, handleKeyUpdate as EventListener);
+    };
+  }, [key]);
 
   return { data: storedValue, updateData: setValue, loaded };
 }

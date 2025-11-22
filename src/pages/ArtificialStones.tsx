@@ -9,6 +9,7 @@ import { useUserStorage } from "@/hooks/useUserStorage";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { ComboboxInput } from "@/components/ui/combobox";
 import { useToast } from "@/hooks/use-toast";
 import { enqueueChange } from "@/lib/sync";
 import { getUserData, setUserData } from "@/lib/userStorage";
@@ -511,58 +512,46 @@ const ArtificialStones = () => {
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <Label htmlFor="color">Color *</Label>
-                <Select value={formData.color} onValueChange={(value) => setFormData(prev => ({ ...prev, color: value }))}>
-                  <SelectTrigger id="color">
-                    <SelectValue placeholder="Select color" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {colorOptions.map(color => (
-                      <SelectItem key={color} value={color}>{color}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <ComboboxInput
+                  id="color"
+                  options={colorOptions}
+                  value={formData.color}
+                  onValueChange={(value) => setFormData(prev => ({ ...prev, color: value }))}
+                  placeholder="Select or type color"
+                />
               </div>
               <div>
                 <Label htmlFor="size">Size *</Label>
-                <Select value={formData.size} onValueChange={(value) => setFormData(prev => ({ ...prev, size: value }))}>
-                  <SelectTrigger id="size">
-                    <SelectValue placeholder="Select size" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {sizeOptions.map(size => (
-                      <SelectItem key={size} value={size}>{size}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <ComboboxInput
+                  id="size"
+                  options={sizeOptions}
+                  value={formData.size}
+                  onValueChange={(value) => setFormData(prev => ({ ...prev, size: value }))}
+                  placeholder="Select or type size"
+                />
               </div>
             </div>
 
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <Label htmlFor="cut">Cutting Type *</Label>
-                <Select value={formData.cut} onValueChange={(value) => setFormData(prev => ({ ...prev, cut: value }))}>
-                  <SelectTrigger id="cut">
-                    <SelectValue placeholder="Select cut" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {cutOptions.map(cut => (
-                      <SelectItem key={cut} value={cut}>{cut}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <ComboboxInput
+                  id="cut"
+                  options={cutOptions}
+                  value={formData.cut}
+                  onValueChange={(value) => setFormData(prev => ({ ...prev, cut: value }))}
+                  placeholder="Select or type cut"
+                />
               </div>
               <div>
                 <Label htmlFor="clarity">Clarity *</Label>
-                <Select value={formData.clarity} onValueChange={(value) => setFormData(prev => ({ ...prev, clarity: value }))}>
-                  <SelectTrigger id="clarity">
-                    <SelectValue placeholder="Select clarity" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {clarityOptions.map(clarity => (
-                      <SelectItem key={clarity} value={clarity}>{clarity}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <ComboboxInput
+                  id="clarity"
+                  options={clarityOptions}
+                  value={formData.clarity}
+                  onValueChange={(value) => setFormData(prev => ({ ...prev, clarity: value }))}
+                  placeholder="Select or type clarity"
+                />
               </div>
             </div>
 
@@ -626,58 +615,46 @@ const ArtificialStones = () => {
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <Label htmlFor="edit-color">Color *</Label>
-                <Select value={formData.color} onValueChange={(value) => setFormData(prev => ({ ...prev, color: value }))}>
-                  <SelectTrigger id="edit-color">
-                    <SelectValue placeholder="Select color" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {colorOptions.map(color => (
-                      <SelectItem key={color} value={color}>{color}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <ComboboxInput
+                  id="edit-color"
+                  options={colorOptions}
+                  value={formData.color}
+                  onValueChange={(value) => setFormData(prev => ({ ...prev, color: value }))}
+                  placeholder="Select or type color"
+                />
               </div>
               <div>
                 <Label htmlFor="edit-size">Size *</Label>
-                <Select value={formData.size} onValueChange={(value) => setFormData(prev => ({ ...prev, size: value }))}>
-                  <SelectTrigger id="edit-size">
-                    <SelectValue placeholder="Select size" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {sizeOptions.map(size => (
-                      <SelectItem key={size} value={size}>{size}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <ComboboxInput
+                  id="edit-size"
+                  options={sizeOptions}
+                  value={formData.size}
+                  onValueChange={(value) => setFormData(prev => ({ ...prev, size: value }))}
+                  placeholder="Select or type size"
+                />
               </div>
             </div>
 
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <Label htmlFor="edit-cut">Cutting Type *</Label>
-                <Select value={formData.cut} onValueChange={(value) => setFormData(prev => ({ ...prev, cut: value }))}>
-                  <SelectTrigger id="edit-cut">
-                    <SelectValue placeholder="Select cut" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {cutOptions.map(cut => (
-                      <SelectItem key={cut} value={cut}>{cut}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <ComboboxInput
+                  id="edit-cut"
+                  options={cutOptions}
+                  value={formData.cut}
+                  onValueChange={(value) => setFormData(prev => ({ ...prev, cut: value }))}
+                  placeholder="Select or type cut"
+                />
               </div>
               <div>
                 <Label htmlFor="edit-clarity">Clarity *</Label>
-                <Select value={formData.clarity} onValueChange={(value) => setFormData(prev => ({ ...prev, clarity: value }))}>
-                  <SelectTrigger id="edit-clarity">
-                    <SelectValue placeholder="Select clarity" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {clarityOptions.map(clarity => (
-                      <SelectItem key={clarity} value={clarity}>{clarity}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <ComboboxInput
+                  id="edit-clarity"
+                  options={clarityOptions}
+                  value={formData.clarity}
+                  onValueChange={(value) => setFormData(prev => ({ ...prev, clarity: value }))}
+                  placeholder="Select or type clarity"
+                />
               </div>
             </div>
 

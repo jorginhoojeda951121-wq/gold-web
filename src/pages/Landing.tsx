@@ -1,4 +1,4 @@
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import { getSupabase } from "@/lib/supabase";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -604,8 +604,18 @@ const Landing = () => {
           <div className="border-t border-slate-800 pt-8 flex flex-col md:flex-row items-center justify-between gap-4">
             <p className="text-sm text-gray-400">© 2024 Gold Crafts Manager. All rights reserved.</p>
             <div className="flex gap-6">
-              <a href="#" className="text-sm text-gray-400 hover:text-yellow-400 transition-colors">Privacy Policy</a>
-              <a href="#" className="text-sm text-gray-400 hover:text-yellow-400 transition-colors">Terms of Service</a>
+              <Link 
+                to="/policy" 
+                className="text-sm text-gray-400 hover:text-yellow-400 transition-colors cursor-pointer"
+              >
+                Privacy Policy
+              </Link>
+              <Link 
+                to="/terms" 
+                className="text-sm text-gray-400 hover:text-yellow-400 transition-colors cursor-pointer"
+              >
+                Terms of Service
+              </Link>
             </div>
           </div>
         </div>

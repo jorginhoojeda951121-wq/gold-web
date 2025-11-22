@@ -28,6 +28,8 @@ import SyncApi from "./pages/SyncApi";
 import { Subscription } from "./pages/Subscription";
 import Reservations from "./pages/Reservations";
 import Vendors from "./pages/Vendors";
+import PrivacyPolicy from "./pages/PrivacyPolicy";
+import TermsOfService from "./pages/TermsOfService";
 import { restoreUserIdFromSession } from "./lib/userStorage";
 import { migrateToSingleSource, isMigrationComplete } from "./lib/dataMigration";
 import { useEffect } from "react";
@@ -70,6 +72,8 @@ const App = () => {
           <Route path="/" element={<Landing />} />
           <Route path="/auth" element={<Auth />} />
           <Route path="/public-support" element={<PublicSupport />} />
+          <Route path="/policy" element={<PrivacyPolicy />} />
+          <Route path="/terms" element={<TermsOfService />} />
           
           {/* Protected routes with layout */}
           <Route element={<Layout />}>

@@ -9,6 +9,7 @@ import { useUserStorage } from "@/hooks/useUserStorage";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { ComboboxInput } from "@/components/ui/combobox";
 import { useToast } from "@/hooks/use-toast";
 import { enqueueChange } from "@/lib/sync";
 import { getUserData, setUserData } from "@/lib/userStorage";
@@ -494,30 +495,24 @@ const PreciousStones = () => {
               </div>
               <div>
                 <Label htmlFor="clarity">Clarity *</Label>
-                <Select value={formData.clarity} onValueChange={(value) => setFormData(prev => ({ ...prev, clarity: value }))}>
-                  <SelectTrigger id="clarity">
-                    <SelectValue placeholder="e.g., VVS1" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {clarityOptions.map((clarity) => (
-                      <SelectItem key={clarity} value={clarity}>{clarity}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <ComboboxInput
+                  id="clarity"
+                  options={clarityOptions}
+                  value={formData.clarity}
+                  onValueChange={(value) => setFormData(prev => ({ ...prev, clarity: value }))}
+                  placeholder="Select or type clarity (e.g., VVS1)"
+                />
               </div>
             </div>
             <div>
               <Label htmlFor="cut">Cut *</Label>
-              <Select value={formData.cut} onValueChange={(value) => setFormData(prev => ({ ...prev, cut: value }))}>
-                <SelectTrigger id="cut">
-                  <SelectValue placeholder="e.g., Round Brilliant" />
-                </SelectTrigger>
-                <SelectContent>
-                  {cutOptions.map((cut) => (
-                    <SelectItem key={cut} value={cut}>{cut}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <ComboboxInput
+                id="cut"
+                options={cutOptions}
+                value={formData.cut}
+                onValueChange={(value) => setFormData(prev => ({ ...prev, cut: value }))}
+                placeholder="Select or type cut (e.g., Round Brilliant)"
+              />
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
@@ -587,30 +582,24 @@ const PreciousStones = () => {
               </div>
               <div>
                 <Label htmlFor="edit-clarity">Clarity *</Label>
-                <Select value={formData.clarity} onValueChange={(value) => setFormData(prev => ({ ...prev, clarity: value }))}>
-                  <SelectTrigger id="edit-clarity">
-                    <SelectValue placeholder="e.g., VVS1" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {clarityOptions.map((clarity) => (
-                      <SelectItem key={clarity} value={clarity}>{clarity}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <ComboboxInput
+                  id="edit-clarity"
+                  options={clarityOptions}
+                  value={formData.clarity}
+                  onValueChange={(value) => setFormData(prev => ({ ...prev, clarity: value }))}
+                  placeholder="Select or type clarity (e.g., VVS1)"
+                />
               </div>
             </div>
             <div>
               <Label htmlFor="edit-cut">Cut *</Label>
-              <Select value={formData.cut} onValueChange={(value) => setFormData(prev => ({ ...prev, cut: value }))}>
-                <SelectTrigger id="edit-cut">
-                  <SelectValue placeholder="e.g., Round Brilliant" />
-                </SelectTrigger>
-                <SelectContent>
-                  {cutOptions.map((cut) => (
-                    <SelectItem key={cut} value={cut}>{cut}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <ComboboxInput
+                id="edit-cut"
+                options={cutOptions}
+                value={formData.cut}
+                onValueChange={(value) => setFormData(prev => ({ ...prev, cut: value }))}
+                placeholder="Select or type cut (e.g., Round Brilliant)"
+              />
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>

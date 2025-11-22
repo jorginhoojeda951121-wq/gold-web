@@ -200,18 +200,17 @@ export const BusinessSettings = () => {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <Label htmlFor="currency">Currency</Label>
-                  <Select value={businessSettings.currency} onValueChange={(value) => 
-                    setBusinessSettings({ ...businessSettings, currency: value })
-                  }>
+                  <Select value="INR" disabled>
                     <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="INR">Indian Rupee (₹)</SelectItem>
-                      <SelectItem value="USD">US Dollar ($)</SelectItem>
-                      <SelectItem value="EUR">Euro (€)</SelectItem>
                     </SelectContent>
                   </Select>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Currency is fixed to Indian Rupee (₹)
+                  </p>
                 </div>
                 <div>
                   <Label htmlFor="timezone">Timezone</Label>

@@ -22,6 +22,7 @@ import { Upload, X, Calculator, Barcode } from "lucide-react";
 import { useGoldRates, calculateGoldPrice } from "./GoldRateSettings";
 import { generateBarcode } from "./BarcodeScanner";
 import { MultiImageUpload } from "./MultiImageUpload";
+import { useToast } from "@/hooks/use-toast";
 
 interface AddItemDialogProps {
   open: boolean;
@@ -42,6 +43,7 @@ const metals = [
 ];
 
 export const AddItemDialog = ({ open, onOpenChange, onAdd }: AddItemDialogProps) => {
+  const { toast } = useToast();
   const goldSettings = useGoldRates();
   const [autoCalculate, setAutoCalculate] = useState(false);
   const [weight, setWeight] = useState("");
@@ -96,30 +98,68 @@ export const AddItemDialog = ({ open, onOpenChange, onAdd }: AddItemDialogProps)
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
+    // Validate required fields with user feedback
     if (!formData.name || !formData.type || !formData.metal || !formData.price || !formData.inStock) {
+      toast({
+        title: "Missing Information",
+        description: "Please fill in all required fields (Name, Type, Metal, Price, and Stock Quantity).",
+        variant: "destructive"
+      });
       return;
     }
 
-    onAdd({
-      name: formData.name,
-      type: formData.type,
-      gemstone: formData.gemstone || "None",
-      carat: formData.carat ? parseFloat(formData.carat) : 0,
-      metal: formData.metal,
-      price: parseFloat(formData.price),
-      inStock: parseInt(formData.inStock),
-      isArtificial: formData.isArtificial,
-      image: images[0] || "",
-      image_1: images[0] || undefined,
-      image_2: images[1] || undefined,
-      image_3: images[2] || undefined,
-      image_4: images[3] || undefined,
-      taxRate: parseFloat(formData.taxRate),
-      taxIncluded: formData.taxIncluded,
-      taxCategory: formData.taxCategory,
-      barcode: formData.barcode || undefined,
-      sku: formData.sku || undefined,
-    });
+    // Validate price is a valid number
+    const price = parseFloat(formData.price);
+    if (isNaN(price) || price <= 0) {
+      toast({
+        title: "Invalid Price",
+        description: "Please enter a valid price greater than 0.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    // Validate stock is a valid number
+    const stock = parseInt(formData.inStock);
+    if (isNaN(stock) || stock < 0) {
+      toast({
+        title: "Invalid Stock Quantity",
+        description: "Please enter a valid stock quantity (0 or greater).",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    try {
+      onAdd({
+        name: formData.name,
+        type: formData.type,
+        gemstone: formData.gemstone || "None",
+        carat: formData.carat ? parseFloat(formData.carat) : 0,
+        metal: formData.metal,
+        price: price,
+        inStock: stock,
+        isArtificial: formData.isArtificial,
+        image: images[0] || "",
+        image_1: images[0] || undefined,
+        image_2: images[1] || undefined,
+        image_3: images[2] || undefined,
+        image_4: images[3] || undefined,
+        taxRate: parseFloat(formData.taxRate),
+        taxIncluded: formData.taxIncluded,
+        taxCategory: formData.taxCategory,
+        barcode: formData.barcode || undefined,
+        sku: formData.sku || undefined,
+      });
+    } catch (error) {
+      console.error("Error adding item:", error);
+      toast({
+        title: "Error",
+        description: "Failed to add item. Please try again.",
+        variant: "destructive"
+      });
+      return;
+    }
 
     // Reset form
     setFormData({

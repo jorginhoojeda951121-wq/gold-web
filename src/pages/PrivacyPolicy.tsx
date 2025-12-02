@@ -17,42 +17,213 @@ const PrivacyPolicy = () => {
               Back to Home
             </Button>
           </Link>
-          <h1 className="text-4xl font-bold mb-4 bg-gradient-to-r from-yellow-300 to-yellow-100 bg-clip-text text-transparent">
-            Privacy Policy
-          </h1>
-          <p className="text-gray-300 text-sm">Last updated: 2024</p>
+          <div className="mb-4">
+            <h1 className="text-4xl font-bold mb-2 bg-gradient-to-r from-yellow-300 to-yellow-100 bg-clip-text text-transparent">
+              Privacy Policy
+            </h1>
+            <p className="text-gray-300 text-lg font-semibold mb-1">GOLD (GoldPOS) by RetailMarketingPro</p>
+            <p className="text-gray-300 text-sm">Last Updated: 12/1/2025</p>
+          </div>
         </div>
 
         {/* Content */}
         <div className="prose prose-invert max-w-none space-y-8">
           <div className="bg-slate-800/60 border border-slate-700/50 rounded-lg p-8 backdrop-blur-sm">
             <p className="text-gray-200 leading-relaxed mb-6">
-              Retail Marketing Pro is committed to protecting the privacy of the personal information you provide us on our Website. We believe it is important for you to know how we treat the information you share with us. The following policy will explain how your personal information will be treated as you use our Web site and its features. Personal information includes your name, address, telephone number, email addresses, click-through activity and any other information you may provide here. Your email address and all other personal information is collected only when you voluntarily provide that data while submitting forms such as reservations or online orders.
+              Your privacy is important to us. This Privacy Policy explains how RetailMarketingPro ("we", "us", "our") collects, uses, stores, and protects information when you use our GOLD (GoldPOS) mobile app, web application, or related services ("Service").
             </p>
           </div>
 
           <section className="bg-slate-800/60 border border-slate-700/50 rounded-lg p-8 backdrop-blur-sm">
-            <h2 className="text-2xl font-bold text-white mb-4">General Notice</h2>
-            <p className="text-gray-200 leading-relaxed">
-              Retail Marketing Pro strives to ensure that the information contained in this web site is accurate and reliable. However, Retail Marketing Pro and the World Wide Web (or Web Site Host) are not infallible and errors may sometimes occur. Therefore, to the fullest extent permissible pursuant to applicable law, Retail Marketing Pro disclaims any warranty of any kind, whether expressed or implied, as to any matter whatsoever relating to this web site. Retail Marketing Pro is not liable or responsible for any damages or injuries caused by use of this web site (such as viruses, omissions or misstatements). Retail Marketing Pro may revise the information, services and the resources contained in this web site from time to time and we reserve the right to make such changes without obligation to notify past, current or prospective visitors. In no event shall Retail Marketing Pro be liable for any indirect, special, incidental, or consequential damages arising out of any use of the information contained herein.
-            </p>
-          </section>
-
-          <section className="bg-slate-800/60 border border-slate-700/50 rounded-lg p-8 backdrop-blur-sm">
-            <h2 className="text-2xl font-bold text-white mb-4">Copyrights Notice</h2>
+            <h2 className="text-2xl font-bold text-white mb-4">1. Information We Collect</h2>
             <p className="text-gray-200 leading-relaxed mb-4">
-              The text and Html code contained in this web site are the exclusive property of Retail Marketing Pro. Except where otherwise noted, the text and Html code contained here may not be copied, distributed, displayed, reproduced or transmitted in any form or by any means without the prior written permission of Retail Marketing Pro.
+              We collect only minimal business-related information required to activate your account and operate the Service.
             </p>
-            <p className="text-gray-200 leading-relaxed">
-              Unless otherwise stated, the photographic images on http://www.retailmarketingpro.in are owned by Retail Marketing Pro, its licensors, or its third-party image partners. You may not use any of the photographic images or graphic material on http://www.retailmarketingpro.in, in whole or in part, without written permission of Retail Marketing Pro.
+            <h3 className="text-xl font-semibold text-white mb-3 mt-4">A. Information You Provide</h3>
+            <ul className="list-disc list-inside text-gray-200 space-y-2 ml-4">
+              <li>Business name / business type</li>
+              <li>Person-in-charge name</li>
+              <li>Phone number or email address</li>
+            </ul>
+            <p className="text-gray-200 leading-relaxed mt-4">
+              No other personal or business data is collected automatically.
             </p>
           </section>
 
           <section className="bg-slate-800/60 border border-slate-700/50 rounded-lg p-8 backdrop-blur-sm">
-            <h2 className="text-2xl font-bold text-white mb-4">Hyper-Links Notice</h2>
-            <p className="text-gray-200 leading-relaxed">
-              Retail Marketing Pro`s, web site may link to sites not maintained by or related to Retail Marketing Pro. Hypertext links are provided as a service to users and are not sponsored by or affiliated with this web site or Retail Marketing Pro. Retail Marketing Pro has not reviewed the sites hyper-linked to or from this web site and is not responsible for the content of any other site. These links are to be accessed at the user`s own risk. Retail Marketing Pro makes no representations or warranties about the content, completeness, or accuracy of these links or the sites hyper-linked to this web site. Furthermore, Retail Marketing Pro does not implicitly endorse third-party sites hyper-linked to this website.
+            <h2 className="text-2xl font-bold text-white mb-4">2. How We Store Data</h2>
+            <h3 className="text-xl font-semibold text-white mb-3 mt-4">A. Mobile App</h3>
+            <ul className="list-disc list-inside text-gray-200 space-y-2 ml-4 mb-4">
+              <li>All data entered in the GOLD (GoldPOS) mobile app is stored locally on your device</li>
+              <li>We do NOT upload or access your data</li>
+              <li>You are responsible for backup, export, or restoring data on your device</li>
+            </ul>
+            <h3 className="text-xl font-semibold text-white mb-3 mt-4">B. Web Application</h3>
+            <ul className="list-disc list-inside text-gray-200 space-y-2 ml-4 mb-4">
+              <li>Data is stored on our secure cloud servers</li>
+              <li>You have full control to:
+                <ul className="list-circle list-inside ml-6 mt-2 space-y-1">
+                  <li>Add data</li>
+                  <li>Update data</li>
+                  <li>Delete data</li>
+                  <li>Request full account deletion</li>
+                </ul>
+              </li>
+            </ul>
+            <p className="text-gray-200 leading-relaxed mt-4">
+              You can request deletion at: <a href="mailto:retailmarketingpro1.0@gmail.com" className="text-yellow-400 hover:text-yellow-300 underline">retailmarketingpro1.0@gmail.com</a>
             </p>
+          </section>
+
+          <section className="bg-slate-800/60 border border-slate-700/50 rounded-lg p-8 backdrop-blur-sm">
+            <h2 className="text-2xl font-bold text-white mb-4">3. How We Use Your Information</h2>
+            <p className="text-gray-200 leading-relaxed mb-4">
+              We use your provided information only for:
+            </p>
+            <ul className="list-disc list-inside text-gray-200 space-y-2 ml-4 mb-4">
+              <li>Account creation and verification</li>
+              <li>Customer support</li>
+              <li>Service-related communication</li>
+              <li>Subscription or renewal contact</li>
+            </ul>
+            <p className="text-gray-200 leading-relaxed mb-2 font-semibold">We do NOT:</p>
+            <ul className="list-disc list-inside text-gray-200 space-y-2 ml-4">
+              <li>Sell data</li>
+              <li>Share data with third parties</li>
+              <li>Use data for marketing without permission</li>
+              <li>Collect any sensitive or financial information</li>
+            </ul>
+          </section>
+
+          <section className="bg-slate-800/60 border border-slate-700/50 rounded-lg p-8 backdrop-blur-sm">
+            <h2 className="text-2xl font-bold text-white mb-4">4. No Access to Business Data</h2>
+            <p className="text-gray-200 leading-relaxed mb-4">
+              We do not access:
+            </p>
+            <ul className="list-disc list-inside text-gray-200 space-y-2 ml-4 mb-4">
+              <li>Your gold stock entries</li>
+              <li>Billing information</li>
+              <li>Transactions</li>
+              <li>Customer data</li>
+              <li>Inventory details</li>
+            </ul>
+            <p className="text-gray-200 leading-relaxed">
+              All business operational data in the mobile app is stored only on your device unless you use the web platform.
+            </p>
+          </section>
+
+          <section className="bg-slate-800/60 border border-slate-700/50 rounded-lg p-8 backdrop-blur-sm">
+            <h2 className="text-2xl font-bold text-white mb-4">5. Cookies (Web Users Only)</h2>
+            <p className="text-gray-200 leading-relaxed mb-4">
+              The website gold.retailmarketingpro.in may use:
+            </p>
+            <ul className="list-disc list-inside text-gray-200 space-y-2 ml-4 mb-4">
+              <li>Essential cookies</li>
+              <li>Basic analytics cookies (non-identifiable)</li>
+            </ul>
+            <p className="text-gray-200 leading-relaxed mb-2 font-semibold">We do NOT use:</p>
+            <ul className="list-disc list-inside text-gray-200 space-y-2 ml-4">
+              <li>Third-party marketing cookies</li>
+              <li>Retargeting pixels</li>
+              <li>Behavioural tracking</li>
+            </ul>
+          </section>
+
+          <section className="bg-slate-800/60 border border-slate-700/50 rounded-lg p-8 backdrop-blur-sm">
+            <h2 className="text-2xl font-bold text-white mb-4">6. Data Security</h2>
+            <p className="text-gray-200 leading-relaxed mb-4">
+              We take reasonable security measures to protect your information, including:
+            </p>
+            <ul className="list-disc list-inside text-gray-200 space-y-2 ml-4 mb-4">
+              <li>Encrypted servers</li>
+              <li>Secured hosting</li>
+              <li>Limited staff access</li>
+              <li>Protected communication channels</li>
+            </ul>
+            <p className="text-gray-200 leading-relaxed mb-4">
+              However, no system is 100% secure.
+            </p>
+            <p className="text-gray-200 leading-relaxed mb-2 font-semibold">You are responsible for securing:</p>
+            <ul className="list-disc list-inside text-gray-200 space-y-2 ml-4">
+              <li>Your device</li>
+              <li>Your login information</li>
+              <li>Local data backups</li>
+            </ul>
+          </section>
+
+          <section className="bg-slate-800/60 border border-slate-700/50 rounded-lg p-8 backdrop-blur-sm">
+            <h2 className="text-2xl font-bold text-white mb-4">7. Your Rights</h2>
+            <p className="text-gray-200 leading-relaxed mb-4">
+              You may request:
+            </p>
+            <ul className="list-disc list-inside text-gray-200 space-y-2 ml-4 mb-4">
+              <li>Data deletion</li>
+              <li>Account removal</li>
+              <li>Update or correction of your account details</li>
+            </ul>
+            <p className="text-gray-200 leading-relaxed">
+              To request deletion or changes, email us at: <a href="mailto:retailmarketingpro1.0@gmail.com" className="text-yellow-400 hover:text-yellow-300 underline">retailmarketingpro1.0@gmail.com</a>
+            </p>
+          </section>
+
+          <section className="bg-slate-800/60 border border-slate-700/50 rounded-lg p-8 backdrop-blur-sm">
+            <h2 className="text-2xl font-bold text-white mb-4">8. Third-Party Services</h2>
+            <p className="text-gray-200 leading-relaxed mb-4">
+              If any third-party services are used (hosting, payment gateways, analytics), they may have access only to the extent required to operate the Service.
+            </p>
+            <p className="text-gray-200 leading-relaxed mb-2 font-semibold">We do NOT authorize:</p>
+            <ul className="list-disc list-inside text-gray-200 space-y-2 ml-4">
+              <li>Third-party data sale</li>
+              <li>Marketing usage of your data</li>
+              <li>Sharing of data without your permission</li>
+            </ul>
+          </section>
+
+          <section className="bg-slate-800/60 border border-slate-700/50 rounded-lg p-8 backdrop-blur-sm">
+            <h2 className="text-2xl font-bold text-white mb-4">9. Subscription, Refund & Liability</h2>
+            <p className="text-gray-200 leading-relaxed mb-4">
+              Your privacy relates to your data; however, subscription, refund, and liability terms are described separately in our:
+            </p>
+            <ul className="list-disc list-inside text-gray-200 space-y-2 ml-4 mb-4">
+              <li>Terms & Conditions</li>
+              <li>Refund Policy</li>
+              <li>Disclaimer</li>
+            </ul>
+            <p className="text-gray-200 leading-relaxed">
+              Maximum financial liability under any circumstance is INR 100.
+            </p>
+          </section>
+
+          <section className="bg-slate-800/60 border border-slate-700/50 rounded-lg p-8 backdrop-blur-sm">
+            <h2 className="text-2xl font-bold text-white mb-4">10. Children's Privacy</h2>
+            <p className="text-gray-200 leading-relaxed mb-4">
+              Our Service is made only for businesses and individuals above 18 years of age.
+            </p>
+            <p className="text-gray-200 leading-relaxed">
+              We do not knowingly collect data from children.
+            </p>
+          </section>
+
+          <section className="bg-slate-800/60 border border-slate-700/50 rounded-lg p-8 backdrop-blur-sm">
+            <h2 className="text-2xl font-bold text-white mb-4">11. Changes to This Privacy Policy</h2>
+            <p className="text-gray-200 leading-relaxed mb-4">
+              We may update this Privacy Policy from time to time.
+            </p>
+            <p className="text-gray-200 leading-relaxed">
+              Continued use of the Service means you accept the updated policy.
+            </p>
+          </section>
+
+          <section className="bg-slate-800/60 border border-slate-700/50 rounded-lg p-8 backdrop-blur-sm">
+            <h2 className="text-2xl font-bold text-white mb-4">12. Contact Us</h2>
+            <p className="text-gray-200 leading-relaxed mb-4">
+              For any privacy-related questions or requests, contact:
+            </p>
+            <div className="text-gray-200 space-y-2">
+              <p className="font-semibold text-white">RetailMarketingPro</p>
+              <p>Email: <a href="mailto:retailmarketingpro1.0@gmail.com" className="text-yellow-400 hover:text-yellow-300 underline">retailmarketingpro1.0@gmail.com</a></p>
+              <p>Website: <a href="https://gold.retailmarketingpro.in" target="_blank" rel="noopener noreferrer" className="text-yellow-400 hover:text-yellow-300 underline">gold.retailmarketingpro.in</a></p>
+            </div>
           </section>
         </div>
 
@@ -67,9 +238,18 @@ const PrivacyPolicy = () => {
               Back to Home
             </Button>
           </Link>
-          <div className="flex gap-4">
+          <div className="flex gap-4 flex-wrap">
             <Link to="/terms" className="text-sm text-gray-400 hover:text-yellow-400 transition-colors">
               Terms of Service
+            </Link>
+            <Link to="/refund" className="text-sm text-gray-400 hover:text-yellow-400 transition-colors">
+              Refund Policy
+            </Link>
+            <Link to="/disclaimer" className="text-sm text-gray-400 hover:text-yellow-400 transition-colors">
+              Disclaimer
+            </Link>
+            <Link to="/cookies" className="text-sm text-gray-400 hover:text-yellow-400 transition-colors">
+              Cookie Notice
             </Link>
           </div>
         </div>

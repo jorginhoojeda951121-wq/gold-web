@@ -191,7 +191,7 @@ export const CustomerLedger = () => {
     });
   };
 
-  const totalCreditOutstanding = customers.reduce((sum, customer) => sum + (parseFloat(String(customer.currentBalance ?? customer.ledger_balance ?? 0)) || 0), 0);
+  const totalCreditOutstanding = customers.reduce((sum, customer) => sum + (parseFloat(String(customer.currentBalance ?? 0)) || 0), 0);
   const activeCustomers = customers.filter(c => c.status === 'active').length;
   const totalCustomers = customers.length;
 
@@ -378,7 +378,7 @@ export const CustomerLedger = () => {
                   id="customer-phone"
                   value={formData.phone}
                   onChange={(e) => setFormData(prev => ({...prev, phone: e.target.value}))}
-                  placeholder="+91 98765 43210"
+                  placeholder="+91 8910921128"
                 />
               </div>
               <div>

@@ -24,12 +24,18 @@ export interface MigrationResult {
  */
 async function createBackup(): Promise<boolean> {
   try {
-    const [jewelry, gold, stones, inventory] = await Promise.all([
-      getUserData<any[]>('jewelry_items') || [],
-      getUserData<any[]>('gold_items') || [],
-      getUserData<any[]>('stones_items') || [],
-      getUserData<any[]>('inventory_items') || [],
+    const [jewelryData, goldData, stonesData, inventoryData] = await Promise.all([
+      getUserData<any[]>('jewelry_items'),
+      getUserData<any[]>('gold_items'),
+      getUserData<any[]>('stones_items'),
+      getUserData<any[]>('inventory_items'),
     ]);
+
+    // Ensure all are arrays
+    const jewelry = Array.isArray(jewelryData) ? jewelryData : [];
+    const gold = Array.isArray(goldData) ? goldData : [];
+    const stones = Array.isArray(stonesData) ? stonesData : [];
+    const inventory = Array.isArray(inventoryData) ? inventoryData : [];
 
     const backup = {
       jewelry_items: jewelry,
@@ -68,99 +74,113 @@ export async function migrateToSingleSource(): Promise<MigrationResult> {
     }
 
     // Step 2: Load existing data
-    const [jewelry, gold, stones, existingInventory] = await Promise.all([
-      getUserData<any[]>('jewelry_items') || [],
-      getUserData<any[]>('gold_items') || [],
-      getUserData<any[]>('stones_items') || [],
-      getUserData<any[]>('inventory_items') || [],
+    const [jewelryData, goldData, stonesData, existingInventoryData] = await Promise.all([
+      getUserData<any[]>('jewelry_items'),
+      getUserData<any[]>('gold_items'),
+      getUserData<any[]>('stones_items'),
+      getUserData<any[]>('inventory_items'),
     ]);
+
+    // Ensure all are arrays
+    const jewelry = Array.isArray(jewelryData) ? jewelryData : [];
+    const gold = Array.isArray(goldData) ? goldData : [];
+    const stones = Array.isArray(stonesData) ? stonesData : [];
+    const existingInventory = Array.isArray(existingInventoryData) ? existingInventoryData : [];
 
     // Step 3: Create unified inventory with item_type
     const itemsMap = new Map<string, any>();
 
     // Add existing inventory_items (preserve sync data)
-    existingInventory.forEach((item: any) => {
-      if (item.id) {
-        itemsMap.set(item.id, {
-          ...item,
-          // Ensure item_type exists
-          item_type: item.item_type || 'jewelry',
-        });
-      }
-    });
+    if (existingInventory && existingInventory.length > 0) {
+      existingInventory.forEach((item: any) => {
+        if (item.id) {
+          itemsMap.set(item.id, {
+            ...item,
+            // Ensure item_type exists
+            item_type: item.item_type || 'jewelry',
+          });
+        }
+      });
+    }
 
     // Migrate jewelry_items
-    jewelry.forEach((item: any) => {
-      if (item.id) {
-        itemsMap.set(item.id, {
-          ...item,
-          item_type: 'jewelry',
-          // Preserve all image fields
-          image: item.image || item.image_1 || '',
-          image_1: item.image_1 || item.image || '',
-          image_2: item.image_2 || '',
-          image_3: item.image_3 || '',
-          image_4: item.image_4 || '',
-          // Standardize field names
-          inStock: item.inStock || item.stock || 0,
-          stock: item.stock || item.inStock || 0,
-          // Ensure sync fields
-          updated_at: item.updated_at || new Date().toISOString(),
-          created_at: item.created_at || new Date().toISOString(),
-        });
-      }
-    });
+    if (jewelry && jewelry.length > 0) {
+      jewelry.forEach((item: any) => {
+        if (item.id) {
+          itemsMap.set(item.id, {
+            ...item,
+            item_type: 'jewelry',
+            // Preserve all image fields
+            image: item.image || item.image_1 || '',
+            image_1: item.image_1 || item.image || '',
+            image_2: item.image_2 || '',
+            image_3: item.image_3 || '',
+            image_4: item.image_4 || '',
+            // Standardize field names
+            inStock: item.inStock || item.stock || 0,
+            stock: item.stock || item.inStock || 0,
+            // Ensure sync fields
+            updated_at: item.updated_at || new Date().toISOString(),
+            created_at: item.created_at || new Date().toISOString(),
+          });
+        }
+      });
+    }
 
     // Migrate gold_items
-    gold.forEach((item: any) => {
-      if (item.id) {
-        itemsMap.set(item.id, {
-          ...item,
-          item_type: 'gold',
-          // Preserve all image fields
-          image: item.image || item.image_1 || '',
-          image_1: item.image_1 || item.image || '',
-          image_2: item.image_2 || '',
-          image_3: item.image_3 || '',
-          image_4: item.image_4 || '',
-          // Standardize field names
-          inStock: item.inStock || item.stock || 0,
-          stock: item.stock || item.inStock || 0,
-          // Gold-specific fields
-          weight: item.weight || '',
-          purity: item.purity || item.metal || '',
-          // Ensure sync fields
-          updated_at: item.updated_at || new Date().toISOString(),
-          created_at: item.created_at || new Date().toISOString(),
-        });
-      }
-    });
+    if (gold && gold.length > 0) {
+      gold.forEach((item: any) => {
+        if (item.id) {
+          itemsMap.set(item.id, {
+            ...item,
+            item_type: 'gold',
+            // Preserve all image fields
+            image: item.image || item.image_1 || '',
+            image_1: item.image_1 || item.image || '',
+            image_2: item.image_2 || '',
+            image_3: item.image_3 || '',
+            image_4: item.image_4 || '',
+            // Standardize field names
+            inStock: item.inStock || item.stock || 0,
+            stock: item.stock || item.inStock || 0,
+            // Gold-specific fields
+            weight: item.weight || '',
+            purity: item.purity || item.metal || '',
+            // Ensure sync fields
+            updated_at: item.updated_at || new Date().toISOString(),
+            created_at: item.created_at || new Date().toISOString(),
+          });
+        }
+      });
+    }
 
     // Migrate stones_items
-    stones.forEach((item: any) => {
-      if (item.id) {
-        itemsMap.set(item.id, {
-          ...item,
-          item_type: 'stone',
-          // Preserve all image fields
-          image: item.image || item.image_1 || '',
-          image_1: item.image_1 || item.image || '',
-          image_2: item.image_2 || '',
-          image_3: item.image_3 || '',
-          image_4: item.image_4 || '',
-          // Standardize field names
-          inStock: item.inStock || item.stock || 0,
-          stock: item.stock || item.inStock || 0,
-          // Stone-specific fields
-          carat: item.carat || '',
-          clarity: item.clarity || '',
-          cut: item.cut || '',
-          // Ensure sync fields
-          updated_at: item.updated_at || new Date().toISOString(),
-          created_at: item.created_at || new Date().toISOString(),
-        });
-      }
-    });
+    if (stones && stones.length > 0) {
+      stones.forEach((item: any) => {
+        if (item.id) {
+          itemsMap.set(item.id, {
+            ...item,
+            item_type: 'stone',
+            // Preserve all image fields
+            image: item.image || item.image_1 || '',
+            image_1: item.image_1 || item.image || '',
+            image_2: item.image_2 || '',
+            image_3: item.image_3 || '',
+            image_4: item.image_4 || '',
+            // Standardize field names
+            inStock: item.inStock || item.stock || 0,
+            stock: item.stock || item.inStock || 0,
+            // Stone-specific fields
+            carat: item.carat || '',
+            clarity: item.clarity || '',
+            cut: item.cut || '',
+            // Ensure sync fields
+            updated_at: item.updated_at || new Date().toISOString(),
+            created_at: item.created_at || new Date().toISOString(),
+          });
+        }
+      });
+    }
 
     // Step 4: Save unified inventory
     const unifiedInventory = Array.from(itemsMap.values());

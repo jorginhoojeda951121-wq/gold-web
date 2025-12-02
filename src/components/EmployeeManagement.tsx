@@ -103,7 +103,7 @@ export const EmployeeManagement = () => {
       id: "1",
       name: "Arjun Singh",
       email: "arjun.singh@example.com",
-      phone: "+91 98765 43210",
+      phone: "+91 8910921128",
       role: "Store Manager",
       department: "Operations",
       baseSalary: 45000,
@@ -1221,11 +1221,23 @@ export const EmployeeManagement = () => {
             </div>
             <div>
               <Label htmlFor="role">Role *</Label>
-              <Input
-                id="role"
+              <Select
                 value={newEmployee.role}
-                onChange={(e) => setNewEmployee({ ...newEmployee, role: e.target.value })}
-              />
+                onValueChange={(value) => setNewEmployee({ ...newEmployee, role: value })}
+              >
+                <SelectTrigger id="role">
+                  <SelectValue placeholder="Select role" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="owner">Owner</SelectItem>
+                  <SelectItem value="admin">Admin</SelectItem>
+                  <SelectItem value="manager">Manager</SelectItem>
+                  <SelectItem value="staff">Staff</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground mt-1">
+                Owner/Admin: Full access | Manager: Limited access | Staff: Basic access
+              </p>
             </div>
             <div>
               <Label htmlFor="department">Department</Label>
@@ -1390,11 +1402,29 @@ export const EmployeeManagement = () => {
             </div>
             <div>
               <Label htmlFor="edit-role">Role *</Label>
-              <Input
-                id="edit-role"
-                value={newEmployee.role}
-                onChange={(e) => setNewEmployee({ ...newEmployee, role: e.target.value })}
-              />
+              <Select
+                value={editingEmployee?.role || newEmployee.role}
+                onValueChange={(value) => {
+                  if (editingEmployee) {
+                    setEditingEmployee({ ...editingEmployee, role: value });
+                  } else {
+                    setNewEmployee({ ...newEmployee, role: value });
+                  }
+                }}
+              >
+                <SelectTrigger id="edit-role">
+                  <SelectValue placeholder="Select role" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="owner">Owner</SelectItem>
+                  <SelectItem value="admin">Admin</SelectItem>
+                  <SelectItem value="manager">Manager</SelectItem>
+                  <SelectItem value="staff">Staff</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground mt-1">
+                Owner/Admin: Full access | Manager: Limited access | Staff: Basic access
+              </p>
             </div>
             <div>
               <Label htmlFor="edit-department">Department</Label>

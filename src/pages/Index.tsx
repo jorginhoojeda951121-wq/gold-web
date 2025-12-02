@@ -16,6 +16,7 @@ import { EmployeeManagement } from "@/components/EmployeeManagement";
 import { AIAnalyticsDashboard } from "@/components/AIAnalyticsDashboard";
 import { ReportingDashboard } from "@/components/ReportingDashboard";
 import { CustomerLedger } from "@/components/CustomerLedger";
+import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
@@ -53,6 +54,7 @@ interface Transaction {
 const Index = () => {
   const { toast } = useToast();
   const businessName = useBusinessName();
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState("inventory");
   const [searchQuery, setSearchQuery] = useState("");
   const [showAddDialog, setShowAddDialog] = useState(false);
@@ -533,19 +535,25 @@ const Index = () => {
               </div>
               
               {/* Collection Grid */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 {/* Gold Collection */}
-                <div className="bg-gradient-to-br from-yellow-400 to-yellow-600 rounded-lg p-6 text-white flex flex-col items-center text-center">
+                <div 
+                  onClick={() => navigate('/gold-collection')}
+                  className="bg-gradient-to-br from-yellow-400 to-yellow-600 rounded-lg p-6 text-white flex flex-col items-center text-center cursor-pointer hover:scale-105 transition-all duration-300 shadow-lg hover:shadow-xl"
+                >
                   <div 
                     className="h-32 w-full bg-cover bg-center rounded-lg mb-4"
                     style={{ backgroundImage: `url(${heroImage})` }}
                   />
-                  <h3 className="text-xl font-bold text-green-600 mb-2">Gold Collection</h3>
-                  <p className="text-green-500 text-sm">Explore our exquisite gold items.</p>
+                  <h3 className="text-xl font-bold text-white mb-2">Gold Collection</h3>
+                  <p className="text-yellow-100 text-sm">Explore our exquisite gold items.</p>
                 </div>
 
                 {/* Precious Stones */}
-                <div className="bg-white border-2 border-green-200 rounded-lg p-6 flex flex-col items-center text-center">
+                <div 
+                  onClick={() => navigate('/precious-stones')}
+                  className="bg-white border-2 border-green-200 rounded-lg p-6 flex flex-col items-center text-center cursor-pointer hover:scale-105 transition-all duration-300 shadow-lg hover:shadow-xl hover:border-green-400"
+                >
                   <div 
                     className="h-32 w-full bg-gray-800 rounded-lg mb-4 bg-cover bg-center"
                     style={{ backgroundImage: "url('https://images.unsplash.com/photo-1631832724508-ea8df04ad455?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3wzNzg4OTl8MHwxfHNlYXJjaHwxfHxwcmVjaW91cy1zdG9uZXN8ZW58MXwwfHx8MTc1Mzc2NjkyMHww&ixlib=rb-4.0.3&q=80&w=1080')" }}
@@ -554,14 +562,46 @@ const Index = () => {
                   <p className="text-green-500 text-sm">Discover our rare and beautiful stones.</p>
                 </div>
 
-                {/* Jewelry */}
-                <div className="bg-white border-2 border-green-200 rounded-lg p-6 flex flex-col items-center text-center">
+                {/* Artificial Stones */}
+                <div 
+                  onClick={() => navigate('/artificial-stones')}
+                  className="bg-white border-2 border-blue-200 rounded-lg p-6 flex flex-col items-center text-center cursor-pointer hover:scale-105 transition-all duration-300 shadow-lg hover:shadow-xl hover:border-blue-400"
+                >
+                  <div 
+                    className="h-32 w-full bg-blue-800 rounded-lg mb-4 bg-cover bg-center"
+                    style={{ backgroundImage: "url('https://images.unsplash.com/photo-1605100804763-247f67b3557e?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=1080')" }}
+                  />
+                  <h3 className="text-xl font-bold text-blue-600 mb-2">Artificial Stones</h3>
+                  <p className="text-blue-500 text-sm">Synthetic and lab-created stones.</p>
+                </div>
+
+                {/* Jewelry Collection */}
+                <div 
+                  onClick={() => navigate('/jewelry-collection')}
+                  className="bg-white border-2 border-purple-200 rounded-lg p-6 flex flex-col items-center text-center cursor-pointer hover:scale-105 transition-all duration-300 shadow-lg hover:shadow-xl hover:border-purple-400"
+                >
                   <div 
                     className="h-32 w-full bg-cover bg-center rounded-lg mb-4"
                     style={{ backgroundImage: "url('https://images.unsplash.com/photo-1543294001-f7cd5d7fb516?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3wzNzg4OTl8MHwxfHNlYXJjaHwxfHxqZXdlbHJ5fGVufDF8MHx8fDE3NTM3NTkzMjh8MA&ixlib=rb-4.0.3&q=80&w=1080')" }}
                   />
-                  <h3 className="text-xl font-bold text-green-600 mb-2">Jewelry</h3>
-                  <p className="text-green-500 text-sm">Elegant and timeless pieces.</p>
+                  <h3 className="text-xl font-bold text-purple-600 mb-2">Jewelry Collection</h3>
+                  <p className="text-purple-500 text-sm">Elegant and timeless pieces.</p>
+                </div>
+              </div>
+              
+              {/* Inventory Management Card */}
+              <div className="mt-6">
+                <div 
+                  onClick={() => setActiveTab('inventory')}
+                  className="bg-gradient-to-r from-indigo-500 to-purple-600 rounded-lg p-6 text-white cursor-pointer hover:scale-105 transition-all duration-300 shadow-lg hover:shadow-xl"
+                >
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="text-xl font-bold mb-2">Inventory Management</h3>
+                      <p className="text-indigo-100 text-sm">Unified inventory management for all collections</p>
+                    </div>
+                    <Package className="h-12 w-12 text-white/80" />
+                  </div>
                 </div>
               </div>
             </section>
@@ -863,6 +903,14 @@ const Index = () => {
 
         {/* Settings Tab */}
         {activeTab === "settings" && <BusinessSettings />}
+
+        {/* Analytics Tab - Combined with Reports */}
+        {activeTab === "analytics" && (
+          <div className="space-y-6">
+            <AIAnalyticsDashboard />
+            <ReportingDashboard />
+          </div>
+        )}
 
         {/* Reports Tab */}
         {activeTab === "reports" && <ReportingDashboard />}

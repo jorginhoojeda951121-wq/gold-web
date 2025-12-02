@@ -30,9 +30,13 @@ import Reservations from "./pages/Reservations";
 import Vendors from "./pages/Vendors";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
 import TermsOfService from "./pages/TermsOfService";
+import RefundPolicy from "./pages/RefundPolicy";
+import Disclaimer from "./pages/Disclaimer";
+import CookieNotice from "./pages/CookieNotice";
 import { restoreUserIdFromSession } from "./lib/userStorage";
 import { migrateToSingleSource, isMigrationComplete } from "./lib/dataMigration";
 import { useEffect } from "react";
+import { ThemeProvider } from "./contexts/ThemeContext";
 
 const queryClient = new QueryClient();
 
@@ -63,10 +67,11 @@ const App = () => {
   }, []);
   return (
   <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+    <ThemeProvider>
+      <TooltipProvider>
+        <Toaster />
+        <Sonner />
+        <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
         <Routes>
           {/* Landing page - no layout wrapper */}
           <Route path="/" element={<Landing />} />
@@ -74,6 +79,9 @@ const App = () => {
           <Route path="/public-support" element={<PublicSupport />} />
           <Route path="/policy" element={<PrivacyPolicy />} />
           <Route path="/terms" element={<TermsOfService />} />
+          <Route path="/refund" element={<RefundPolicy />} />
+          <Route path="/disclaimer" element={<Disclaimer />} />
+          <Route path="/cookies" element={<CookieNotice />} />
           
           {/* Protected routes with layout */}
           <Route element={<Layout />}>
@@ -105,6 +113,7 @@ const App = () => {
         </Routes>
       </BrowserRouter>
     </TooltipProvider>
+    </ThemeProvider>
   </QueryClientProvider>
   );
 };

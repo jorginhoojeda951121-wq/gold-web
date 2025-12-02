@@ -152,7 +152,7 @@ export const WhatsAppShare = ({ item, trigger, open: controlledOpen, onOpenChang
                 type="tel"
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
-                placeholder="+91 98765 43210"
+                placeholder="+91 8910921128"
               />
               <p className="text-xs text-muted-foreground">
                 Leave empty to choose recipient in WhatsApp
@@ -331,7 +331,7 @@ export const BulkWhatsAppShare = ({ items, open, onOpenChange }: BulkWhatsAppSha
               type="tel"
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
-              placeholder="+91 98765 43210"
+              placeholder="+91 8910921128"
             />
           </div>
 

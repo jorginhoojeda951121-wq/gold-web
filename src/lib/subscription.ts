@@ -227,11 +227,48 @@ export async function initializeSubscription(userId: string, email: string): Pro
 export async function recordSubscriptionPayment(
   userId: string,
   paymentAmount: number,
-  paymentDate: Date = new Date()
+  paymentDate: Date = new Date(),
+  transactionId?: string,
+  paymentGateway: string = 'payu'
 ): Promise<void> {
   const supabase = getSupabase();
   
   try {
+    // Get subscription record
+    const { data: subscription, error: subError } = await supabase
+      .from('user_subscriptions')
+      .select('id')
+      .eq('user_id', userId)
+      .single();
+
+    if (subError && subError.code !== 'PGRST116') {
+      console.error('Error fetching subscription:', subError);
+    }
+
+    // Create payment transaction record if transactionId provided
+    if (transactionId) {
+      const { error: txnError } = await supabase
+        .from('payment_transactions')
+        .upsert({
+          user_id: userId,
+          subscription_id: subscription?.id || null,
+          txn_id: transactionId,
+          amount: paymentAmount,
+          currency: 'INR',
+          payment_gateway: paymentGateway,
+          status: 'success',
+          payment_date: paymentDate.toISOString(),
+          updated_at: new Date().toISOString(),
+        }, {
+          onConflict: 'txn_id'
+        });
+
+      if (txnError) {
+        console.warn('Error creating payment transaction record:', txnError);
+        // Don't throw - continue with subscription update
+      }
+    }
+
     // Update subscription with payment
     const { error } = await supabase
       .from('user_subscriptions')
@@ -250,6 +287,154 @@ export async function recordSubscriptionPayment(
   } catch (error) {
     console.error('Error in recordSubscriptionPayment:', error);
     throw error;
+  }
+}
+
+/**
+ * Create payment transaction record
+ */
+export async function createPaymentTransaction(
+  userId: string,
+  transactionData: {
+    txnId: string;
+    amount: number;
+    paymentMethod?: string;
+    status?: 'pending' | 'success' | 'failed' | 'cancelled';
+  }
+): Promise<string | null> {
+  const supabase = getSupabase();
+  
+  try {
+    // Get subscription record
+    const { data: subscription } = await supabase
+      .from('user_subscriptions')
+      .select('id')
+      .eq('user_id', userId)
+      .single();
+
+    const { data, error } = await supabase
+      .from('payment_transactions')
+      .insert({
+        user_id: userId,
+        subscription_id: subscription?.id || null,
+        txn_id: transactionData.txnId,
+        amount: transactionData.amount,
+        currency: 'INR',
+        payment_method: transactionData.paymentMethod,
+        payment_gateway: 'payu',
+        status: transactionData.status || 'pending',
+        created_at: new Date().toISOString(),
+      })
+      .select('id')
+      .single();
+
+    if (error) {
+      console.error('Error creating payment transaction:', error);
+      return null;
+    }
+
+    return data.id;
+  } catch (error) {
+    console.error('Error in createPaymentTransaction:', error);
+    return null;
+  }
+}
+
+/**
+ * Update payment transaction status
+ */
+export async function updatePaymentTransaction(
+  txnId: string,
+  updateData: {
+    status: 'pending' | 'success' | 'failed' | 'cancelled';
+    payuPaymentId?: string;
+    payuHash?: string;
+    payuBankRefNum?: string;
+    payuBankCode?: string;
+    payuErrorCode?: string;
+    errorMessage?: string;
+    paymentDate?: Date;
+  }
+): Promise<boolean> {
+  const supabase = getSupabase();
+  
+  try {
+    const updatePayload: any = {
+      status: updateData.status,
+      updated_at: new Date().toISOString(),
+    };
+
+    if (updateData.payuPaymentId) updatePayload.payu_payment_id = updateData.payuPaymentId;
+    if (updateData.payuHash) updatePayload.payu_hash = updateData.payuHash;
+    if (updateData.payuBankRefNum) updatePayload.payu_bank_ref_num = updateData.payuBankRefNum;
+    if (updateData.payuBankCode) updatePayload.payu_bank_code = updateData.payuBankCode;
+    if (updateData.payuErrorCode) updatePayload.payu_error_code = updateData.payuErrorCode;
+    if (updateData.errorMessage) updatePayload.error_message = updateData.errorMessage;
+    if (updateData.paymentDate) updatePayload.payment_date = updateData.paymentDate.toISOString();
+
+    const { error } = await supabase
+      .from('payment_transactions')
+      .update(updatePayload)
+      .eq('txn_id', txnId);
+
+    if (error) {
+      console.error('Error updating payment transaction:', error);
+      return false;
+    }
+
+    return true;
+  } catch (error) {
+    console.error('Error in updatePaymentTransaction:', error);
+    return false;
+  }
+}
+
+/**
+ * Get payment transaction history for a user
+ */
+export async function getPaymentHistory(userId: string): Promise<any[]> {
+  const supabase = getSupabase();
+  
+  try {
+    const { data, error } = await supabase
+      .from('payment_transactions')
+      .select('*')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error('Error fetching payment history:', error);
+      return [];
+    }
+
+    return data || [];
+  } catch (error) {
+    console.error('Error in getPaymentHistory:', error);
+    return [];
+  }
+}
+
+/**
+ * Delete a payment transaction
+ */
+export async function deletePaymentTransaction(txnId: string): Promise<boolean> {
+  const supabase = getSupabase();
+  
+  try {
+    const { error } = await supabase
+      .from('payment_transactions')
+      .delete()
+      .eq('txn_id', txnId);
+
+    if (error) {
+      console.error('Error deleting payment transaction:', error);
+      return false;
+    }
+
+    return true;
+  } catch (error) {
+    console.error('Error in deletePaymentTransaction:', error);
+    return false;
   }
 }
 

@@ -248,12 +248,13 @@ export const CustomerLedger = () => {
       return;
     }
 
+    const customerName = formData.name;
     setFormData({ name: "", phone: "", email: "", address: "", creditLimit: "" });
     setShowAddDialog(false);
     
     toast({
       title: "Customer Added",
-      description: `${newCustomer.name} has been added to the ledger.`
+      description: `${customerName} has been added to the ledger.`
     });
   };
 
@@ -326,15 +327,17 @@ export const CustomerLedger = () => {
     }
 
     // Update customer balance and totals, then push customer
+    const transactionAmount = parseFloat(transactionData.amount);
+    const transactionType = transactionData.type;
     const updatedCustomers = customers.map(customer => 
       customer.id === selectedCustomer.id
         ? {
             ...customer,
-            currentBalance: (customer.currentBalance || 0) + newTransaction.amount,
-            totalPurchases: transactionData.type === 'purchase' 
-              ? (customer.totalPurchases || 0) + amount 
+            currentBalance: (customer.currentBalance || 0) + (transactionType === 'payment' ? -transactionAmount : transactionAmount),
+            totalPurchases: transactionType === 'purchase' 
+              ? (customer.totalPurchases || 0) + transactionAmount 
               : (customer.totalPurchases || 0),
-            lastPurchaseDate: transactionData.type === 'purchase' 
+            lastPurchaseDate: transactionType === 'purchase' 
               ? new Date().toISOString().split('T')[0]
               : (customer.lastPurchaseDate || new Date().toISOString().split('T')[0])
           }
@@ -368,7 +371,7 @@ export const CustomerLedger = () => {
     });
   };
 
-  const totalCreditOutstanding = customers.reduce((sum, customer) => sum + (parseFloat(String(customer.currentBalance ?? customer.ledger_balance ?? 0)) || 0), 0);
+  const totalCreditOutstanding = customers.reduce((sum, customer) => sum + (parseFloat(String(customer.currentBalance ?? 0)) || 0), 0);
   const activeCustomers = customers.filter(c => c.status === 'active').length;
   const totalCustomers = customers.length;
 
@@ -555,7 +558,7 @@ export const CustomerLedger = () => {
                   id="customer-phone"
                   value={formData.phone}
                   onChange={(e) => setFormData(prev => ({...prev, phone: e.target.value}))}
-                  placeholder="+91 98765 43210"
+                  placeholder="+91 8910921128"
                 />
               </div>
               <div>
@@ -644,7 +647,7 @@ export const CustomerLedger = () => {
               <select
                 id="payment-method"
                 value={transactionData.paymentMethod}
-                onValueChange={(value) => setTransactionData(prev => ({...prev, paymentMethod: value}))}
+                onChange={(e) => setTransactionData(prev => ({...prev, paymentMethod: e.target.value}))}
                 className="w-full p-2 border rounded-md"
               >
                 <option value="Cash">Cash</option>

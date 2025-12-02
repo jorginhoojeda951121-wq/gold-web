@@ -115,7 +115,7 @@ const POS = () => {
   const { data: businessSettings } = useUserStorage('businessSettings', {
     businessName: "Golden Treasures",
     address: "123 Jewelry Street, Mumbai",
-    phone: "+91 98765 43210",
+    phone: "+91 8910921128",
     email: "info@goldentreasures.com",
     gstNumber: "27XXXXX1234X1Z5",
     currency: "INR",
@@ -733,7 +733,7 @@ const POS = () => {
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={loadAllInventory}
+                    onClick={() => loadAllInventory()}
                     disabled={isRefreshing}
                     className="bg-white/80 backdrop-blur-sm border-2 border-blue-200 hover:bg-blue-50 hover:border-blue-300 shadow-md hover:shadow-lg transition-all duration-300"
                   >
@@ -762,7 +762,7 @@ const POS = () => {
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={loadAllInventory}
+                      onClick={() => loadAllInventory()}
                       disabled={isRefreshing}
                       className="bg-gradient-to-r from-blue-50 to-purple-50 border-2 border-blue-200 hover:from-blue-100 hover:to-purple-100"
                     >

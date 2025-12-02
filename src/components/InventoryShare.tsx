@@ -347,7 +347,7 @@ export const InventoryShare = ({ items, open, onOpenChange, shareType = 'single'
                 type="tel"
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
-                placeholder="+91 98765 43210"
+                placeholder="+91 8910921128"
               />
               <p className="text-xs text-muted-foreground">
                 Leave empty to choose recipient in WhatsApp

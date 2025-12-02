@@ -17,173 +17,225 @@ const TermsOfService = () => {
               Back to Home
             </Button>
           </Link>
-          <h1 className="text-4xl font-bold mb-4 bg-gradient-to-r from-yellow-300 to-yellow-100 bg-clip-text text-transparent">
-            Terms of Service
-          </h1>
-          <p className="text-gray-300 text-sm">Last updated: 2024</p>
+          <div className="mb-4">
+            <h1 className="text-4xl font-bold mb-2 bg-gradient-to-r from-yellow-300 to-yellow-100 bg-clip-text text-transparent">
+              Terms & Conditions
+            </h1>
+            <p className="text-gray-300 text-lg font-semibold mb-1">GOLD (GoldPOS) by RetailMarketingPro</p>
+            <p className="text-gray-300 text-sm">Last Updated: 12/1/2025</p>
+          </div>
         </div>
 
         {/* Content */}
         <div className="prose prose-invert max-w-none space-y-8">
           <div className="bg-slate-800/60 border border-slate-700/50 rounded-lg p-8 backdrop-blur-sm">
             <p className="text-gray-200 leading-relaxed mb-6">
-              We at Retail Marketing Pro (the "Business" "we" or "us" in this Privacy Policy), operator of the web site at www.retailmarketingpro.in (the "Site"), understand the importance of the privacy of users of the Site, and in particular of protecting their personal information. We have therefore put in place this Privacy Policy, in order to inform you fully of our privacy practices, and to permit you to contact us with any concerns, questions, or corrections regarding your personal information in our possession.
+              These Terms & Conditions ("Terms") govern your use of the GOLD (GoldPOS) web application, mobile application, and related services ("Service") provided by RetailMarketingPro ("we", "us", "our"). By accessing or using the Service, you agree to these Terms.
             </p>
           </div>
 
           <section className="bg-slate-800/60 border border-slate-700/50 rounded-lg p-8 backdrop-blur-sm">
-            <h2 className="text-2xl font-bold text-white mb-4">1. Accountability</h2>
+            <h2 className="text-2xl font-bold text-white mb-4">1. Acceptance of Terms</h2>
+            <p className="text-gray-200 leading-relaxed mb-4">
+              By using GOLD (GoldPOS), you confirm that you have read, understood, and agree to follow all Terms, Privacy Policy, Refund Policy, and Disclaimer provided by RetailMarketingPro.
+            </p>
             <p className="text-gray-200 leading-relaxed">
-              The Business has provided this privacy policy for ensuring compliance. Should you have any questions regarding this policy or concerns with respect to Business`s compliance, you may contact us.
+              If you do not agree, you must stop using the Service.
             </p>
           </section>
 
           <section className="bg-slate-800/60 border border-slate-700/50 rounded-lg p-8 backdrop-blur-sm">
-            <h2 className="text-2xl font-bold text-white mb-4">2. Identifying Purpose of Collection</h2>
-            <p className="text-gray-200 leading-relaxed mb-4">
-              We collect various personal information from you when you seek our products or services, make an online reservation, sing-up to our VIP newsletter membership or any inquiry through the Site. Information collected may include your:
-            </p>
-            <ul className="list-disc list-inside text-gray-200 space-y-2 mb-4 ml-4">
-              <li>Full Name</li>
-              <li>Company Name</li>
-              <li>Address(es)</li>
-              <li>Telephone and Facsimile number(s)</li>
-              <li>Email address(es)</li>
-              <li>Gender</li>
-              <li>Interest(s)</li>
+            <h2 className="text-2xl font-bold text-white mb-4">2. Eligibility</h2>
+            <p className="text-gray-200 leading-relaxed mb-4">You must be:</p>
+            <ul className="list-disc list-inside text-gray-200 space-y-2 ml-4">
+              <li>A business owner or authorized representative</li>
+              <li>Legally capable of entering agreements</li>
+              <li>Responsible for all actions taken under your account</li>
             </ul>
+          </section>
+
+          <section className="bg-slate-800/60 border border-slate-700/50 rounded-lg p-8 backdrop-blur-sm">
+            <h2 className="text-2xl font-bold text-white mb-4">3. Services We Provide</h2>
             <p className="text-gray-200 leading-relaxed mb-4">
-              We collect this information in order to permit us to:
+              GOLD (GoldPOS) is a software tool designed for:
             </p>
-            <ul className="list-disc list-inside text-gray-200 space-y-2 mb-4 ml-4">
-              <li>Verify your identity,</li>
-              <li>Permit us to contact you to provide goods and services requested by you,</li>
-              <li>Provide you with periodic updates regarding the Site and our products and services.</li>
+            <ul className="list-disc list-inside text-gray-200 space-y-2 ml-4 mb-4">
+              <li>Gold and jewellery stock management</li>
+              <li>Billing and invoicing</li>
+              <li>Customer management</li>
+              <li>Business reporting</li>
+              <li>POS functionality</li>
             </ul>
-            <p className="text-gray-200 leading-relaxed mb-4">
-              We may also use such information to build a profile of your interests as they relate to the Site or Business so that we will be able to suggest or provide products or services of interest to you in the future.
+            <p className="text-gray-200 leading-relaxed mb-2 font-semibold">We do NOT buy, store, trade, evaluate, insure, or guarantee gold/precious metals.</p>
+            <p className="text-gray-200 leading-relaxed">
+              We ONLY provide software tools to manage your own business operations.
             </p>
-            <p className="text-gray-200 leading-relaxed mb-4">
-              We do not collect information which we do not reasonably require in order to fulfill these purposes.
-            </p>
-            <p className="text-gray-200 leading-relaxed mb-4">
-              Further, the Site automatically collects certain information every time you visit it:
-            </p>
-            
-            <div className="ml-4 space-y-4">
-              <div>
-                <h3 className="text-lg font-semibold text-white mb-2">a) Cookies</h3>
-                <p className="text-gray-200 leading-relaxed mb-2">
-                  A cookie is a small non-executable file that is stored on your hard drive for the purpose of identifying your computer. While it is possible to view and to acquire products and services from the site with your browser`s security settings set to prevent cookies from being used, your online experience may be greatly reduced.
-                </p>
-                <p className="text-gray-200 leading-relaxed mb-2">
-                  Business uses both session cookies and permanent cookies at Site only after you have created a user account on the platform. Session cookies are active only during the period you are logged on to the Site and are removed when you leave.
-                </p>
-                <p className="text-gray-200 leading-relaxed">
-                  Permanent cookies remain on your hard drive until you remove them through your browser`s Internet security settings. Permanent cookies are used to store login information and user preferences and thus eliminate you're having to make the same entries on each visit.
-                </p>
-              </div>
+          </section>
 
-              <div>
-                <h3 className="text-lg font-semibold text-white mb-2">b) Conversion Beacons</h3>
-                <p className="text-gray-200 leading-relaxed">
-                  The Business also uses Conversion Beacons (short bits of HTML computer code) inserted in the source code of designated website pages. These beacons, used with industry standard browser cookie technology and standard Html coding, allow us to track analytics to the Site and email flow between you and us. Email recipients who receive a Conversion Beacon enabled email message will receive a small unique cookie that is stored in their browser session, which is later used to connect the email recipient with the subsequent recipient activity on the Site.
-                </p>
-              </div>
+          <section className="bg-slate-800/60 border border-slate-700/50 rounded-lg p-8 backdrop-blur-sm">
+            <h2 className="text-2xl font-bold text-white mb-4">4. Data Handling</h2>
+            <h3 className="text-xl font-semibold text-white mb-3 mt-4">Mobile App</h3>
+            <ul className="list-disc list-inside text-gray-200 space-y-2 ml-4 mb-4">
+              <li>All business data is stored locally on the user's device</li>
+              <li>We do NOT collect or access this data</li>
+            </ul>
+            <h3 className="text-xl font-semibold text-white mb-3 mt-4">Web Application</h3>
+            <ul className="list-disc list-inside text-gray-200 space-y-2 ml-4 mb-4">
+              <li>Data is stored on our secure cloud servers</li>
+              <li>Users have full control to update, delete, or remove their information</li>
+              <li>You may request deletion via email: <a href="mailto:retailmarketingpro1.0@gmail.com" className="text-yellow-400 hover:text-yellow-300 underline">retailmarketingpro1.0@gmail.com</a></li>
+            </ul>
+            <p className="text-gray-200 leading-relaxed mb-2 mt-4">We only collect the minimum required:</p>
+            <ul className="list-disc list-inside text-gray-200 space-y-2 ml-4 mb-4">
+              <li>Business type</li>
+              <li>Person-in-charge name</li>
+              <li>Contact details (phone or email)</li>
+            </ul>
+            <p className="text-gray-200 leading-relaxed">
+              No other data is collected or shared.
+            </p>
+          </section>
+
+          <section className="bg-slate-800/60 border border-slate-700/50 rounded-lg p-8 backdrop-blur-sm">
+            <h2 className="text-2xl font-bold text-white mb-4">5. User Responsibilities</h2>
+            <p className="text-gray-200 leading-relaxed mb-4">Users agree to:</p>
+            <ul className="list-disc list-inside text-gray-200 space-y-2 ml-4 mb-4">
+              <li>Enter correct and accurate data</li>
+              <li>Secure their device, login information, and accounts</li>
+              <li>Maintain local backups (for mobile app users)</li>
+              <li>Use the system only for lawful business purposes</li>
+            </ul>
+            <p className="text-gray-200 leading-relaxed mb-2 font-semibold">We are not responsible for:</p>
+            <ul className="list-disc list-inside text-gray-200 space-y-2 ml-4">
+              <li>Mistyped entries</li>
+              <li>Device loss or damage</li>
+              <li>Local data deletion or reset</li>
+              <li>Account misuse</li>
+            </ul>
+          </section>
+
+          <section className="bg-slate-800/60 border border-slate-700/50 rounded-lg p-8 backdrop-blur-sm">
+            <h2 className="text-2xl font-bold text-white mb-4">6. Subscription & Payments</h2>
+            <p className="text-gray-200 leading-relaxed mb-4">
+              GOLD (GoldPOS) operates on a yearly subscription model.
+            </p>
+            <p className="text-gray-200 leading-relaxed">
+              No monthly fees, hidden charges, or commissions are added.
+            </p>
+          </section>
+
+          <section className="bg-slate-800/60 border border-slate-700/50 rounded-lg p-8 backdrop-blur-sm">
+            <h2 className="text-2xl font-bold text-white mb-4">7. Refunds & Cancellation</h2>
+            <p className="text-gray-200 leading-relaxed mb-4">Refunds follow these rules:</p>
+            <ul className="list-disc list-inside text-gray-200 space-y-2 ml-4 mb-4">
+              <li>Refunds include third-party fees (payment gateway, tax, etc.)</li>
+              <li>Cancellations may incur deductions per policy</li>
+              <li>The maximum refundable or claimable amount is INR 100 under any circumstance</li>
+            </ul>
+            <p className="text-gray-200 leading-relaxed">
+              All refund and cancellation terms are detailed in the Refund Policy.
+            </p>
+          </section>
+
+          <section className="bg-slate-800/60 border border-slate-700/50 rounded-lg p-8 backdrop-blur-sm">
+            <h2 className="text-2xl font-bold text-white mb-4">8. Prohibited Activities</h2>
+            <p className="text-gray-200 leading-relaxed mb-4">Users may NOT:</p>
+            <ul className="list-disc list-inside text-gray-200 space-y-2 ml-4 mb-4">
+              <li>Attempt to hack, disrupt, or misuse the system</li>
+              <li>Reverse-engineer or copy the software</li>
+              <li>Use GOLD (GoldPOS) for illegal transactions</li>
+              <li>Use false identity or fraudulently represent a business</li>
+            </ul>
+            <p className="text-gray-200 leading-relaxed">
+              Violations may lead to account suspension or permanent termination.
+            </p>
+          </section>
+
+          <section className="bg-slate-800/60 border border-slate-700/50 rounded-lg p-8 backdrop-blur-sm">
+            <h2 className="text-2xl font-bold text-white mb-4">9. Third-Party Services</h2>
+            <p className="text-gray-200 leading-relaxed mb-4">
+              Some features may rely on third-party services like:
+            </p>
+            <ul className="list-disc list-inside text-gray-200 space-y-2 ml-4 mb-4">
+              <li>Hosting/servers</li>
+              <li>Payment gateways</li>
+              <li>Email/SMS providers</li>
+            </ul>
+            <p className="text-gray-200 leading-relaxed mb-2 font-semibold">We are not responsible for:</p>
+            <ul className="list-disc list-inside text-gray-200 space-y-2 ml-4">
+              <li>Third-party failures</li>
+              <li>Downtime</li>
+              <li>Data breaches caused by external services</li>
+            </ul>
+          </section>
+
+          <section className="bg-slate-800/60 border border-slate-700/50 rounded-lg p-8 backdrop-blur-sm">
+            <h2 className="text-2xl font-bold text-white mb-4">10. Service Availability</h2>
+            <p className="text-gray-200 leading-relaxed mb-4">
+              We aim for high uptime but do NOT guarantee:
+            </p>
+            <ul className="list-disc list-inside text-gray-200 space-y-2 ml-4 mb-4">
+              <li>24/7 availability</li>
+              <li>Zero errors</li>
+              <li>Uninterrupted performance</li>
+            </ul>
+            <p className="text-gray-200 leading-relaxed">
+              Maintenance, updates, outages, or external issues may temporarily affect service.
+            </p>
+          </section>
+
+          <section className="bg-slate-800/60 border border-slate-700/50 rounded-lg p-8 backdrop-blur-sm">
+            <h2 className="text-2xl font-bold text-white mb-4">11. Intellectual Property</h2>
+            <p className="text-gray-200 leading-relaxed mb-4">
+              All intellectual property—including logos, brand name, software code, UI/UX, and content—is owned by RetailMarketingPro.
+            </p>
+            <p className="text-gray-200 leading-relaxed mb-2">Users may not:</p>
+            <ul className="list-disc list-inside text-gray-200 space-y-2 ml-4">
+              <li>Copy</li>
+              <li>Resell</li>
+              <li>Distribute</li>
+              <li>Modify the software</li>
+            </ul>
+          </section>
+
+          <section className="bg-slate-800/60 border border-slate-700/50 rounded-lg p-8 backdrop-blur-sm">
+            <h2 className="text-2xl font-bold text-white mb-4">12. Limitation of Liability</h2>
+            <p className="text-gray-200 leading-relaxed mb-4">
+              To the fullest extent permitted by law:
+            </p>
+            <p className="text-gray-200 leading-relaxed mb-4 font-semibold text-yellow-400">
+              Our maximum liability is limited to INR 100 (One Hundred Rupees Only) for any claim, refund, dispute, or damage.
+            </p>
+            <p className="text-gray-200 leading-relaxed mb-2 font-semibold">We are NOT liable for:</p>
+            <ul className="list-disc list-inside text-gray-200 space-y-2 ml-4 mb-4">
+              <li>Loss of business</li>
+              <li>Loss of revenue</li>
+              <li>Loss of gold/stock</li>
+              <li>Technical failures</li>
+              <li>Incorrect data entered by the user</li>
+            </ul>
+            <p className="text-gray-200 leading-relaxed">
+              The user is solely responsible for business operations and decisions.
+            </p>
+          </section>
+
+          <section className="bg-slate-800/60 border border-slate-700/50 rounded-lg p-8 backdrop-blur-sm">
+            <h2 className="text-2xl font-bold text-white mb-4">13. Changes to Terms</h2>
+            <p className="text-gray-200 leading-relaxed mb-4">
+              We may update these Terms from time to time.
+            </p>
+            <p className="text-gray-200 leading-relaxed">
+              Continued use of the Service means you accept the updated Terms.
+            </p>
+          </section>
+
+          <section className="bg-slate-800/60 border border-slate-700/50 rounded-lg p-8 backdrop-blur-sm">
+            <h2 className="text-2xl font-bold text-white mb-4">14. Contact</h2>
+            <div className="text-gray-200 space-y-2">
+              <p className="font-semibold text-white">RetailMarketingPro</p>
+              <p>Email: <a href="mailto:retailmarketingpro1.0@gmail.com" className="text-yellow-400 hover:text-yellow-300 underline">retailmarketingpro1.0@gmail.com</a></p>
+              <p>Website: <a href="https://gold.retailmarketingpro.in" target="_blank" rel="noopener noreferrer" className="text-yellow-400 hover:text-yellow-300 underline">gold.retailmarketingpro.in</a></p>
             </div>
-
-            <div className="mt-6">
-              <h3 className="text-lg font-semibold text-white mb-2">Consent and CEMs</h3>
-              <p className="text-gray-200 leading-relaxed mb-2">
-                When you acquire any product or service on or through the Site, or you provide any information at our request, your action constitutes consent to our collection and use of such information as permitted in this Privacy Policy.
-              </p>
-              <p className="text-gray-200 leading-relaxed mb-2">
-                Express consent is obtained when you explicitly toggle the opt-in check-box to agree to express permission for us to send you commercial electronic messages ("CEM").
-              </p>
-              <p className="text-gray-200 leading-relaxed mb-2">
-                Implied consent is obtained when you have purchased our goods or services and have provided your email address from a reservation, comment form, coupon or other methods.
-              </p>
-              <p className="text-gray-200 leading-relaxed mb-2">
-                Email communications are sent from a software provided by Retail Marketing Pro. All email communications include the Business name, contact and a mechanism that allows the recipient to unsubscribe at no cost.
-              </p>
-              <p className="text-gray-200 leading-relaxed">
-                Please note that if you do not wish to receive emails from us, you may opt-out automatically of such material by clicking on the unsubscribe link found in the email communication sent to you by our Business.
-              </p>
-            </div>
-          </section>
-
-          <section className="bg-slate-800/60 border border-slate-700/50 rounded-lg p-8 backdrop-blur-sm">
-            <h2 className="text-2xl font-bold text-white mb-4">3. Limiting Collection</h2>
-            <p className="text-gray-200 leading-relaxed mb-4">
-              The Business will limit the collection of personal information to that which reasonably necessary to fulfill the purpose for which it was collected.
-            </p>
-            <p className="text-gray-200 leading-relaxed mb-4">
-              Research and survey data is reported back to Business as aggregated data with no reference to individual customers.
-            </p>
-            <p className="text-gray-200 leading-relaxed">
-              Customers who do not wish to be contacted for research or survey purposes should contact us.
-            </p>
-          </section>
-
-          <section className="bg-slate-800/60 border border-slate-700/50 rounded-lg p-8 backdrop-blur-sm">
-            <h2 className="text-2xl font-bold text-white mb-4">4. Limiting Use, Disclosure, and Retention</h2>
-            <p className="text-gray-200 leading-relaxed mb-4">
-              We will not use or disclose your personal information for purposes other than those for which it was collected without your consent or as permitted or required by law.
-            </p>
-            <p className="text-gray-200 leading-relaxed mb-4">
-              However, we do use the services of third parties to complete certain electronic requests such as reservations, newsletter sign-ups along with any other 3rd party widgets, and your personal information may, therefore, be transmitted to such third parties for such purposes. If your personal data is to be transmitted to another party for processing or storage, we use contractual and other means to ensure that your personal information is protected in accordance with PIPEDA.
-            </p>
-            <p className="text-gray-200 leading-relaxed mb-4">
-              Your user data will be stored by Retail Marketing Pro, a product developed by Retail Marketing Pro.
-            </p>
-            <p className="text-gray-200 leading-relaxed">
-              Your personal information is retained only for as long as necessary to fulfill the purposes for which it was collected unless the law requires longer retention.
-            </p>
-          </section>
-
-          <section className="bg-slate-800/60 border border-slate-700/50 rounded-lg p-8 backdrop-blur-sm">
-            <h2 className="text-2xl font-bold text-white mb-4">5. Accuracy</h2>
-            <p className="text-gray-200 leading-relaxed">
-              In order to maintain the highest levels of accuracy regarding your personal information, to the extent possible we permit you to enter such information into our systems yourself. In some instances, however, we are required to enter such information, for instance upon speaking to you over the phone or some other type of communication (provided by you or otherwise).
-            </p>
-          </section>
-
-          <section className="bg-slate-800/60 border border-slate-700/50 rounded-lg p-8 backdrop-blur-sm">
-            <h2 className="text-2xl font-bold text-white mb-4">6. Safeguards</h2>
-            <p className="text-gray-200 leading-relaxed mb-4">
-              While in our possession (or the possession of any entity engaged by us to house or store it) and regardless of the format in which it is held, your personal information is protected against theft, loss and/or unauthorized access, disclosure, copying, use or modification by security safeguards appropriate to the sensitivity of the information.
-            </p>
-            <p className="text-gray-200 leading-relaxed">
-              Some personal information entered by you into our systems may be encrypted as it travels over the Internet. Depending on your web browser you may see a secure webpage indicator, for example, a closed lock in the lower right-hand corner of your browser. We may use the Secure Socket Layer (SSL) protocol to encrypt some personal information as it travels from your computer to our systems.
-            </p>
-          </section>
-
-          <section className="bg-slate-800/60 border border-slate-700/50 rounded-lg p-8 backdrop-blur-sm">
-            <h2 className="text-2xl font-bold text-white mb-4">7. Openness</h2>
-            <p className="text-gray-200 leading-relaxed">
-              Business`s privacy practices are as outlined within this policy. If you have any questions or comments, please contact us.
-            </p>
-          </section>
-
-          <section className="bg-slate-800/60 border border-slate-700/50 rounded-lg p-8 backdrop-blur-sm">
-            <h2 className="text-2xl font-bold text-white mb-4">8. Individual Access</h2>
-            <p className="text-gray-200 leading-relaxed">
-              With certain limited exceptions, you have a right to access your personal information held by the Business. You may access your personal information by contacting us.
-            </p>
-          </section>
-
-          <section className="bg-slate-800/60 border border-slate-700/50 rounded-lg p-8 backdrop-blur-sm">
-            <h2 className="text-2xl font-bold text-white mb-4">Changes to the Privacy Policy</h2>
-            <p className="text-gray-200 leading-relaxed">
-              Business reserves the right to modify this privacy statement at any time, so please review it frequently. If we make material changes to this policy we will notify you on our homepage and other places we deem appropriate so that you are aware of what information we collect how we use it, and under what circumstances, if any, we disclose it.
-            </p>
-          </section>
-
-          <section className="bg-slate-800/60 border border-slate-700/50 rounded-lg p-8 backdrop-blur-sm">
-            <h2 className="text-2xl font-bold text-white mb-4">Refund and Cancellation Policy</h2>
-            <p className="text-gray-200 leading-relaxed">
-              i. All refund amounts shall be credited to your account within 5-7 business days in accordance with the terms that may be stipulated by the bank which has issued the credit/debit card.
-            </p>
           </section>
         </div>
 
@@ -198,9 +250,18 @@ const TermsOfService = () => {
               Back to Home
             </Button>
           </Link>
-          <div className="flex gap-4">
+          <div className="flex gap-4 flex-wrap">
             <Link to="/policy" className="text-sm text-gray-400 hover:text-yellow-400 transition-colors">
               Privacy Policy
+            </Link>
+            <Link to="/refund" className="text-sm text-gray-400 hover:text-yellow-400 transition-colors">
+              Refund Policy
+            </Link>
+            <Link to="/disclaimer" className="text-sm text-gray-400 hover:text-yellow-400 transition-colors">
+              Disclaimer
+            </Link>
+            <Link to="/cookies" className="text-sm text-gray-400 hover:text-yellow-400 transition-colors">
+              Cookie Notice
             </Link>
           </div>
         </div>

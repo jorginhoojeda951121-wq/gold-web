@@ -27,7 +27,7 @@ const Contact = () => {
   const { data: businessSettings } = useOfflineStorage('businessSettings', {
     businessName: "Golden Treasures",
     address: "123 Jewelry Street, Mumbai",
-    phone: "+91 98765 43210",
+    phone: "+91 8910921128",
     email: "info@goldentreasures.com",
     gstNumber: "27XXXXX1234X1Z5",
     currency: "INR",
@@ -134,10 +134,10 @@ const Contact = () => {
   };
 
   return (
-    <div className="min-h-[calc(100vh-200px)] py-8 bg-gray-50 -m-4 lg:-m-8">
+    <div className="min-h-[calc(100vh-200px)] py-8 bg-gray-50">
       {/* Content Container */}
-      <div className="container mx-auto px-4">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 max-w-7xl mx-auto">
+      <div className="container mx-auto px-4 max-w-7xl">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           
           {/* Business Contact Information Card */}
           <div className="w-full">

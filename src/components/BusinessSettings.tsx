@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Settings, CreditCard, Bell } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Settings, CreditCard, Bell, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -12,6 +12,8 @@ import { useToast } from "@/hooks/use-toast";
 import { useUserStorage } from "@/hooks/useUserStorage";
 import { enqueueChange } from "@/lib/sync";
 import { getCurrentUserId } from "@/lib/userStorage";
+import { hasPermission } from "@/lib/permissions";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 interface PaymentSettings {
   upiId: string;
@@ -32,11 +34,28 @@ interface NotificationSettings {
 export const BusinessSettings = () => {
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState("general");
+  const [canEditBusiness, setCanEditBusiness] = useState(false);
+  const [canEditPayment, setCanEditPayment] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  // Check permissions on mount
+  useEffect(() => {
+    const checkPermissions = async () => {
+      const [canEditBiz, canEditPay] = await Promise.all([
+        hasPermission('canEditBusinessSettings'),
+        hasPermission('canEditPaymentSettings')
+      ]);
+      setCanEditBusiness(canEditBiz);
+      setCanEditPayment(canEditPay);
+      setLoading(false);
+    };
+    checkPermissions();
+  }, []);
 
   const { data: businessSettings, updateData: setBusinessSettings } = useUserStorage('businessSettings', {
     businessName: "Golden Treasures",
     address: "123 Jewelry Street, Mumbai",
-    phone: "+91 98765 43210",
+    phone: "+91 8910921128",
     email: "info@goldentreasures.com",
     gstNumber: "27XXXXX1234X1Z5",
     currency: "INR",
@@ -124,6 +143,17 @@ export const BusinessSettings = () => {
     });
   };
 
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-muted-foreground">Loading permissions...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-8">
       <div className="text-center">
@@ -132,6 +162,16 @@ export const BusinessSettings = () => {
           Configure your business preferences and system settings
         </p>
       </div>
+
+      {/* Permission Warning */}
+      {!canEditBusiness && (
+        <Alert className="bg-yellow-50 border-yellow-200">
+          <AlertCircle className="h-4 w-4 text-yellow-600" />
+          <AlertDescription className="text-yellow-800">
+            You don't have permission to edit business settings. Only owners and admins can modify these settings.
+          </AlertDescription>
+        </Alert>
+      )}
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList className="grid w-full grid-cols-3">
@@ -156,6 +196,7 @@ export const BusinessSettings = () => {
                     id="businessName"
                     value={businessSettings.businessName}
                     onChange={(e) => setBusinessSettings({ ...businessSettings, businessName: e.target.value })}
+                    disabled={!canEditBusiness}
                   />
                 </div>
                 <div>
@@ -164,6 +205,7 @@ export const BusinessSettings = () => {
                     id="gstNumber"
                     value={businessSettings.gstNumber}
                     onChange={(e) => setBusinessSettings({ ...businessSettings, gstNumber: e.target.value })}
+                    disabled={!canEditBusiness}
                   />
                 </div>
               </div>
@@ -174,6 +216,7 @@ export const BusinessSettings = () => {
                   id="address"
                   value={businessSettings.address}
                   onChange={(e) => setBusinessSettings({ ...businessSettings, address: e.target.value })}
+                  disabled={!canEditBusiness}
                 />
               </div>
 
@@ -184,6 +227,7 @@ export const BusinessSettings = () => {
                     id="phone"
                     value={businessSettings.phone}
                     onChange={(e) => setBusinessSettings({ ...businessSettings, phone: e.target.value })}
+                    disabled={!canEditBusiness}
                   />
                 </div>
                 <div>
@@ -193,6 +237,7 @@ export const BusinessSettings = () => {
                     type="email"
                     value={businessSettings.email}
                     onChange={(e) => setBusinessSettings({ ...businessSettings, email: e.target.value })}
+                    disabled={!canEditBusiness}
                   />
                 </div>
               </div>
@@ -214,9 +259,13 @@ export const BusinessSettings = () => {
                 </div>
                 <div>
                   <Label htmlFor="timezone">Timezone</Label>
-                  <Select value={businessSettings.timezone} onValueChange={(value) => 
-                    setBusinessSettings({ ...businessSettings, timezone: value })
-                  }>
+                  <Select 
+                    value={businessSettings.timezone} 
+                    onValueChange={(value) => 
+                      setBusinessSettings({ ...businessSettings, timezone: value })
+                    }
+                    disabled={!canEditBusiness}
+                  >
                     <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
@@ -229,7 +278,11 @@ export const BusinessSettings = () => {
                 </div>
               </div>
 
-              <Button onClick={handleSaveBusinessSettings} className="w-full">
+              <Button 
+                onClick={handleSaveBusinessSettings} 
+                className="w-full"
+                disabled={!canEditBusiness}
+              >
                 Save General Settings
               </Button>
             </CardContent>
@@ -252,6 +305,7 @@ export const BusinessSettings = () => {
                   value={paymentSettings.upiId}
                   onChange={(e) => setPaymentSettings({ ...paymentSettings, upiId: e.target.value })}
                   placeholder="yourstore@paytm"
+                  disabled={!canEditPayment}
                 />
                 <p className="text-sm text-muted-foreground mt-1">
                   This UPI ID will be used for accepting payments in the app
@@ -265,6 +319,7 @@ export const BusinessSettings = () => {
                     id="businessNamePayment"
                     value={paymentSettings.businessName}
                     onChange={(e) => setPaymentSettings({ ...paymentSettings, businessName: e.target.value })}
+                    disabled={!canEditPayment}
                   />
                 </div>
                 <div>
@@ -273,6 +328,7 @@ export const BusinessSettings = () => {
                     id="gstNumberPayment"
                     value={paymentSettings.gstNumber}
                     onChange={(e) => setPaymentSettings({ ...paymentSettings, gstNumber: e.target.value })}
+                    disabled={!canEditPayment}
                   />
                 </div>
               </div>
@@ -284,6 +340,7 @@ export const BusinessSettings = () => {
                     id="bankAccount"
                     value={paymentSettings.bankAccount}
                     onChange={(e) => setPaymentSettings({ ...paymentSettings, bankAccount: e.target.value })}
+                    disabled={!canEditPayment}
                   />
                 </div>
                 <div>
@@ -291,12 +348,17 @@ export const BusinessSettings = () => {
                   <Input
                     id="ifscCode"
                     value={paymentSettings.ifscCode}
+                    disabled={!canEditPayment}
                     onChange={(e) => setPaymentSettings({ ...paymentSettings, ifscCode: e.target.value })}
                   />
                 </div>
               </div>
 
-              <Button onClick={handleSavePaymentSettings} className="w-full">
+              <Button 
+                onClick={handleSavePaymentSettings} 
+                className="w-full"
+                disabled={!canEditPayment}
+              >
                 Save Payment Settings
               </Button>
             </CardContent>

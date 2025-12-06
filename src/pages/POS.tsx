@@ -48,6 +48,10 @@ interface CartItem {
   taxRate?: number;        // Custom tax rate for this item (percentage)
   taxIncluded?: boolean;   // Whether price includes tax
   taxCategory?: string;    // Tax category for reporting
+  weight?: string;         // Item weight (for gold/jewelry)
+  purity?: string;         // Purity/Metal type (e.g., "Gold 18K", "22K")
+  customRate?: number;     // Custom rate/price (overrides base price if set)
+  details?: string;        // Additional item details/notes
 }
 
 interface Invoice {
@@ -287,6 +291,15 @@ const POS = () => {
   const [upiUrl, setUpiUrl] = useState("");
   const [viewingInvoice, setViewingInvoice] = useState<Invoice | null>(null);
   const [invoiceToDelete, setInvoiceToDelete] = useState<Invoice | null>(null);
+  const [showItemDetailsDialog, setShowItemDetailsDialog] = useState(false);
+  const [itemToAdd, setItemToAdd] = useState<JewelryItem | null>(null);
+  const [itemDetails, setItemDetails] = useState({
+    weight: "",
+    purity: "",
+    customRate: "",
+    taxRate: "3",
+    details: ""
+  });
 
   // Handle invoice deletion
   const handleDeleteInvoice = async () => {
@@ -315,27 +328,87 @@ const POS = () => {
     }
   };
 
-  const addToCart = (item: JewelryItem) => {
+  const handleAddToCartClick = async (item: JewelryItem) => {
+    // Load full item data from inventory to get weight and other attributes
+    try {
+      const inventoryData = await getUserData<any[]>('inventory_items') || [];
+      const fullItem = inventoryData.find((inv: any) => inv.id === item.id);
+      
+      // Set item to add and pre-fill details from item
+      setItemToAdd(item);
+      setItemDetails({
+        weight: fullItem?.attributes?.weight || fullItem?.weight || "",
+        purity: item.metal || fullItem?.attributes?.purity || fullItem?.purity || "",
+        customRate: "",
+        taxRate: (item.taxRate ?? 3).toString(),
+        details: ""
+      });
+      setShowItemDetailsDialog(true);
+    } catch (error) {
+      console.error('Error loading item details:', error);
+      // Fallback to basic data
+      setItemToAdd(item);
+      setItemDetails({
+        weight: "",
+        purity: item.metal || "",
+        customRate: "",
+        taxRate: (item.taxRate ?? 3).toString(),
+        details: ""
+      });
+      setShowItemDetailsDialog(true);
+    }
+  };
+
+  const confirmAddToCart = () => {
+    if (!itemToAdd) return;
+
+    const cartItem: CartItem = {
+      id: itemToAdd.id,
+      name: itemToAdd.name,
+      price: itemDetails.customRate ? parseFloat(itemDetails.customRate) : itemToAdd.price,
+      quantity: 1,
+      type: itemToAdd.type,
+      taxRate: parseFloat(itemDetails.taxRate) || 3,
+      taxIncluded: itemToAdd.taxIncluded ?? false,
+      taxCategory: itemToAdd.taxCategory ?? 'jewelry',
+      weight: itemDetails.weight || undefined,
+      purity: itemDetails.purity || undefined,
+      customRate: itemDetails.customRate ? parseFloat(itemDetails.customRate) : undefined,
+      details: itemDetails.details || undefined
+    };
+
     setCart(prev => {
-      const existing = prev.find(cartItem => cartItem.id === item.id);
+      const existing = prev.find(cartItem => cartItem.id === itemToAdd.id);
       if (existing) {
-        return prev.map(cartItem =>
-          cartItem.id === item.id
-            ? { ...cartItem, quantity: cartItem.quantity + 1 }
-            : cartItem
+        return prev.map(c =>
+          c.id === itemToAdd.id
+            ? { ...c, quantity: c.quantity + 1 }
+            : c
         );
       }
-      return [...prev, { 
-        id: item.id, 
-        name: item.name, 
-        price: item.price, 
-        quantity: 1, 
-        type: item.type,
-        taxRate: item.taxRate ?? 3,
-        taxIncluded: item.taxIncluded ?? false,
-        taxCategory: item.taxCategory ?? 'jewelry'
-      }];
+      return [...prev, cartItem];
     });
+
+    // Reset and close dialog
+    setShowItemDetailsDialog(false);
+    setItemToAdd(null);
+    setItemDetails({
+      weight: "",
+      purity: "",
+      customRate: "",
+      taxRate: "3",
+      details: ""
+    });
+
+    toast({
+      title: "Item Added",
+      description: `${itemToAdd.name} has been added to cart.`
+    });
+  };
+
+  const addToCart = (item: JewelryItem) => {
+    // Legacy function - now opens dialog
+    handleAddToCartClick(item);
   };
 
   const handleBarcodeScan = (barcode: string) => {
@@ -350,11 +423,7 @@ const POS = () => {
     );
 
     if (foundItem) {
-      addToCart(foundItem);
-      toast({
-        title: "Item Added",
-        description: `${foundItem.name} added to cart`,
-      });
+      handleAddToCartClick(foundItem);
     } else {
       toast({
         title: "Item Not Found",
@@ -584,7 +653,12 @@ const POS = () => {
           name: item.name,
           quantity: item.quantity,
           price: item.price,
-          total: item.price * item.quantity
+          total: item.price * item.quantity,
+          weight: item.weight,
+          purity: item.purity,
+          customRate: item.customRate,
+          taxRate: item.taxRate,
+          details: item.details
         })),
         subtotal: invoice.subtotal,
         tax: invoice.tax,
@@ -637,44 +711,6 @@ const POS = () => {
     setShowUpi(true);
   };
 
-  const handleOpenUpiApp = (e: React.MouseEvent<HTMLButtonElement>) => {
-    e.preventDefault();
-    
-    if (!upiUrl || !paymentSettings.upiId) {
-      toast({
-        title: "Error",
-        description: "UPI payment URL is not available. Please try again.",
-        variant: "destructive"
-      });
-      return;
-    }
-    
-    // Convert UPI:// to upi:// for deep linking
-    const upiDeepLink = upiUrl.replace('UPI://', 'upi://');
-    
-    // Try to open UPI app using window.location for better compatibility
-    try {
-      // Create a temporary anchor element to trigger the deep link
-      const link = document.createElement('a');
-      link.href = upiDeepLink;
-      link.style.display = 'none';
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      
-      // Fallback: if above doesn't work, use window.location
-      setTimeout(() => {
-        window.location.href = upiDeepLink;
-      }, 100);
-    } catch (error) {
-      console.error('Error opening UPI app:', error);
-      toast({
-        title: "Error",
-        description: "Could not open UPI app. Please scan the QR code instead or use the UPI ID manually.",
-        variant: "destructive"
-      });
-    }
-  };
 
   return (
     <div className="min-h-screen bg-gradient-elegant">
@@ -685,21 +721,6 @@ const POS = () => {
             <div>
               <h1 className="text-2xl font-bold text-primary-foreground">Point of Sale</h1>
               <p className="text-primary-foreground/70 text-sm">Process sales and generate invoices</p>
-            </div>
-            
-            {/* Barcode Scanner Input */}
-            <div className="flex-1 max-w-md">
-              <BarcodeInput 
-                onScan={handleBarcodeScan}
-                placeholder="Scan barcode to add item..."
-                className="w-full"
-              />
-            </div>
-            
-            <div className="flex items-center gap-4">
-              <Badge className="bg-accent text-accent-foreground">
-                Terminal: POS-001
-              </Badge>
             </div>
           </div>
         </div>
@@ -1010,12 +1031,21 @@ const POS = () => {
                   <ScrollArea className="h-64">
                     <div className="space-y-4 pr-4">
                       {cart.map(item => (
-                        <div key={item.id} className="flex items-center justify-between">
-                          <div className="flex-1">
+                        <div key={item.id} className="flex items-start justify-between p-2 rounded-lg hover:bg-secondary/50">
+                          <div className="flex-1 min-w-0">
                             <h4 className="font-medium text-foreground">{item.name}</h4>
-                            <p className="text-sm text-muted-foreground">₹{item.price.toLocaleString()} each</p>
+                            <p className="text-sm text-muted-foreground">₹{item.price.toLocaleString()} each × {item.quantity}</p>
+                            {(item.weight || item.purity || item.customRate || item.taxRate || item.details) && (
+                              <div className="mt-1 space-y-0.5 text-xs text-muted-foreground">
+                                {item.weight && <p>Weight: {item.weight}g</p>}
+                                {item.purity && <p>Purity: {item.purity}</p>}
+                                {item.customRate && <p>Custom Rate: ₹{item.customRate.toLocaleString('en-IN')}</p>}
+                                {item.taxRate && <p>Tax: {item.taxRate}%</p>}
+                                {item.details && <p className="italic">Note: {item.details}</p>}
+                              </div>
+                            )}
                           </div>
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-2 ml-2">
                             <Button
                               variant="outline"
                               size="sm"
@@ -1450,7 +1480,12 @@ const POS = () => {
                         name: item.name,
                         quantity: item.quantity,
                         price: item.price,
-                        total: item.price * item.quantity
+                        total: item.price * item.quantity,
+                        weight: item.weight,
+                        purity: item.purity,
+                        customRate: item.customRate,
+                        taxRate: item.taxRate,
+                        details: item.details
                       })),
                       subtotal: viewingInvoice.subtotal,
                       tax: viewingInvoice.tax,
@@ -1502,12 +1537,33 @@ const POS = () => {
                 <Label className="text-muted-foreground mb-2 block">Items</Label>
                 <div className="space-y-2">
                   {viewingInvoice.items.map((item, index) => (
-                    <div key={index} className="flex justify-between items-center p-3 bg-secondary rounded-lg">
-                      <div>
-                        <p className="font-medium">{item.name}</p>
-                        <p className="text-sm text-muted-foreground">Qty: {item.quantity} × ₹{item.price.toLocaleString('en-IN')}</p>
+                    <div key={index} className="p-3 bg-secondary rounded-lg space-y-2">
+                      <div className="flex justify-between items-start">
+                        <div className="flex-1">
+                          <p className="font-medium">{item.name}</p>
+                          <p className="text-sm text-muted-foreground">Qty: {item.quantity} × ₹{item.price.toLocaleString('en-IN')}</p>
+                          {(item.weight || item.purity || item.customRate || item.taxRate || item.details) && (
+                            <div className="mt-2 space-y-1 text-xs">
+                              {item.weight && (
+                                <p className="text-muted-foreground">Weight: {item.weight} grams</p>
+                              )}
+                              {item.purity && (
+                                <p className="text-muted-foreground">Purity: {item.purity}</p>
+                              )}
+                              {item.customRate && (
+                                <p className="text-muted-foreground">Custom Rate: ₹{item.customRate.toLocaleString('en-IN')}</p>
+                              )}
+                              {item.taxRate && (
+                                <p className="text-muted-foreground">Tax Rate: {item.taxRate}%</p>
+                              )}
+                              {item.details && (
+                                <p className="text-muted-foreground italic">Details: {item.details}</p>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                        <p className="font-bold ml-4">₹{(item.price * item.quantity).toLocaleString('en-IN')}</p>
                       </div>
-                      <p className="font-bold">₹{(item.price * item.quantity).toLocaleString('en-IN')}</p>
                     </div>
                   ))}
                 </div>
@@ -1582,6 +1638,99 @@ const POS = () => {
         </DialogContent>
       </Dialog>
 
+      {/* Item Details Dialog for Adding to Cart */}
+      <Dialog open={showItemDetailsDialog} onOpenChange={setShowItemDetailsDialog}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Add Item to Cart</DialogTitle>
+          </DialogHeader>
+          {itemToAdd && (
+            <div className="space-y-4">
+              <div className="p-3 bg-gray-50 rounded-lg">
+                <p className="font-semibold text-lg">{itemToAdd.name}</p>
+                <p className="text-sm text-gray-600">Type: {itemToAdd.type}</p>
+                <p className="text-sm text-gray-600">Base Price: ₹{itemToAdd.price.toLocaleString('en-IN')}</p>
+              </div>
+              
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="item-weight">Weight (grams)</Label>
+                  <Input
+                    id="item-weight"
+                    value={itemDetails.weight}
+                    onChange={(e) => setItemDetails(prev => ({ ...prev, weight: e.target.value }))}
+                    placeholder="e.g., 10.5"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="item-purity">Purity/Metal</Label>
+                  <Input
+                    id="item-purity"
+                    value={itemDetails.purity}
+                    onChange={(e) => setItemDetails(prev => ({ ...prev, purity: e.target.value }))}
+                    placeholder="e.g., Gold 18K"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="item-custom-rate">Custom Rate (₹) - Optional</Label>
+                  <Input
+                    id="item-custom-rate"
+                    type="number"
+                    value={itemDetails.customRate}
+                    onChange={(e) => setItemDetails(prev => ({ ...prev, customRate: e.target.value }))}
+                    placeholder="Override base price"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">Leave empty to use base price</p>
+                </div>
+                <div>
+                  <Label htmlFor="item-tax-rate">Tax Rate (%)</Label>
+                  <Input
+                    id="item-tax-rate"
+                    type="number"
+                    value={itemDetails.taxRate}
+                    onChange={(e) => setItemDetails(prev => ({ ...prev, taxRate: e.target.value }))}
+                    placeholder="3"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <Label htmlFor="item-details">Additional Details/Notes</Label>
+                <Textarea
+                  id="item-details"
+                  value={itemDetails.details}
+                  onChange={(e) => setItemDetails(prev => ({ ...prev, details: e.target.value }))}
+                  placeholder="Any additional notes or details about this item..."
+                  rows={3}
+                />
+              </div>
+
+              <DialogFooter>
+                <Button variant="outline" onClick={() => {
+                  setShowItemDetailsDialog(false);
+                  setItemToAdd(null);
+                  setItemDetails({
+                    weight: "",
+                    purity: "",
+                    customRate: "",
+                    taxRate: "3",
+                    details: ""
+                  });
+                }}>
+                  Cancel
+                </Button>
+                <Button onClick={confirmAddToCart} className="bg-green-600 hover:bg-green-700">
+                  Add to Cart
+                </Button>
+              </DialogFooter>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
       {/* UPI Modal */}
       <Dialog open={showUpi} onOpenChange={setShowUpi}>
         <DialogContent className="sm:max-w-[420px]">
@@ -1614,22 +1763,13 @@ const POS = () => {
               </div>
             </div>
           </div>
-          <DialogFooter className="flex flex-col sm:flex-row gap-2">
-            <Button
-              variant="outline"
-              onClick={handleOpenUpiApp}
-              disabled={!upiUrl || !paymentSettings.upiId}
-              className="flex-1"
-            >
-              <Smartphone className="h-4 w-4 mr-2" />
-              Open UPI App
-            </Button>
+          <DialogFooter>
             <Button 
               onClick={() => { 
                 setShowUpi(false); 
                 processPayment("UPI"); 
               }}
-              className="flex-1 bg-green-600 hover:bg-green-700"
+              className="w-full bg-green-600 hover:bg-green-700"
             >
               <CheckCircle className="h-4 w-4 mr-2" />
               Payment Received

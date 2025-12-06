@@ -280,8 +280,13 @@ export const ReportingDashboard = () => {
 
       
       setReportData(data);
-    } catch (error) {
+    } catch (error: any) {
       console.error('❌ Error loading report data:', error);
+      toast({
+        title: "Error Loading Report Data",
+        description: error?.message || "Failed to load report data. Please try again.",
+        variant: "destructive"
+      });
       // Fallback to empty data
       setReportData({
         sales: { totalSales: 0, totalOrders: 0, averageOrderValue: 0, topProducts: [], salesByCategory: {}, monthlyTrend: [] },
@@ -289,10 +294,10 @@ export const ReportingDashboard = () => {
         financial: { revenue: 0, expenses: 0, profit: 0, profitMargin: 0, taxes: 0, netProfit: 0, cashFlow: {}, expenseBreakdown: {}, expenseDetails: {} },
         employee: { totalEmployees: 0, activeEmployees: 0, onLeave: 0, totalSalaries: 0, averageSalary: 0, attendance: 0, productivity: 0, departments: {} }
       });
+    } finally {
+      // Always set loading to false, even if there was an error
+      setLoading(false);
     }
-    
-    // Always set loading to false, even if there was an error
-    setLoading(false);
   }, [selectedPeriod]);
 
   // Listen for sync completion events to reload data in background
@@ -361,19 +366,75 @@ export const ReportingDashboard = () => {
     };
   }, [loadReportData]);
 
-  const generateReport = (type: string) => {
-    toast({
-      title: "Generating Report",
-      description: `${type.charAt(0).toUpperCase() + type.slice(1)} report is being generated...`
-    });
-    
-    // Simulate report generation
-    setTimeout(() => {
+  const generateReport = async (type: string) => {
+    try {
+      setLoading(true);
       toast({
-        title: "Report Ready",
-        description: "Your report has been generated and downloaded."
+        title: "Generating Report",
+        description: `${type.charAt(0).toUpperCase() + type.slice(1)} report is being generated...`
       });
-    }, 2000);
+      
+      // Reload fresh data before generating report
+      await loadReportData();
+      
+      // Wait a moment for data to be set
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      // Generate PDF report
+      if (!reportData) {
+        throw new Error("Report data not available. Please try again.");
+      }
+      
+      const doc = new jsPDF();
+      doc.setFontSize(20);
+      doc.text(`${type.charAt(0).toUpperCase() + type.slice(1)} Report`, 20, 30);
+      doc.setFontSize(12);
+      doc.text(`Period: ${selectedPeriod}`, 20, 40);
+      doc.text(`Generated: ${new Date().toLocaleDateString()}`, 20, 50);
+      
+      let yPos = 70;
+      const currentData = reportData[type as keyof typeof reportData];
+      
+      if (currentData) {
+        Object.entries(currentData).forEach(([key, value]) => {
+          if (yPos > 250) {
+            doc.addPage();
+            yPos = 20;
+          }
+          if (typeof value === 'object' && value !== null) {
+            doc.text(`${key}:`, 20, yPos);
+            yPos += 10;
+            Object.entries(value).forEach(([subKey, subValue]) => {
+              if (yPos > 250) {
+                doc.addPage();
+                yPos = 20;
+              }
+              doc.text(`  ${subKey}: ${subValue}`, 25, yPos);
+              yPos += 7;
+            });
+          } else {
+            doc.text(`${key}: ${value}`, 20, yPos);
+            yPos += 10;
+          }
+        });
+      }
+      
+      doc.save(`${type}-report-${new Date().toISOString().split('T')[0]}.pdf`);
+      
+      toast({
+        title: "Report Generated",
+        description: "Your report has been generated and downloaded successfully."
+      });
+    } catch (error: any) {
+      console.error('Error generating report:', error);
+      toast({
+        title: "Error",
+        description: error?.message || "Failed to generate report. Please try again.",
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
   const exportReport = (format: string) => {

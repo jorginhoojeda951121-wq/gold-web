@@ -283,11 +283,26 @@ export const CustomerLedger = () => {
       }
 
       const amount = parseFloat(transactionData.amount);
+      const transactionType = transactionData.type;
+      
+      // Calculate balance before transaction
+      const balanceBefore = selectedCustomer.currentBalance || 0;
+      
+      // Calculate balance after transaction
+      // Purchase: balance increases (customer owes more) - add positive amount
+      // Payment: balance decreases (customer pays) - subtract amount (add negative)
+      const balanceAfter = transactionType === 'payment' 
+        ? balanceBefore - amount  // Payment reduces what customer owes
+        : balanceBefore + amount; // Purchase increases what customer owes
+      
+      // Store transaction amount: positive for purchases, negative for payments
+      const transactionAmount = transactionType === 'payment' ? -amount : amount;
+      
       const newTransaction: Transaction & { user_id?: string } = {
         id: Date.now().toString(),
         customerId: selectedCustomer.id,
-        type: transactionData.type,
-        amount: transactionData.type === 'payment' ? -amount : amount,
+        type: transactionType,
+        amount: transactionAmount, // Negative for payments, positive for purchases
         description: transactionData.description,
         date: new Date().toISOString(),
         paymentMethod: transactionData.paymentMethod,
@@ -313,8 +328,8 @@ export const CustomerLedger = () => {
         date: newTransaction.date,
         invoiceId: newTransaction.invoiceId ?? null, // camelCase, not snake_case
         paymentMethod: newTransaction.paymentMethod ?? null, // camelCase, not snake_case
-        balanceBefore: 0, // Will be calculated in pushQueue if needed
-        balanceAfter: newTransaction.amount,
+        balanceBefore: balanceBefore,
+        balanceAfter: balanceAfter,
       });
     } catch (error) {
       console.error('Error adding transaction:', error);
@@ -327,15 +342,14 @@ export const CustomerLedger = () => {
     }
 
     // Update customer balance and totals, then push customer
-    const transactionAmount = parseFloat(transactionData.amount);
-    const transactionType = transactionData.type;
+    // Use the calculated balanceAfter from above
     const updatedCustomers = customers.map(customer => 
       customer.id === selectedCustomer.id
         ? {
             ...customer,
-            currentBalance: (customer.currentBalance || 0) + (transactionType === 'payment' ? -transactionAmount : transactionAmount),
+            currentBalance: balanceAfter, // Use the correctly calculated balance
             totalPurchases: transactionType === 'purchase' 
-              ? (customer.totalPurchases || 0) + transactionAmount 
+              ? (customer.totalPurchases || 0) + amount 
               : (customer.totalPurchases || 0),
             lastPurchaseDate: transactionType === 'purchase' 
               ? new Date().toISOString().split('T')[0]

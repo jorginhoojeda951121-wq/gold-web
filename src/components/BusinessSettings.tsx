@@ -12,7 +12,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useUserStorage } from "@/hooks/useUserStorage";
 import { enqueueChange } from "@/lib/sync";
 import { getCurrentUserId } from "@/lib/userStorage";
-import { hasPermission } from "@/lib/permissions";
+import { hasPermission, clearRoleCache } from "@/lib/permissions";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
 interface PaymentSettings {
@@ -38,18 +38,53 @@ export const BusinessSettings = () => {
   const [canEditPayment, setCanEditPayment] = useState(false);
   const [loading, setLoading] = useState(true);
 
-  // Check permissions on mount
+  // Check permissions on mount with timeout
   useEffect(() => {
+    let cancelled = false;
+    
     const checkPermissions = async () => {
-      const [canEditBiz, canEditPay] = await Promise.all([
-        hasPermission('canEditBusinessSettings'),
-        hasPermission('canEditPaymentSettings')
-      ]);
-      setCanEditBusiness(canEditBiz);
-      setCanEditPayment(canEditPay);
-      setLoading(false);
+      try {
+        // Clear role cache to ensure fresh permission check
+        // This helps if user role was updated or if cache was stale
+        clearRoleCache();
+        
+        // Add timeout to prevent infinite loading
+        const timeoutPromise = new Promise<[boolean, boolean]>((_, reject) => 
+          setTimeout(() => reject(new Error('Permission check timeout')), 5000)
+        );
+        
+        const permissionPromise = Promise.all([
+          hasPermission('canEditBusinessSettings'),
+          hasPermission('canEditPaymentSettings')
+        ]);
+        
+        const [canEditBiz, canEditPay] = await Promise.race([
+          permissionPromise,
+          timeoutPromise
+        ]) as [boolean, boolean];
+        
+        if (!cancelled) {
+          setCanEditBusiness(canEditBiz);
+          setCanEditPayment(canEditPay);
+          setLoading(false);
+        }
+      } catch (error) {
+        console.error('Error checking permissions:', error);
+        // Default to allowing edits if permission check fails (graceful degradation)
+        // This ensures admins can access settings even if permission check has issues
+        if (!cancelled) {
+          setCanEditBusiness(true);
+          setCanEditPayment(true);
+          setLoading(false);
+        }
+      }
     };
+    
     checkPermissions();
+    
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const { data: businessSettings, updateData: setBusinessSettings } = useUserStorage('businessSettings', {

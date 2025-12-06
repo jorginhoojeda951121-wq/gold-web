@@ -174,6 +174,7 @@ export function AddVendorDialog({ open, onOpenChange, onSuccess }: AddVendorDial
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                   placeholder="Enter vendor name"
+                  autoComplete="off"
                   required
                 />
               </div>
@@ -201,6 +202,7 @@ export function AddVendorDialog({ open, onOpenChange, onSuccess }: AddVendorDial
                   value={formData.contact_person}
                   onChange={(e) => setFormData({ ...formData, contact_person: e.target.value })}
                   placeholder="Name of primary contact"
+                  autoComplete="off"
                 />
               </div>
               <div className="space-y-2">
@@ -210,6 +212,7 @@ export function AddVendorDialog({ open, onOpenChange, onSuccess }: AddVendorDial
                   value={formData.phone}
                   onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                   placeholder="+91-9876543210"
+                  autoComplete="off"
                   required
                 />
               </div>
@@ -222,6 +225,7 @@ export function AddVendorDialog({ open, onOpenChange, onSuccess }: AddVendorDial
                 value={formData.email}
                 onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                 placeholder="vendor@example.com"
+                autoComplete="off"
               />
             </div>
           </div>
@@ -236,6 +240,7 @@ export function AddVendorDialog({ open, onOpenChange, onSuccess }: AddVendorDial
                 value={formData.address}
                 onChange={(e) => setFormData({ ...formData, address: e.target.value })}
                 placeholder="Enter full address"
+                autoComplete="off"
                 rows={2}
               />
             </div>
@@ -247,6 +252,7 @@ export function AddVendorDialog({ open, onOpenChange, onSuccess }: AddVendorDial
                   value={formData.city}
                   onChange={(e) => setFormData({ ...formData, city: e.target.value })}
                   placeholder="City"
+                  autoComplete="off"
                 />
               </div>
               <div className="space-y-2">
@@ -256,6 +262,7 @@ export function AddVendorDialog({ open, onOpenChange, onSuccess }: AddVendorDial
                   value={formData.state}
                   onChange={(e) => setFormData({ ...formData, state: e.target.value })}
                   placeholder="State"
+                  autoComplete="off"
                 />
               </div>
               <div className="space-y-2">
@@ -265,6 +272,7 @@ export function AddVendorDialog({ open, onOpenChange, onSuccess }: AddVendorDial
                   value={formData.pincode}
                   onChange={(e) => setFormData({ ...formData, pincode: e.target.value })}
                   placeholder="123456"
+                  autoComplete="off"
                 />
               </div>
             </div>
@@ -281,6 +289,7 @@ export function AddVendorDialog({ open, onOpenChange, onSuccess }: AddVendorDial
                   value={formData.gst_number}
                   onChange={(e) => setFormData({ ...formData, gst_number: e.target.value })}
                   placeholder="22AAAAA0000A1Z5"
+                  autoComplete="off"
                 />
               </div>
               <div className="space-y-2">
@@ -290,6 +299,7 @@ export function AddVendorDialog({ open, onOpenChange, onSuccess }: AddVendorDial
                   value={formData.pan_number}
                   onChange={(e) => setFormData({ ...formData, pan_number: e.target.value })}
                   placeholder="AAAAA0000A"
+                  autoComplete="off"
                 />
               </div>
             </div>
@@ -300,6 +310,7 @@ export function AddVendorDialog({ open, onOpenChange, onSuccess }: AddVendorDial
                 value={formData.specialization}
                 onChange={(e) => setFormData({ ...formData, specialization: e.target.value })}
                 placeholder="e.g., Gold, Silver, Gemstones, Diamonds"
+                autoComplete="off"
               />
             </div>
           </div>
@@ -316,6 +327,7 @@ export function AddVendorDialog({ open, onOpenChange, onSuccess }: AddVendorDial
                   value={formData.credit_limit}
                   onChange={(e) => setFormData({ ...formData, credit_limit: e.target.value })}
                   placeholder="0"
+                  autoComplete="off"
                   min="0"
                 />
               </div>
@@ -326,6 +338,7 @@ export function AddVendorDialog({ open, onOpenChange, onSuccess }: AddVendorDial
                   value={formData.payment_terms}
                   onChange={(e) => setFormData({ ...formData, payment_terms: e.target.value })}
                   placeholder="e.g., Net 30, COD, 50% Advance"
+                  autoComplete="off"
                 />
               </div>
             </div>
@@ -342,6 +355,7 @@ export function AddVendorDialog({ open, onOpenChange, onSuccess }: AddVendorDial
                   value={formData.bank_name}
                   onChange={(e) => setFormData({ ...formData, bank_name: e.target.value })}
                   placeholder="Bank name"
+                  autoComplete="off"
                 />
               </div>
               <div className="space-y-2">
@@ -351,6 +365,7 @@ export function AddVendorDialog({ open, onOpenChange, onSuccess }: AddVendorDial
                   value={formData.account_number}
                   onChange={(e) => setFormData({ ...formData, account_number: e.target.value })}
                   placeholder="Account number"
+                  autoComplete="off"
                 />
               </div>
             </div>
@@ -362,6 +377,7 @@ export function AddVendorDialog({ open, onOpenChange, onSuccess }: AddVendorDial
                   value={formData.ifsc_code}
                   onChange={(e) => setFormData({ ...formData, ifsc_code: e.target.value })}
                   placeholder="IFSC code"
+                  autoComplete="off"
                 />
               </div>
               <div className="space-y-2">
@@ -371,6 +387,7 @@ export function AddVendorDialog({ open, onOpenChange, onSuccess }: AddVendorDial
                   value={formData.upi_id}
                   onChange={(e) => setFormData({ ...formData, upi_id: e.target.value })}
                   placeholder="vendor@upi"
+                  autoComplete="off"
                 />
               </div>
             </div>
@@ -386,6 +403,7 @@ export function AddVendorDialog({ open, onOpenChange, onSuccess }: AddVendorDial
                 value={formData.notes}
                 onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
                 placeholder="Any additional notes about this vendor..."
+                autoComplete="off"
                 rows={3}
               />
             </div>

@@ -91,72 +91,54 @@ const Landing = () => {
   };
 
   return (
-    <div className={`min-h-screen ${themeClasses.background} ${themeClasses.text} relative overflow-hidden`}>
+    <div className={`min-h-screen ${theme === 'minimal' ? 'bg-gradient-to-br from-gray-50 via-white to-gray-50' : 'bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950'} ${themeClasses.text} relative overflow-hidden`}>
       {/* Animated Background Effects */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none">
-        {/* Animated gradient orbs */}
-        <div className="absolute top-0 left-1/4 w-96 h-96 bg-yellow-500/20 rounded-full blur-3xl animate-pulse"></div>
-        <div className="absolute top-1/4 right-1/4 w-96 h-96 bg-indigo-500/20 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1s' }}></div>
-        <div className="absolute bottom-1/4 left-1/3 w-96 h-96 bg-purple-500/20 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '2s' }}></div>
+        {/* Clean, sharp gradient orbs */}
+        <div className="absolute top-0 left-1/4 w-96 h-96 bg-gradient-to-br from-amber-500/20 via-amber-400/15 to-transparent rounded-full blur-3xl"></div>
+        <div className="absolute top-1/4 right-1/4 w-96 h-96 bg-gradient-to-br from-violet-500/20 via-purple-400/15 to-transparent rounded-full blur-3xl"></div>
+        <div className="absolute bottom-1/4 left-1/3 w-96 h-96 bg-gradient-to-br from-rose-500/20 via-pink-400/15 to-transparent rounded-full blur-3xl"></div>
         
-        {/* Star particles */}
-        <div className="absolute inset-0">
-          {particles.map((particle) => (
-            <div
-              key={particle.id}
-              className="absolute rounded-full bg-yellow-400/30 animate-pulse"
-              style={{
-                left: `${particle.left}%`,
-                top: `${particle.top}%`,
-                width: `${particle.size}px`,
-                height: `${particle.size}px`,
-                animationDelay: `${particle.delay}s`,
-                animationDuration: `${particle.duration}s`
-              }}
-            />
-          ))}
-        </div>
-
-        {/* Grid pattern overlay */}
-        <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.02)_1px,transparent_1px)] bg-[size:50px_50px]"></div>
+        {/* Subtle grid pattern overlay */}
+        <div className={`absolute inset-0 ${theme === 'minimal' ? 'bg-[linear-gradient(rgba(0,0,0,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(0,0,0,0.02)_1px,transparent_1px)]' : 'bg-[linear-gradient(rgba(255,255,255,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.03)_1px,transparent_1px)]'} bg-[size:60px_60px]`}></div>
       </div>
 
       {/* Header */}
-      <header className={`container mx-auto px-6 py-6 flex items-center justify-between relative z-50 ${themeClasses.header} border-b`}>
+      <header className={`container mx-auto px-6 py-6 flex items-center justify-between relative z-50 ${theme === 'minimal' ? 'bg-white/80 backdrop-blur-md border-b border-gray-200' : 'bg-slate-900/80 backdrop-blur-md border-b border-slate-800'} relative z-50`}>
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-gradient-to-br from-yellow-400 via-yellow-500 to-yellow-600 rounded-lg flex items-center justify-center shadow-lg shadow-yellow-500/50 animate-pulse">
+          <div className={`w-10 h-10 bg-gradient-to-br from-amber-500 via-amber-600 to-amber-700 rounded-lg flex items-center justify-center ${theme === 'minimal' ? 'shadow-lg shadow-amber-500/30' : 'shadow-lg shadow-amber-500/50'} ring-2 ${theme === 'minimal' ? 'ring-amber-400/30' : 'ring-amber-400/40'}`}>
             <Gem className="h-6 w-6 text-white" />
           </div>
           <div>
-            <h1 className="text-xl font-bold bg-gradient-to-r from-yellow-300 to-yellow-100 bg-clip-text text-transparent">
+            <h1 className={`text-xl font-bold ${theme === 'minimal' ? 'bg-gradient-to-r from-amber-700 via-amber-600 to-amber-700' : 'bg-gradient-to-r from-amber-300 via-amber-200 to-amber-300'} bg-clip-text text-transparent`}>
               Gold Crafts Manager
             </h1>
-            <p className="text-xs text-gray-200">Luxury Jewelry Business Management</p>
+            <p className={`text-xs ${theme === 'minimal' ? 'text-gray-600' : 'text-gray-300'}`}>Luxury Jewelry Business Management</p>
           </div>
         </div>
         <nav className="hidden md:flex items-center gap-8">
-          <a href="#features" className="text-gray-200 hover:text-yellow-300 transition-all duration-300 relative group">
+          <a href="#features" className={`${theme === 'minimal' ? 'text-gray-700 hover:text-amber-600' : 'text-gray-200 hover:text-amber-300'} transition-all duration-300 relative group font-semibold`}>
             Features
-            <span className="absolute bottom-0 left-0 w-0 h-0.5 bg-yellow-400 group-hover:w-full transition-all duration-300"></span>
+            <span className={`absolute bottom-0 left-0 w-0 h-0.5 ${theme === 'minimal' ? 'bg-amber-600' : 'bg-amber-400'} group-hover:w-full transition-all duration-300`}></span>
           </a>
-          <a href="#how-it-works" className="text-gray-200 hover:text-yellow-300 transition-all duration-300 relative group">
+          <a href="#how-it-works" className={`${theme === 'minimal' ? 'text-gray-700 hover:text-amber-600' : 'text-gray-200 hover:text-amber-300'} transition-all duration-300 relative group font-semibold`}>
             How It Works
-            <span className="absolute bottom-0 left-0 w-0 h-0.5 bg-yellow-400 group-hover:w-full transition-all duration-300"></span>
+            <span className={`absolute bottom-0 left-0 w-0 h-0.5 ${theme === 'minimal' ? 'bg-amber-600' : 'bg-amber-400'} group-hover:w-full transition-all duration-300`}></span>
           </a>
           <button
             onClick={handleSupportClick}
-            className="text-gray-200 hover:text-yellow-300 transition-all duration-300 relative group"
+            className={`${theme === 'minimal' ? 'text-gray-700 hover:text-amber-600' : 'text-gray-200 hover:text-amber-300'} transition-all duration-300 relative group font-semibold`}
           >
             Support
-            <span className="absolute bottom-0 left-0 w-0 h-0.5 bg-yellow-400 group-hover:w-full transition-all duration-300"></span>
+            <span className={`absolute bottom-0 left-0 w-0 h-0.5 ${theme === 'minimal' ? 'bg-amber-600' : 'bg-amber-400'} group-hover:w-full transition-all duration-300`}></span>
           </button>
         </nav>
         <div className="flex items-center gap-4">
           {/* Theme Selector */}
           <div className="flex items-center gap-2">
-            <Palette className={`h-4 w-4 ${theme === 'minimal' ? 'text-gray-600' : 'text-gray-400'}`} />
+            <Palette className={`h-4 w-4 ${theme === 'minimal' ? 'text-gray-600' : 'text-gray-300'}`} />
             <Select value={theme} onValueChange={(value) => setTheme(value as 'default' | 'dark' | 'luxury' | 'minimal')}>
-              <SelectTrigger className={`w-32 h-9 ${theme === 'minimal' ? 'bg-white border-gray-300 text-gray-900' : 'bg-slate-800/50 border-slate-700 text-white'}`}>
+              <SelectTrigger className={`w-32 h-9 ${theme === 'minimal' ? 'bg-white border-gray-300 text-gray-900 shadow-sm' : 'bg-slate-800 border-slate-700 text-white'}`}>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent className={theme === 'minimal' ? 'bg-white border-gray-200' : 'bg-slate-800 border-slate-700'}>
@@ -169,13 +151,13 @@ const Landing = () => {
           </div>
           <button
             onClick={handleSignInClick}
-            className="text-gray-200 hover:text-yellow-300 hover:bg-yellow-500/10 px-4 py-2 rounded-lg transition-all duration-300 font-medium border border-transparent hover:border-yellow-500/50"
+            className={`${theme === 'minimal' ? 'text-gray-700 hover:text-amber-600 hover:bg-amber-50 border-gray-300 hover:border-amber-300' : 'text-gray-200 hover:text-amber-300 hover:bg-amber-500/10 border-slate-700 hover:border-amber-500/40'} px-4 py-2 rounded-lg transition-all duration-300 font-semibold border`}
           >
             Login
           </button>
           <Button
             onClick={handleSignUpClick}
-            className="bg-gradient-to-r from-yellow-500 via-yellow-500 to-yellow-600 hover:from-yellow-400 hover:via-yellow-400 hover:to-yellow-500 text-white shadow-lg shadow-yellow-500/30 hover:shadow-yellow-500/50 transition-all duration-300 hover:scale-105"
+            className={`bg-gradient-to-r from-amber-600 via-amber-500 to-amber-600 hover:from-amber-500 hover:via-amber-400 hover:to-amber-500 text-white ${theme === 'minimal' ? 'shadow-lg shadow-amber-500/40' : 'shadow-lg shadow-amber-500/50'} hover:shadow-amber-500/60 transition-all duration-300 hover:scale-105 font-bold`}
           >
             Get Started
           </Button>
@@ -187,21 +169,21 @@ const Landing = () => {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
           {/* Left Content */}
           <div className="space-y-8 animate-fade-in">
-            <Badge className="bg-yellow-500/20 text-yellow-300 border-yellow-500/50 px-4 py-1.5 backdrop-blur-sm">
-              <Crown className="h-3 w-3 mr-1 animate-pulse" />
+            <Badge className={`${theme === 'minimal' ? 'bg-amber-100 text-amber-800 border-amber-300' : 'bg-amber-500/25 text-amber-200 border-amber-400/40'} px-4 py-1.5 backdrop-blur-sm shadow-md ${theme === 'minimal' ? 'shadow-amber-500/20' : 'shadow-amber-500/30'} font-semibold`}>
+              <Crown className={`h-3 w-3 mr-1 ${theme === 'minimal' ? 'text-amber-700' : 'text-amber-300'}`} />
               Complete Jewelry Business Solution
             </Badge>
             <div>
               <h2 className={`text-5xl lg:text-6xl font-bold mb-4 leading-tight ${theme === 'minimal' ? 'text-gray-900' : 'text-white'}`}>
                 Transform Your
                 <br />
-                <span className="text-6xl lg:text-7xl bg-gradient-to-r from-yellow-500 via-yellow-400 to-yellow-500 bg-clip-text text-transparent animate-gradient">
+                <span className={`text-6xl lg:text-7xl ${theme === 'minimal' ? 'bg-gradient-to-r from-amber-700 via-amber-600 to-amber-700' : 'bg-gradient-to-r from-amber-400 via-amber-300 to-amber-400'} bg-clip-text text-transparent`}>
                   Gold Crafts
                 </span>
                 <br />
                 Business
               </h2>
-              <p className={`text-lg mt-6 max-w-xl leading-relaxed ${theme === 'minimal' ? 'text-gray-700' : 'text-gray-100'}`}>
+              <p className={`text-lg mt-6 max-w-xl leading-relaxed font-medium ${theme === 'minimal' ? 'text-gray-700' : 'text-gray-200'}`}>
                 Comprehensive business management system designed specifically for jewelry and gold crafts businesses. Manage inventory, track craftsmen, process sales, and grow your luxury jewelry enterprise with ease.
               </p>
             </div>
@@ -210,41 +192,41 @@ const Landing = () => {
             <div className="grid grid-cols-3 gap-4">
               <Card 
                 onClick={() => isAuthenticated ? navigate('/gold-collection') : handleSignInClick()}
-                className={`${themeClasses.card} hover:border-yellow-500/50 transition-all duration-300 hover:scale-105 hover:shadow-lg hover:shadow-yellow-500/20 backdrop-blur-sm group cursor-pointer animate-float`}
+                className={`${theme === 'minimal' ? 'bg-white border-gray-200 hover:border-amber-400' : 'bg-slate-800/70 border-slate-700 hover:border-amber-500/50'} transition-all duration-300 hover:scale-105 hover:shadow-xl ${theme === 'minimal' ? 'hover:shadow-amber-500/20' : 'hover:shadow-amber-500/25'} backdrop-blur-sm group cursor-pointer animate-float`}
                 style={{ animationDelay: '0s' }}
               >
                 <CardContent className="p-4 text-center">
-                  <div className="w-12 h-12 bg-yellow-500/20 rounded-lg flex items-center justify-center mx-auto mb-3 group-hover:bg-yellow-500/30 group-hover:scale-110 transition-all duration-300">
-                    <Gem className="h-6 w-6 text-yellow-400" />
+                  <div className={`w-12 h-12 ${theme === 'minimal' ? 'bg-amber-100' : 'bg-amber-500/30'} rounded-lg flex items-center justify-center mx-auto mb-3 ${theme === 'minimal' ? 'group-hover:bg-amber-200' : 'group-hover:bg-amber-500/40'} group-hover:scale-110 transition-all duration-300 ${theme === 'minimal' ? 'ring-2 ring-amber-300/50' : 'ring-2 ring-amber-400/30'}`}>
+                    <Gem className={`h-6 w-6 ${theme === 'minimal' ? 'text-amber-700' : 'text-amber-300'}`} />
                   </div>
-                  <h3 className="font-bold text-sm mb-1 text-white">Gold Collection</h3>
-                  <p className="text-xs text-gray-200">Management</p>
+                  <h3 className={`font-bold text-sm mb-1 ${theme === 'minimal' ? 'text-gray-900' : 'text-white'}`}>Gold Collection</h3>
+                  <p className={`text-xs ${theme === 'minimal' ? 'text-gray-600' : 'text-gray-300'}`}>Management</p>
                 </CardContent>
               </Card>
               <Card 
                 onClick={() => isAuthenticated ? navigate('/precious-stones') : handleSignInClick()}
-                className={`${themeClasses.card} hover:border-purple-500/50 transition-all duration-300 hover:scale-105 hover:shadow-lg hover:shadow-purple-500/20 backdrop-blur-sm group cursor-pointer animate-float`}
+                className={`${theme === 'minimal' ? 'bg-white border-gray-200 hover:border-violet-400' : 'bg-slate-800/70 border-slate-700 hover:border-violet-500/50'} transition-all duration-300 hover:scale-105 hover:shadow-xl ${theme === 'minimal' ? 'hover:shadow-violet-500/20' : 'hover:shadow-violet-500/25'} backdrop-blur-sm group cursor-pointer animate-float`}
                 style={{ animationDelay: '0.2s' }}
               >
                 <CardContent className="p-4 text-center">
-                  <div className="w-12 h-12 bg-purple-500/20 rounded-lg flex items-center justify-center mx-auto mb-3 group-hover:bg-purple-500/30 group-hover:scale-110 transition-all duration-300">
-                    <Sparkles className="h-6 w-6 text-purple-400" />
+                  <div className={`w-12 h-12 ${theme === 'minimal' ? 'bg-violet-100' : 'bg-violet-500/30'} rounded-lg flex items-center justify-center mx-auto mb-3 ${theme === 'minimal' ? 'group-hover:bg-violet-200' : 'group-hover:bg-violet-500/40'} group-hover:scale-110 transition-all duration-300 ${theme === 'minimal' ? 'ring-2 ring-violet-300/50' : 'ring-2 ring-violet-400/30'}`}>
+                    <Sparkles className={`h-6 w-6 ${theme === 'minimal' ? 'text-violet-700' : 'text-violet-300'}`} />
                   </div>
-                  <h3 className="font-bold text-sm mb-1 text-white">Precious Stones</h3>
-                  <p className="text-xs text-gray-200">Catalog</p>
+                  <h3 className={`font-bold text-sm mb-1 ${theme === 'minimal' ? 'text-gray-900' : 'text-white'}`}>Precious Stones</h3>
+                  <p className={`text-xs ${theme === 'minimal' ? 'text-gray-600' : 'text-gray-300'}`}>Catalog</p>
                 </CardContent>
               </Card>
               <Card 
                 onClick={() => isAuthenticated ? navigate('/analytics') : handleSignInClick()}
-                className={`${themeClasses.card} hover:border-blue-500/50 transition-all duration-300 hover:scale-105 hover:shadow-lg hover:shadow-blue-500/20 backdrop-blur-sm group cursor-pointer animate-float`}
+                className={`${theme === 'minimal' ? 'bg-white border-gray-200 hover:border-cyan-400' : 'bg-slate-800/70 border-slate-700 hover:border-cyan-500/50'} transition-all duration-300 hover:scale-105 hover:shadow-xl ${theme === 'minimal' ? 'hover:shadow-cyan-500/20' : 'hover:shadow-cyan-500/25'} backdrop-blur-sm group cursor-pointer animate-float`}
                 style={{ animationDelay: '0.4s' }}
               >
                 <CardContent className="p-4 text-center">
-                  <div className="w-12 h-12 bg-blue-500/20 rounded-lg flex items-center justify-center mx-auto mb-3 group-hover:bg-blue-500/30 group-hover:scale-110 transition-all duration-300">
-                    <BarChart3 className="h-6 w-6 text-blue-400" />
+                  <div className={`w-12 h-12 ${theme === 'minimal' ? 'bg-cyan-100' : 'bg-cyan-500/30'} rounded-lg flex items-center justify-center mx-auto mb-3 ${theme === 'minimal' ? 'group-hover:bg-cyan-200' : 'group-hover:bg-cyan-500/40'} group-hover:scale-110 transition-all duration-300 ${theme === 'minimal' ? 'ring-2 ring-cyan-300/50' : 'ring-2 ring-cyan-400/30'}`}>
+                    <BarChart3 className={`h-6 w-6 ${theme === 'minimal' ? 'text-cyan-700' : 'text-cyan-300'}`} />
                   </div>
-                  <h3 className="font-bold text-sm mb-1 text-white">Real-time</h3>
-                  <p className="text-xs text-gray-200">Analytics</p>
+                  <h3 className={`font-bold text-sm mb-1 ${theme === 'minimal' ? 'text-gray-900' : 'text-white'}`}>Real-time</h3>
+                  <p className={`text-xs ${theme === 'minimal' ? 'text-gray-600' : 'text-gray-300'}`}>Analytics</p>
                 </CardContent>
               </Card>
             </div>
@@ -253,14 +235,14 @@ const Landing = () => {
             <div className="flex gap-4">
               <Button
                 onClick={handleSignUpClick}
-                className="bg-gradient-to-r from-yellow-500 via-yellow-500 to-yellow-600 hover:from-yellow-400 hover:via-yellow-400 hover:to-yellow-500 text-white shadow-lg shadow-yellow-500/30 hover:shadow-yellow-500/50 transition-all duration-300 hover:scale-105"
+                className={`bg-gradient-to-r from-amber-600 via-amber-500 to-amber-600 hover:from-amber-500 hover:via-amber-400 hover:to-amber-500 text-white ${theme === 'minimal' ? 'shadow-lg shadow-amber-500/40' : 'shadow-lg shadow-amber-500/50'} hover:shadow-amber-500/60 transition-all duration-300 hover:scale-105 font-bold`}
                 size="lg"
               >
                 Start Free Trial <ArrowRight className="h-4 w-4 ml-2 group-hover:translate-x-1 transition-transform" />
               </Button>
               <Button
                 variant="outline"
-                className="border-slate-600 bg-slate-800/50 text-white hover:bg-slate-800 hover:border-yellow-500/50 hover:text-yellow-300 backdrop-blur-sm transition-all duration-300 hover:scale-105"
+                className={`${theme === 'minimal' ? 'border-gray-300 bg-white text-gray-700 hover:bg-gray-50 hover:border-amber-500 hover:text-amber-700' : 'border-slate-600 bg-slate-800/50 text-white hover:bg-slate-800 hover:border-amber-500/50 hover:text-amber-300'} backdrop-blur-sm transition-all duration-300 hover:scale-105 font-semibold`}
                 size="lg"
               >
                 Schedule Demo
@@ -270,57 +252,57 @@ const Landing = () => {
 
           {/* Right - Dashboard Widget */}
           <div className="lg:flex justify-end">
-            <Card className={`${themeClasses.card} backdrop-blur-sm w-full max-w-md shadow-2xl ${theme === 'minimal' ? 'shadow-gray-200' : 'shadow-yellow-500/10'} hover:shadow-yellow-500/20 transition-all duration-300`}>
+            <Card className={`${theme === 'minimal' ? 'bg-white border-gray-200 shadow-xl' : 'bg-slate-800/80 border-slate-700 shadow-2xl'} backdrop-blur-sm w-full max-w-md ${theme === 'minimal' ? 'shadow-gray-300/50' : 'shadow-amber-500/20'} hover:shadow-amber-500/30 transition-all duration-300`}>
               <CardContent className="p-6">
                 <div className="flex items-center justify-between mb-6">
                   <div className="flex items-center gap-2">
-                    <Activity className={`h-4 w-4 ${theme === 'minimal' ? 'text-yellow-600' : 'text-yellow-400'} animate-pulse`} />
-                    <h3 className={`font-semibold ${theme === 'minimal' ? 'text-gray-900' : 'text-white'}`}>Business Dashboard</h3>
+                    <Activity className={`h-4 w-4 ${theme === 'minimal' ? 'text-amber-600' : 'text-amber-400'}`} />
+                    <h3 className={`font-bold ${theme === 'minimal' ? 'text-gray-900' : 'text-white'}`}>Business Dashboard</h3>
                   </div>
-                  <div className="flex gap-1">
-                    <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse"></div>
-                    <div className="w-2 h-2 rounded-full bg-yellow-500 animate-pulse" style={{ animationDelay: '0.2s' }}></div>
-                    <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" style={{ animationDelay: '0.4s' }}></div>
+                  <div className="flex gap-1.5">
+                    <div className="w-3 h-3 rounded-full bg-red-500 shadow-md"></div>
+                    <div className="w-3 h-3 rounded-full bg-amber-500 shadow-md"></div>
+                    <div className="w-3 h-3 rounded-full bg-emerald-500 shadow-md"></div>
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-4 mb-6">
-                  <div className={`${theme === 'minimal' ? 'bg-yellow-100 border-yellow-300 hover:bg-yellow-200' : 'bg-yellow-500/20 border-yellow-500/30 hover:bg-yellow-500/30'} rounded-lg p-4 border transition-all duration-300`}>
-                    <div className={`text-3xl font-bold mb-1 ${theme === 'minimal' ? 'text-yellow-700' : 'bg-gradient-to-r from-yellow-300 to-yellow-100 bg-clip-text text-transparent'}`}>1,247</div>
-                    <div className={`text-sm ${theme === 'minimal' ? 'text-gray-700' : 'text-gray-200'}`}>Jewelry Items</div>
+                  <div className={`${theme === 'minimal' ? 'bg-amber-50 border-2 border-amber-300 hover:bg-amber-100' : 'bg-amber-500/25 border-2 border-amber-500/40 hover:bg-amber-500/35'} rounded-lg p-4 transition-all duration-300 ${theme === 'minimal' ? 'shadow-md shadow-amber-500/20' : 'shadow-lg shadow-amber-500/20'}`}>
+                    <div className={`text-3xl font-bold mb-1 ${theme === 'minimal' ? 'text-amber-800' : 'text-amber-200'}`}>1,247</div>
+                    <div className={`text-sm font-medium ${theme === 'minimal' ? 'text-gray-700' : 'text-gray-200'}`}>Jewelry Items</div>
                   </div>
-                  <div className={`${theme === 'minimal' ? 'bg-orange-100 border-orange-300 hover:bg-orange-200' : 'bg-orange-500/20 border-orange-500/30 hover:bg-orange-500/30'} rounded-lg p-4 border transition-all duration-300`}>
-                    <div className={`text-3xl font-bold mb-1 ${theme === 'minimal' ? 'text-orange-700' : 'text-orange-300'}`}>23</div>
-                    <div className={`text-sm ${theme === 'minimal' ? 'text-gray-700' : 'text-gray-200'}`}>Active Craftsmen</div>
+                  <div className={`${theme === 'minimal' ? 'bg-orange-50 border-2 border-orange-300 hover:bg-orange-100' : 'bg-orange-500/25 border-2 border-orange-500/40 hover:bg-orange-500/35'} rounded-lg p-4 transition-all duration-300 ${theme === 'minimal' ? 'shadow-md shadow-orange-500/20' : 'shadow-lg shadow-orange-500/20'}`}>
+                    <div className={`text-3xl font-bold mb-1 ${theme === 'minimal' ? 'text-orange-800' : 'text-orange-200'}`}>23</div>
+                    <div className={`text-sm font-medium ${theme === 'minimal' ? 'text-gray-700' : 'text-gray-200'}`}>Active Craftsmen</div>
                   </div>
                 </div>
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
-                      <span className={`text-sm ${theme === 'minimal' ? 'text-gray-900' : 'text-white'}`}>System Sync</span>
+                      <div className="w-2.5 h-2.5 rounded-full bg-green-500"></div>
+                      <span className={`text-sm font-semibold ${theme === 'minimal' ? 'text-gray-900' : 'text-white'}`}>System Sync</span>
                     </div>
-                    <span className="text-sm text-green-600 font-medium">Active</span>
+                    <span className={`text-sm font-bold ${theme === 'minimal' ? 'text-green-700' : 'text-green-400'}`}>Active</span>
                   </div>
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <ShoppingBag className={`h-4 w-4 ${theme === 'minimal' ? 'text-gray-600' : 'text-gray-300'}`} />
-                      <span className={`text-sm ${theme === 'minimal' ? 'text-gray-900' : 'text-white'}`}>Pending Orders</span>
+                      <ShoppingBag className={`h-4 w-4 ${theme === 'minimal' ? 'text-gray-700' : 'text-gray-300'}`} />
+                      <span className={`text-sm font-semibold ${theme === 'minimal' ? 'text-gray-900' : 'text-white'}`}>Pending Orders</span>
                     </div>
-                    <span className="text-sm text-orange-600 font-medium">8 Orders</span>
+                    <span className={`text-sm font-bold ${theme === 'minimal' ? 'text-orange-700' : 'text-orange-400'}`}>8 Orders</span>
                   </div>
                   <div className="space-y-2 pt-2">
                     <div className="flex items-center gap-2">
-                      <FileCheck className={`h-4 w-4 ${theme === 'minimal' ? 'text-gray-600' : 'text-gray-300'}`} />
-                      <span className={`text-sm ${theme === 'minimal' ? 'text-gray-900' : 'text-white'}`}>Recent Sales</span>
+                      <FileCheck className={`h-4 w-4 ${theme === 'minimal' ? 'text-gray-700' : 'text-gray-300'}`} />
+                      <span className={`text-sm font-semibold ${theme === 'minimal' ? 'text-gray-900' : 'text-white'}`}>Recent Sales</span>
                     </div>
-                    <div className="pl-6 space-y-1">
+                    <div className="pl-6 space-y-1.5">
                       <div className="flex justify-between text-sm">
-                        <span className={theme === 'minimal' ? 'text-gray-600' : 'text-gray-200'}>Sale #SALE-2024-001</span>
-                        <span className={`font-medium ${theme === 'minimal' ? 'text-gray-900' : 'text-white'}`}>₹45,280</span>
+                        <span className={`font-medium ${theme === 'minimal' ? 'text-gray-600' : 'text-gray-300'}`}>Sale #SALE-2024-001</span>
+                        <span className={`font-bold ${theme === 'minimal' ? 'text-gray-900' : 'text-white'}`}>₹45,280</span>
                       </div>
                       <div className="flex justify-between text-sm">
-                        <span className={theme === 'minimal' ? 'text-gray-600' : 'text-gray-200'}>Invoice #INV-2024-156</span>
-                        <span className={`font-medium ${theme === 'minimal' ? 'text-gray-900' : 'text-white'}`}>₹12,450</span>
+                        <span className={`font-medium ${theme === 'minimal' ? 'text-gray-600' : 'text-gray-300'}`}>Invoice #INV-2024-156</span>
+                        <span className={`font-bold ${theme === 'minimal' ? 'text-gray-900' : 'text-white'}`}>₹12,450</span>
                       </div>
                     </div>
                   </div>
@@ -334,17 +316,17 @@ const Landing = () => {
       {/* Features Section */}
       <section id="features" className="container mx-auto px-6 py-20 relative z-10">
         <div className="text-center mb-12">
-          <Badge className="bg-yellow-500/20 text-yellow-300 border-yellow-500/50 mb-4 backdrop-blur-sm">
-            <Crown className="h-3 w-3 mr-1" />
+          <Badge className={`${theme === 'minimal' ? 'bg-amber-100 text-amber-800 border-amber-300' : 'bg-amber-500/25 text-amber-200 border-amber-400/40'} mb-4 backdrop-blur-sm ${theme === 'minimal' ? 'shadow-md shadow-amber-500/20' : 'shadow-lg shadow-amber-500/30'} font-semibold`}>
+            <Crown className={`h-3 w-3 mr-1 ${theme === 'minimal' ? 'text-amber-700' : 'text-amber-300'}`} />
             Premium Features
           </Badge>
-          <h2 className="text-4xl lg:text-5xl font-bold mb-4">
+          <h2 className={`text-4xl lg:text-5xl font-bold mb-4 ${theme === 'minimal' ? 'text-gray-900' : 'text-white'}`}>
             Everything You Need to{" "}
-            <span className="bg-gradient-to-r from-yellow-300 via-yellow-200 to-yellow-300 bg-clip-text text-transparent">
+            <span className={`${theme === 'minimal' ? 'bg-gradient-to-r from-amber-700 via-amber-600 to-amber-700' : 'bg-gradient-to-r from-amber-300 via-amber-200 to-amber-300'} bg-clip-text text-transparent`}>
               Run Your Jewelry Business
             </span>
           </h2>
-          <p className="text-lg text-gray-100 max-w-2xl mx-auto">
+          <p className={`text-lg max-w-2xl mx-auto font-medium ${theme === 'minimal' ? 'text-gray-700' : 'text-gray-200'}`}>
             Complete business management solution designed specifically for jewelry and gold crafts businesses. From inventory tracking to craftsmen management, from point of sale to customer ledgers - everything you need in one elegant platform.
           </p>
         </div>
@@ -448,13 +430,13 @@ const Landing = () => {
               hoverBorder: "hover:border-yellow-500/30",
             },
           ].map((feature, index) => (
-            <Card key={index} className={`bg-slate-800/60 border-slate-700/50 ${feature.hoverBorder} transition-all duration-300 group hover:scale-105 hover:shadow-xl hover:shadow-yellow-500/10 backdrop-blur-sm`}>
+            <Card key={index} className={`${theme === 'minimal' ? 'bg-white border-2 border-gray-200 hover:border-amber-400' : 'bg-slate-800/70 border-2 border-slate-700 hover:border-amber-500/50'} ${feature.hoverBorder} transition-all duration-300 group hover:scale-105 hover:shadow-xl ${theme === 'minimal' ? 'hover:shadow-amber-500/20' : 'hover:shadow-amber-500/25'} backdrop-blur-sm`}>
               <CardContent className="p-6">
-                <div className={`w-12 h-12 ${feature.iconBg} rounded-lg flex items-center justify-center mb-4 group-hover:scale-110 transition-transform duration-300`}>
+                <div className={`w-12 h-12 ${feature.iconBg} rounded-lg flex items-center justify-center mb-4 group-hover:scale-110 transition-transform duration-300 ${theme === 'minimal' ? 'ring-2 ring-gray-200' : 'ring-2 ring-slate-700'}`}>
                   <feature.icon className={`h-6 w-6 ${feature.iconColor}`} />
                 </div>
-                <h3 className="text-xl font-bold mb-2 text-white group-hover:text-yellow-300 transition-colors">{feature.title}</h3>
-                <p className="text-gray-200 text-sm leading-relaxed">{feature.description}</p>
+                <h3 className={`text-xl font-bold mb-2 ${theme === 'minimal' ? 'text-gray-900 group-hover:text-amber-700' : 'text-white group-hover:text-amber-300'} transition-colors`}>{feature.title}</h3>
+                <p className={`text-sm leading-relaxed font-medium ${theme === 'minimal' ? 'text-gray-700' : 'text-gray-300'}`}>{feature.description}</p>
               </CardContent>
             </Card>
           ))}
@@ -464,9 +446,9 @@ const Landing = () => {
       {/* How It Works Section */}
       <section id="how-it-works" className="container mx-auto px-6 py-20 relative z-10">
         <div className="text-center mb-12">
-          <h2 className="text-4xl lg:text-5xl font-bold mb-4">
+          <h2 className={`text-4xl lg:text-5xl font-bold mb-4 ${theme === 'minimal' ? 'text-gray-900' : 'text-white'}`}>
             Get Started in{" "}
-            <span className="bg-gradient-to-r from-yellow-300 via-yellow-200 to-yellow-300 bg-clip-text text-transparent">
+            <span className={`${theme === 'minimal' ? 'bg-gradient-to-r from-amber-700 via-amber-600 to-amber-700' : 'bg-gradient-to-r from-amber-300 via-amber-200 to-amber-300'} bg-clip-text text-transparent`}>
               Three Simple Steps
             </span>
           </h2>
@@ -501,34 +483,34 @@ const Landing = () => {
                   height: '1px'
                 }}>
                   {/* Glow effect (behind) */}
-                  <div className="absolute top-1/2 left-0 w-full h-3 bg-gradient-to-r from-transparent via-yellow-300/40 to-transparent rounded-full blur-sm transform -translate-y-1/2"></div>
+                  <div className="absolute top-1/2 left-0 w-full h-3 bg-gradient-to-r from-transparent via-amber-300/30 to-transparent rounded-full blur-sm transform -translate-y-1/2"></div>
                   
                   {/* Main gradient line */}
-                  <div className="absolute top-1/2 left-0 w-full h-1 bg-gradient-to-r from-yellow-500 via-yellow-400 to-yellow-500 rounded-full shadow-lg shadow-yellow-500/50 transform -translate-y-1/2"></div>
+                  <div className="absolute top-1/2 left-0 w-full h-1 bg-gradient-to-r from-amber-500 via-amber-400 to-amber-500 rounded-full shadow-lg shadow-amber-500/40 transform -translate-y-1/2"></div>
                   
                   {/* Decorative dots with border to stand out */}
-                  <div className="absolute top-1/2 left-1/4 w-3 h-3 bg-yellow-400 rounded-full transform -translate-y-1/2 shadow-lg shadow-yellow-400/70 animate-pulse border-2 border-slate-800/80"></div>
-                  <div className="absolute top-1/2 left-1/2 w-3 h-3 bg-yellow-300 rounded-full transform -translate-y-1/2 shadow-lg shadow-yellow-300/70 animate-pulse border-2 border-slate-800/80" style={{ animationDelay: '0.5s' }}></div>
-                  <div className="absolute top-1/2 left-3/4 w-3 h-3 bg-yellow-400 rounded-full transform -translate-y-1/2 shadow-lg shadow-yellow-400/70 animate-pulse border-2 border-slate-800/80" style={{ animationDelay: '1s' }}></div>
+                  <div className="absolute top-1/2 left-1/4 w-3 h-3 bg-gradient-to-br from-amber-400 to-amber-500 rounded-full transform -translate-y-1/2 shadow-lg shadow-amber-400/50 border-2 border-slate-800/80"></div>
+                  <div className="absolute top-1/2 left-1/2 w-3 h-3 bg-gradient-to-br from-amber-300 to-amber-400 rounded-full transform -translate-y-1/2 shadow-lg shadow-amber-300/50 border-2 border-slate-800/80"></div>
+                  <div className="absolute top-1/2 left-3/4 w-3 h-3 bg-gradient-to-br from-amber-400 to-amber-500 rounded-full transform -translate-y-1/2 shadow-lg shadow-amber-400/50 border-2 border-slate-800/80"></div>
                   
                   {/* Arrow indicator with background circle */}
                   <div className="absolute top-1/2 right-0 transform -translate-y-1/2 translate-x-1/2 z-20">
-                    <div className="w-7 h-7 bg-slate-800 rounded-full flex items-center justify-center shadow-xl border-2 border-yellow-400/30">
-                      <svg className="w-4 h-4 text-yellow-400" fill="currentColor" viewBox="0 0 20 20">
+                    <div className="w-7 h-7 bg-slate-800 rounded-full flex items-center justify-center shadow-xl border-2 border-amber-400/30">
+                      <svg className="w-4 h-4 text-amber-400" fill="currentColor" viewBox="0 0 20 20">
                         <path fillRule="evenodd" d="M10.293 3.293a1 1 0 011.414 0l6 6a1 1 0 010 1.414l-6 6a1 1 0 01-1.414-1.414L14.586 11H3a1 1 0 110-2h11.586l-4.293-4.293a1 1 0 010-1.414z" clipRule="evenodd" />
                       </svg>
                     </div>
                   </div>
                 </div>
               )}
-              <Card className="bg-slate-800/80 border-slate-700/50 hover:border-yellow-500/30 relative z-30 transition-all duration-300 group backdrop-blur-sm hover:scale-105 hover:shadow-xl hover:shadow-yellow-500/20">
+              <Card className={`${theme === 'minimal' ? 'bg-white border-2 border-gray-200 hover:border-amber-400' : 'bg-slate-800/80 border-2 border-slate-700 hover:border-amber-500/40'} relative z-30 transition-all duration-300 group backdrop-blur-sm hover:scale-105 hover:shadow-xl ${theme === 'minimal' ? 'hover:shadow-amber-500/25' : 'hover:shadow-amber-500/30'}`}>
                 <CardContent className="p-8 text-center relative">
-                  <div className="text-6xl font-bold text-yellow-400/30 mb-4 group-hover:text-yellow-400/50 transition-colors">{step.number}</div>
-                  <div className="w-16 h-16 bg-yellow-500/20 rounded-full flex items-center justify-center mx-auto mb-4 group-hover:bg-yellow-500/30 group-hover:scale-110 transition-all duration-300 relative z-10">
-                    <step.icon className="h-8 w-8 text-yellow-400" />
+                  <div className={`text-6xl font-bold mb-4 ${theme === 'minimal' ? 'text-amber-200 group-hover:text-amber-300' : 'text-amber-400/30 group-hover:text-amber-400/40'} transition-colors`}>{step.number}</div>
+                  <div className={`w-16 h-16 ${theme === 'minimal' ? 'bg-amber-100 ring-2 ring-amber-300 group-hover:bg-amber-200' : 'bg-amber-500/30 ring-2 ring-amber-400/30 group-hover:bg-amber-500/40'} rounded-full flex items-center justify-center mx-auto mb-4 group-hover:scale-110 transition-all duration-300 relative z-10`}>
+                    <step.icon className={`h-8 w-8 ${theme === 'minimal' ? 'text-amber-700' : 'text-amber-300'}`} />
                   </div>
-                  <h3 className="text-xl font-bold mb-3 text-white group-hover:text-yellow-300 transition-colors">{step.title}</h3>
-                  <p className="text-gray-200 text-sm leading-relaxed">{step.description}</p>
+                  <h3 className={`text-xl font-bold mb-3 ${theme === 'minimal' ? 'text-gray-900 group-hover:text-amber-700' : 'text-white group-hover:text-amber-300'} transition-colors`}>{step.title}</h3>
+                  <p className={`text-sm leading-relaxed font-medium ${theme === 'minimal' ? 'text-gray-700' : 'text-gray-300'}`}>{step.description}</p>
                 </CardContent>
               </Card>
             </div>
@@ -538,18 +520,18 @@ const Landing = () => {
 
       {/* Final CTA Section */}
       <section className="container mx-auto px-6 py-20 relative z-10">
-        <Card className="bg-gradient-to-r from-yellow-600 via-yellow-500 to-yellow-600 border-0 shadow-2xl shadow-yellow-500/30 hover:shadow-yellow-500/50 transition-all duration-300">
+        <Card className={`bg-gradient-to-r from-amber-600 via-amber-500 to-amber-600 border-0 ${theme === 'minimal' ? 'shadow-2xl shadow-amber-500/40' : 'shadow-2xl shadow-amber-500/50'} hover:shadow-amber-500/60 transition-all duration-300`}>
           <CardContent className="p-12 text-center">
-            <h2 className="text-4xl font-bold mb-4 bg-gradient-to-r from-white to-yellow-100 bg-clip-text text-transparent">
+            <h2 className="text-4xl font-bold mb-4 bg-gradient-to-r from-white via-amber-50 to-white bg-clip-text text-transparent">
               Ready to Transform Your Jewelry Business?
             </h2>
-            <p className="text-lg text-yellow-100 mb-8">
+            <p className="text-lg text-amber-50 mb-8 font-medium">
               Join luxury jewelry businesses using Gold Crafts Manager to streamline their operations and grow their enterprise.
             </p>
             <div className="flex gap-4 justify-center flex-wrap">
               <Button
                 onClick={handleSignUpClick}
-                className="bg-white text-yellow-600 hover:bg-gray-100 shadow-lg font-semibold hover:scale-105 transition-all duration-300"
+                className="bg-white text-amber-700 hover:bg-amber-50 shadow-xl font-bold hover:scale-105 transition-all duration-300"
                 size="lg"
               >
                 Get Started Today <ArrowRight className="h-4 w-4 ml-2" />
@@ -557,7 +539,7 @@ const Landing = () => {
               <Button
                 onClick={handleSignInClick}
                 variant="outline"
-                className="border-white/50 bg-white/10 text-white hover:bg-yellow-500/20 hover:border-yellow-500 hover:text-yellow-300 backdrop-blur-sm font-semibold hover:scale-105 transition-all duration-300"
+                className="border-2 border-white/60 bg-white/10 text-white hover:bg-amber-500/30 hover:border-white hover:text-white backdrop-blur-sm font-bold hover:scale-105 transition-all duration-300"
                 size="lg"
               >
                 Login to Dashboard
@@ -574,13 +556,13 @@ const Landing = () => {
             {/* Company Info */}
             <div className="space-y-4">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-gradient-to-br from-yellow-400 via-yellow-500 to-yellow-600 rounded-lg flex items-center justify-center shadow-lg shadow-yellow-500/50">
+                <div className="w-10 h-10 bg-gradient-to-br from-amber-500 via-amber-600 to-amber-700 rounded-lg flex items-center justify-center shadow-lg shadow-amber-500/40 ring-2 ring-amber-400/20">
                   <Gem className="h-5 w-5 text-white" />
                 </div>
                 <div>
                   <h3 className="font-bold text-lg">
                     <span className="text-white">Gold Crafts</span>{" "}
-                    <span className="bg-gradient-to-r from-yellow-300 to-yellow-100 bg-clip-text text-transparent">Manager</span>
+                    <span className="bg-gradient-to-r from-amber-300 via-amber-200 to-amber-100 bg-clip-text text-transparent">Manager</span>
                   </h3>
                 </div>
               </div>
@@ -588,17 +570,17 @@ const Landing = () => {
                 Complete jewelry business management platform with mobile POS integration, multi-location support, and real-time analytics.
               </p>
               <div className="flex gap-3">
-                <a href="https://www.facebook.com/profile.php?id=61578900585501" target="_blank" rel="noopener noreferrer" className="w-9 h-9 bg-slate-800 rounded-lg flex items-center justify-center hover:bg-yellow-500/20 hover:border-yellow-500/50 border border-slate-700 transition-all duration-300 group">
-                  <Facebook className="h-4 w-4 text-gray-400 group-hover:text-yellow-400" />
+                <a href="https://www.facebook.com/profile.php?id=61578900585501" target="_blank" rel="noopener noreferrer" className="w-9 h-9 bg-slate-800/60 rounded-lg flex items-center justify-center hover:bg-amber-500/20 hover:border-amber-500/50 border border-slate-700/60 transition-all duration-300 group">
+                  <Facebook className="h-4 w-4 text-gray-400 group-hover:text-amber-400" />
                 </a>
-                <a href="https://x.com/IndiaRetailPro" target="_blank" rel="noopener noreferrer" className="w-9 h-9 bg-slate-800 rounded-lg flex items-center justify-center hover:bg-yellow-500/20 hover:border-yellow-500/50 border border-slate-700 transition-all duration-300 group">
-                  <Twitter className="h-4 w-4 text-gray-400 group-hover:text-yellow-400" />
+                <a href="https://x.com/IndiaRetailPro" target="_blank" rel="noopener noreferrer" className="w-9 h-9 bg-slate-800/60 rounded-lg flex items-center justify-center hover:bg-amber-500/20 hover:border-amber-500/50 border border-slate-700/60 transition-all duration-300 group">
+                  <Twitter className="h-4 w-4 text-gray-400 group-hover:text-amber-400" />
                 </a>
-                <a href="https://www.youtube.com/@RetailMARKETINGPRO" target="_blank" rel="noopener noreferrer" className="w-9 h-9 bg-slate-800 rounded-lg flex items-center justify-center hover:bg-yellow-500/20 hover:border-yellow-500/50 border border-slate-700 transition-all duration-300 group">
-                  <Youtube className="h-4 w-4 text-gray-400 group-hover:text-yellow-400" />
+                <a href="https://www.youtube.com/@RetailMARKETINGPRO" target="_blank" rel="noopener noreferrer" className="w-9 h-9 bg-slate-800/60 rounded-lg flex items-center justify-center hover:bg-amber-500/20 hover:border-amber-500/50 border border-slate-700/60 transition-all duration-300 group">
+                  <Youtube className="h-4 w-4 text-gray-400 group-hover:text-amber-400" />
                 </a>
-                <a href="https://www.instagram.com/indiaretailpro/" target="_blank" rel="noopener noreferrer" className="w-9 h-9 bg-slate-800 rounded-lg flex items-center justify-center hover:bg-yellow-500/20 hover:border-yellow-500/50 border border-slate-700 transition-all duration-300 group">
-                  <Instagram className="h-4 w-4 text-gray-400 group-hover:text-yellow-400" />
+                <a href="https://www.instagram.com/indiaretailpro/" target="_blank" rel="noopener noreferrer" className="w-9 h-9 bg-slate-800/60 rounded-lg flex items-center justify-center hover:bg-amber-500/20 hover:border-amber-500/50 border border-slate-700/60 transition-all duration-300 group">
+                  <Instagram className="h-4 w-4 text-gray-400 group-hover:text-amber-400" />
                 </a>
               </div>
             </div>
@@ -607,11 +589,11 @@ const Landing = () => {
             <div>
               <h4 className="font-bold text-white mb-4">Quick Links</h4>
               <ul className="space-y-3">
-                <li><a href="/" className="text-gray-300 hover:text-yellow-400 transition-colors text-sm">Home</a></li>
-                <li><a href="#features" className="text-gray-300 hover:text-yellow-400 transition-colors text-sm">Features</a></li>
-                <li><a href="#how-it-works" className="text-gray-300 hover:text-yellow-400 transition-colors text-sm">How It Works</a></li>
-                <li><button onClick={handleSupportClick} className="text-gray-300 hover:text-yellow-400 transition-colors text-sm">Support</button></li>
-                <li><button onClick={handleSignInClick} className="text-gray-300 hover:text-yellow-400 transition-colors text-sm">Login</button></li>
+                <li><a href="/" className="text-gray-300/90 hover:text-amber-400 transition-colors text-sm">Home</a></li>
+                <li><a href="#features" className="text-gray-300/90 hover:text-amber-400 transition-colors text-sm">Features</a></li>
+                <li><a href="#how-it-works" className="text-gray-300/90 hover:text-amber-400 transition-colors text-sm">How It Works</a></li>
+                <li><button onClick={handleSupportClick} className="text-gray-300/90 hover:text-amber-400 transition-colors text-sm">Support</button></li>
+                <li><button onClick={handleSignInClick} className="text-gray-300/90 hover:text-amber-400 transition-colors text-sm">Login</button></li>
               </ul>
             </div>
 
@@ -619,11 +601,11 @@ const Landing = () => {
             <div>
               <h4 className="font-bold text-white mb-4">Features</h4>
               <ul className="space-y-3">
-                <li><a href="#" className="text-gray-300 hover:text-yellow-400 transition-colors text-sm">Mobile POS Integration</a></li>
-                <li><a href="#" className="text-gray-300 hover:text-yellow-400 transition-colors text-sm">Multi-Location Management</a></li>
-                <li><a href="#" className="text-gray-300 hover:text-yellow-400 transition-colors text-sm">Real-time Analytics</a></li>
-                <li><a href="#" className="text-gray-300 hover:text-yellow-400 transition-colors text-sm">Inventory Tracking</a></li>
-                <li><a href="#" className="text-gray-300 hover:text-yellow-400 transition-colors text-sm">Transaction Processing</a></li>
+                <li><a href="#" className="text-gray-300/90 hover:text-amber-400 transition-colors text-sm">Mobile POS Integration</a></li>
+                <li><a href="#" className="text-gray-300/90 hover:text-amber-400 transition-colors text-sm">Multi-Location Management</a></li>
+                <li><a href="#" className="text-gray-300/90 hover:text-amber-400 transition-colors text-sm">Real-time Analytics</a></li>
+                <li><a href="#" className="text-gray-300/90 hover:text-amber-400 transition-colors text-sm">Inventory Tracking</a></li>
+                <li><a href="#" className="text-gray-300/90 hover:text-amber-400 transition-colors text-sm">Transaction Processing</a></li>
               </ul>
             </div>
 
@@ -632,16 +614,16 @@ const Landing = () => {
               <h4 className="font-bold text-white mb-4">Contact Us</h4>
               <ul className="space-y-3">
                 <li className="flex items-center gap-3">
-                  <Mail className="h-4 w-4 text-yellow-400 flex-shrink-0" />
-                  <a href="mailto:retailmarketingpro1.0@gmail.com" className="text-gray-300 hover:text-yellow-400 transition-colors text-sm">retailmarketingpro1.0@gmail.com</a>
+                  <Mail className="h-4 w-4 text-amber-400 flex-shrink-0" />
+                  <a href="mailto:retailmarketingpro1.0@gmail.com" className="text-gray-300/90 hover:text-amber-400 transition-colors text-sm">retailmarketingpro1.0@gmail.com</a>
                 </li>
                 <li className="flex items-center gap-3">
-                  <Phone className="h-4 w-4 text-yellow-400 flex-shrink-0" />
-                  <a href="tel:+919876543210" className="text-gray-300 hover:text-yellow-400 transition-colors text-sm">+91 8910921128</a>
+                  <Phone className="h-4 w-4 text-amber-400 flex-shrink-0" />
+                  <a href="tel:+919876543210" className="text-gray-300/90 hover:text-amber-400 transition-colors text-sm">+91 8910921128</a>
                 </li>
                 <li className="flex items-center gap-3">
-                  <MapPin className="h-4 w-4 text-yellow-400 flex-shrink-0" />
-                  <span className="text-gray-300 text-sm">India</span>
+                  <MapPin className="h-4 w-4 text-amber-400 flex-shrink-0" />
+                  <span className="text-gray-300/90 text-sm">India</span>
                 </li>
               </ul>
             </div>
@@ -653,31 +635,31 @@ const Landing = () => {
             <div className="flex gap-6 flex-wrap">
               <Link 
                 to="/policy" 
-                className="text-sm text-gray-400 hover:text-yellow-400 transition-colors cursor-pointer"
+                className="text-sm text-gray-400/90 hover:text-amber-400 transition-colors cursor-pointer"
               >
                 Privacy Policy
               </Link>
               <Link 
                 to="/terms" 
-                className="text-sm text-gray-400 hover:text-yellow-400 transition-colors cursor-pointer"
+                className="text-sm text-gray-400/90 hover:text-amber-400 transition-colors cursor-pointer"
               >
                 Terms of Service
               </Link>
               <Link 
                 to="/refund" 
-                className="text-sm text-gray-400 hover:text-yellow-400 transition-colors cursor-pointer"
+                className="text-sm text-gray-400/90 hover:text-amber-400 transition-colors cursor-pointer"
               >
                 Refund Policy
               </Link>
               <Link 
                 to="/disclaimer" 
-                className="text-sm text-gray-400 hover:text-yellow-400 transition-colors cursor-pointer"
+                className="text-sm text-gray-400/90 hover:text-amber-400 transition-colors cursor-pointer"
               >
                 Disclaimer
               </Link>
               <Link 
                 to="/cookies" 
-                className="text-sm text-gray-400 hover:text-yellow-400 transition-colors cursor-pointer"
+                className="text-sm text-gray-400/90 hover:text-amber-400 transition-colors cursor-pointer"
               >
                 Cookie Notice
               </Link>

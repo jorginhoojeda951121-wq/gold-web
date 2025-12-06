@@ -1,5 +1,4 @@
 import { useState, useEffect, useCallback } from "react";
-import { Navigation } from "@/components/Navigation";
 import { StatsCard } from "@/components/StatsCard";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -396,8 +395,6 @@ const Analytics = () => {
 
   return (
     <div className="min-h-screen bg-gradient-elegant">
-      <Navigation />
-      
       <header className="bg-gradient-primary shadow-elegant border-b border-border/50">
         <div className="container mx-auto px-6 py-6">
           <div className="flex items-center justify-between">

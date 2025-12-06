@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { Search, Plus, Hammer, ArrowLeft, Package, Database, TableIcon, Users, Building2, User } from "lucide-react";
-import { Navigation } from "@/components/Navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -426,7 +425,6 @@ const CraftsmenTracking = () => {
   if (!loaded) {
     return (
       <div className="min-h-screen bg-gray-50">
-        <Navigation />
         <main className="container mx-auto px-6 py-8">
           <div className="flex items-center justify-center min-h-[400px]">
             <div className="text-center">
@@ -441,8 +439,6 @@ const CraftsmenTracking = () => {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <Navigation />
-      
       <main className="container mx-auto px-6 py-8">
         {/* Header */}
         <div className="text-center mb-12">

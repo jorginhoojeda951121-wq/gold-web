@@ -1,6 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { Search, Grid, List, ArrowLeft, Plus, Edit, Trash2, Upload, X, ShoppingCart, AlertTriangle, Gem } from "lucide-react";
-import { Navigation } from "@/components/Navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Link, useNavigate } from "react-router-dom";
@@ -388,8 +387,6 @@ const PreciousStones = () => {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <Navigation />
-      
       <main className="container mx-auto px-6 py-8">
         {/* Header */}
         <div className="bg-white rounded-lg shadow-lg p-6 mb-8 border border-gray-200">

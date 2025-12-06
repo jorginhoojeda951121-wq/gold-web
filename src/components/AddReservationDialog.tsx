@@ -109,8 +109,14 @@ export function AddReservationDialog({ open, onOpenChange, onSuccess }: AddReser
       // Queue for sync to Supabase
       try {
         await enqueueChange('reservations', 'upsert', newReservation);
-      } catch (syncError) {
-        console.warn('Failed to queue sync, but reservation saved locally:', syncError);
+        console.log('✅ Reservation queued for sync to Supabase');
+      } catch (syncError: any) {
+        console.warn('⚠️ Failed to queue sync, but reservation saved locally:', syncError);
+        toast({
+          title: 'Warning',
+          description: 'Reservation saved locally but sync failed. It will sync when connection is available.',
+          variant: 'default'
+        });
         // Don't fail the operation if sync fails - data is saved locally
       }
 
@@ -178,6 +184,7 @@ export function AddReservationDialog({ open, onOpenChange, onSuccess }: AddReser
                   value={formData.customer_name}
                   onChange={(e) => setFormData({ ...formData, customer_name: e.target.value })}
                   placeholder="Enter customer name"
+                  autoComplete="off"
                   required
                 />
               </div>
@@ -188,6 +195,7 @@ export function AddReservationDialog({ open, onOpenChange, onSuccess }: AddReser
                   value={formData.customer_phone}
                   onChange={(e) => setFormData({ ...formData, customer_phone: e.target.value })}
                   placeholder="+91-9876543210"
+                  autoComplete="off"
                   required
                 />
               </div>
@@ -200,6 +208,7 @@ export function AddReservationDialog({ open, onOpenChange, onSuccess }: AddReser
                 value={formData.customer_email}
                 onChange={(e) => setFormData({ ...formData, customer_email: e.target.value })}
                 placeholder="customer@example.com"
+                autoComplete="off"
               />
             </div>
           </div>
@@ -251,6 +260,7 @@ export function AddReservationDialog({ open, onOpenChange, onSuccess }: AddReser
                 value={formData.event_description}
                 onChange={(e) => setFormData({ ...formData, event_description: e.target.value })}
                 placeholder="e.g., Grand wedding ceremony"
+                autoComplete="off"
               />
             </div>
           </div>
@@ -311,6 +321,7 @@ export function AddReservationDialog({ open, onOpenChange, onSuccess }: AddReser
                   value={formData.category_preferences}
                   onChange={(e) => setFormData({ ...formData, category_preferences: e.target.value })}
                   placeholder="e.g., Necklace, Earrings, Bangles"
+                  autoComplete="off"
                 />
               </div>
               <div className="space-y-2">
@@ -320,6 +331,7 @@ export function AddReservationDialog({ open, onOpenChange, onSuccess }: AddReser
                   value={formData.color_preferences}
                   onChange={(e) => setFormData({ ...formData, color_preferences: e.target.value })}
                   placeholder="e.g., Gold, Rose Gold, Diamond"
+                  autoComplete="off"
                 />
               </div>
             </div>
@@ -361,6 +373,7 @@ export function AddReservationDialog({ open, onOpenChange, onSuccess }: AddReser
                     value={formData.polish_rate}
                     onChange={(e) => setFormData({ ...formData, polish_rate: e.target.value })}
                     placeholder="Enter custom polish rate"
+                    autoComplete="off"
                     min="0"
                     step="0.01"
                   />
@@ -385,6 +398,7 @@ export function AddReservationDialog({ open, onOpenChange, onSuccess }: AddReser
                 value={formData.total_amount}
                 onChange={(e) => setFormData({ ...formData, total_amount: e.target.value })}
                 placeholder="Enter total bill amount"
+                autoComplete="off"
                 min="0"
                 step="0.01"
               />
@@ -402,6 +416,7 @@ export function AddReservationDialog({ open, onOpenChange, onSuccess }: AddReser
                 value={formData.advance_paid}
                 onChange={(e) => setFormData({ ...formData, advance_paid: e.target.value })}
                 placeholder="0"
+                autoComplete="off"
                 min="0"
                 step="0.01"
               />
@@ -440,6 +455,7 @@ export function AddReservationDialog({ open, onOpenChange, onSuccess }: AddReser
                 value={formData.special_requests}
                 onChange={(e) => setFormData({ ...formData, special_requests: e.target.value })}
                 placeholder="Any special requests or requirements..."
+                autoComplete="off"
                 rows={3}
               />
             </div>
@@ -450,6 +466,7 @@ export function AddReservationDialog({ open, onOpenChange, onSuccess }: AddReser
                 value={formData.notes}
                 onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
                 placeholder="Internal notes (not visible to customer)..."
+                autoComplete="off"
                 rows={2}
               />
             </div>

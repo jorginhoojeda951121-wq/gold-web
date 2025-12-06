@@ -235,16 +235,18 @@ export default function Vendors() {
     if (!confirm('Are you sure you want to delete this vendor? This action cannot be undone.')) return;
 
     try {
-      const supabase = getSupabase();
-      const { error } = await supabase
-        .from('vendors')
-        .delete()
-        .eq('id', id);
-
-      if (error) throw error;
-
+      const { enqueueChange } = await import('@/lib/sync');
+      const { getUserData, setUserData } = await import('@/lib/userStorage');
+      
       // Update local storage immediately
-      await setVendors(vendors.filter(v => v.id !== id));
+      const updatedVendors = vendors.filter(v => v.id !== id);
+      await setVendors(updatedVendors);
+      
+      // Also update IndexedDB
+      await setUserData('vendors', updatedVendors);
+      
+      // Queue for sync to Supabase
+      await enqueueChange('vendors', 'delete', { id });
       
       toast({
         title: 'Success',

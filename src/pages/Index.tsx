@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { Gem, Package, TrendingUp, DollarSign, Search, Plus, Share2 } from "lucide-react";
-import { Navigation } from "@/components/Navigation";
 import { StatsCard } from "@/components/StatsCard";
 import { JewelryCard, JewelryItem } from "@/components/JewelryCard";
 import { AddItemDialog } from "@/components/AddItemDialog";
@@ -513,8 +512,6 @@ const Index = () => {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <Navigation />
-      
       {/* Header Section */}
       <header className="bg-gradient-to-r from-green-100 to-yellow-50 border-b border-gray-200">
         <div className="container mx-auto px-6 py-12 text-center">

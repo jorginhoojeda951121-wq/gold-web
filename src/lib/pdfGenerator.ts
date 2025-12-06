@@ -14,6 +14,11 @@ export interface ReceiptData {
     quantity: number;
     price: number;
     total: number;
+    weight?: string;
+    purity?: string;
+    customRate?: number;
+    taxRate?: number;
+    details?: string;
   }>;
   subtotal: number;
   tax: number;
@@ -239,24 +244,46 @@ export const generateReceiptPDF = async (receiptData: ReceiptData): Promise<void
   receiptData.items.forEach((item, index) => {
     const rowY = yPosition;
     
+    // Build details string
+    const details: string[] = [];
+    if (item.weight) details.push(`Weight: ${item.weight}g`);
+    if (item.purity) details.push(`Purity: ${item.purity}`);
+    if (item.customRate) details.push(`Rate: ₹${item.customRate.toLocaleString('en-IN')}`);
+    if (item.taxRate) details.push(`Tax: ${item.taxRate}%`);
+    if (item.details) details.push(item.details);
+    const detailsText = details.length > 0 ? details.join(' | ') : '';
+    
+    // Calculate row height based on content
+    const itemLines = pdf.splitTextToSize(item.name, itemColWidth - 16);
+    const detailsLines = detailsText ? pdf.splitTextToSize(detailsText, itemColWidth - 16) : [];
+    const totalLines = Math.max(itemLines.length + detailsLines.length, 1);
+    const rowHeight = totalLines * 5 + 4;
+    
     // Alternating row colors
     if (index % 2 === 0) {
-      drawRoundedRect(tableStartX, rowY - 7, tableWidth, 9, colors.bgLight);
+      drawRoundedRect(tableStartX, rowY - 7, tableWidth, rowHeight, colors.bgLight);
     } else {
-      drawRoundedRect(tableStartX, rowY - 7, tableWidth, 9, [255, 255, 255]);
+      drawRoundedRect(tableStartX, rowY - 7, tableWidth, rowHeight, [255, 255, 255]);
     }
     
     // Item name with wrapping
-    const itemLines = pdf.splitTextToSize(item.name, itemColWidth - 16);
     pdf.text(itemLines, tableStartX + 8, rowY);
     
-    // Numeric values - perfectly aligned
+    // Item details below name (smaller font)
+    if (detailsLines.length > 0) {
+      pdf.setFontSize(8);
+      pdf.setTextColor(colors.textSecondary[0], colors.textSecondary[1], colors.textSecondary[2]);
+      pdf.text(detailsLines, tableStartX + 8, rowY + itemLines.length * 5 + 2);
+      pdf.setFontSize(10);
+      pdf.setTextColor(colors.textPrimary[0], colors.textPrimary[1], colors.textPrimary[2]);
+    }
+    
+    // Numeric values - perfectly aligned (positioned at top of row)
     pdf.text(item.quantity.toString(), qtyColRight - 4, rowY, { align: 'right' });
     pdf.text(`₹${item.price.toLocaleString('en-IN')}`, priceColRight - 4, rowY, { align: 'right' });
     pdf.text(`₹${item.total.toLocaleString('en-IN')}`, totalColRight - 4, rowY, { align: 'right' });
     
-    const linesCount = Math.max(itemLines.length, 1);
-    yPosition += linesCount * 5 + 4;
+    yPosition += rowHeight;
   });
   
   // Table bottom border

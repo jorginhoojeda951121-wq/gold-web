@@ -44,19 +44,37 @@ export function VendorDetailsDialog({ open, onOpenChange, vendor, onSuccess }: V
   const handleUpdate = async () => {
     try {
       setLoading(true);
-      const supabase = getSupabase();
+      const { enqueueChange } = await import('@/lib/sync');
+      const { getUserData, setUserData, getCurrentUserId } = await import('@/lib/userStorage');
+      const userId = await getCurrentUserId();
+      
+      if (!userId) {
+        throw new Error('User not authenticated');
+      }
 
-      const { error } = await supabase
-        .from('vendors')
-        .update({
-          status: editData.status,
-          credit_limit: parseFloat(editData.credit_limit) || 0,
-          payment_terms: editData.payment_terms || null,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', vendor.id);
+      // Update vendor data
+      const updatedVendor = {
+        ...vendor,
+        status: editData.status,
+        credit_limit: parseFloat(editData.credit_limit) || 0,
+        payment_terms: editData.payment_terms || null,
+        updated_at: new Date().toISOString(),
+      };
 
-      if (error) throw error;
+      // Update local storage
+      const vendors = (await getUserData<any[]>('vendors')) || [];
+      const vendorIndex = vendors.findIndex((v: any) => v.id === vendor.id);
+      if (vendorIndex >= 0) {
+        vendors[vendorIndex] = updatedVendor;
+        await setUserData('vendors', vendors);
+      }
+
+      // Queue for sync to Supabase
+      await enqueueChange('vendors', 'upsert', {
+        id: vendor.id,
+        user_id: userId,
+        ...updatedVendor,
+      });
 
       toast({
         title: 'Success',
@@ -65,11 +83,11 @@ export function VendorDetailsDialog({ open, onOpenChange, vendor, onSuccess }: V
 
       onSuccess();
       onOpenChange(false);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error updating vendor:', error);
       toast({
         title: 'Error',
-        description: 'Failed to update vendor.',
+        description: error.message || 'Failed to update vendor.',
         variant: 'destructive',
       });
     } finally {

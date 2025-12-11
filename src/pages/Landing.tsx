@@ -38,7 +38,6 @@ import {
 import { useState, useMemo, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { AlertCircle, ExternalLink, Palette } from "lucide-react";
-import { AIChatbot, ChatbotButton } from "@/components/AIChatbot";
 import { useTheme } from "@/contexts/ThemeContext";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
@@ -57,11 +56,11 @@ const Landing = () => {
       setIsAuthenticated(!!session);
     };
     checkAuth();
-    
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setIsAuthenticated(!!session);
     });
-    
+
     return () => subscription.unsubscribe();
   }, []);
 
@@ -98,7 +97,7 @@ const Landing = () => {
         <div className="absolute top-0 left-1/4 w-96 h-96 bg-gradient-to-br from-amber-500/20 via-amber-400/15 to-transparent rounded-full blur-3xl"></div>
         <div className="absolute top-1/4 right-1/4 w-96 h-96 bg-gradient-to-br from-violet-500/20 via-purple-400/15 to-transparent rounded-full blur-3xl"></div>
         <div className="absolute bottom-1/4 left-1/3 w-96 h-96 bg-gradient-to-br from-rose-500/20 via-pink-400/15 to-transparent rounded-full blur-3xl"></div>
-        
+
         {/* Subtle grid pattern overlay */}
         <div className={`absolute inset-0 ${theme === 'minimal' ? 'bg-[linear-gradient(rgba(0,0,0,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(0,0,0,0.02)_1px,transparent_1px)]' : 'bg-[linear-gradient(rgba(255,255,255,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.03)_1px,transparent_1px)]'} bg-[size:60px_60px]`}></div>
       </div>
@@ -190,7 +189,7 @@ const Landing = () => {
 
             {/* Feature Cards */}
             <div className="grid grid-cols-3 gap-4">
-              <Card 
+              <Card
                 onClick={() => isAuthenticated ? navigate('/gold-collection') : handleSignInClick()}
                 className={`${theme === 'minimal' ? 'bg-white border-gray-200 hover:border-amber-400' : 'bg-slate-800/70 border-slate-700 hover:border-amber-500/50'} transition-all duration-300 hover:scale-105 hover:shadow-xl ${theme === 'minimal' ? 'hover:shadow-amber-500/20' : 'hover:shadow-amber-500/25'} backdrop-blur-sm group cursor-pointer animate-float`}
                 style={{ animationDelay: '0s' }}
@@ -203,7 +202,7 @@ const Landing = () => {
                   <p className={`text-xs ${theme === 'minimal' ? 'text-gray-600' : 'text-gray-300'}`}>Management</p>
                 </CardContent>
               </Card>
-              <Card 
+              <Card
                 onClick={() => isAuthenticated ? navigate('/precious-stones') : handleSignInClick()}
                 className={`${theme === 'minimal' ? 'bg-white border-gray-200 hover:border-violet-400' : 'bg-slate-800/70 border-slate-700 hover:border-violet-500/50'} transition-all duration-300 hover:scale-105 hover:shadow-xl ${theme === 'minimal' ? 'hover:shadow-violet-500/20' : 'hover:shadow-violet-500/25'} backdrop-blur-sm group cursor-pointer animate-float`}
                 style={{ animationDelay: '0.2s' }}
@@ -216,7 +215,7 @@ const Landing = () => {
                   <p className={`text-xs ${theme === 'minimal' ? 'text-gray-600' : 'text-gray-300'}`}>Catalog</p>
                 </CardContent>
               </Card>
-              <Card 
+              <Card
                 onClick={() => isAuthenticated ? navigate('/analytics') : handleSignInClick()}
                 className={`${theme === 'minimal' ? 'bg-white border-gray-200 hover:border-cyan-400' : 'bg-slate-800/70 border-slate-700 hover:border-cyan-500/50'} transition-all duration-300 hover:scale-105 hover:shadow-xl ${theme === 'minimal' ? 'hover:shadow-cyan-500/20' : 'hover:shadow-cyan-500/25'} backdrop-blur-sm group cursor-pointer animate-float`}
                 style={{ animationDelay: '0.4s' }}
@@ -478,21 +477,21 @@ const Landing = () => {
             <div key={index} className="relative z-20">
               {/* Connecting line - positioned between cards, perfectly centered with icon */}
               {index < 2 && (
-                <div className="hidden md:block absolute top-[8.75rem] left-full z-10" style={{ 
-                  width: 'calc(100% + 2rem)', 
+                <div className="hidden md:block absolute top-[8.75rem] left-full z-10" style={{
+                  width: 'calc(100% + 2rem)',
                   height: '1px'
                 }}>
                   {/* Glow effect (behind) */}
                   <div className="absolute top-1/2 left-0 w-full h-3 bg-gradient-to-r from-transparent via-amber-300/30 to-transparent rounded-full blur-sm transform -translate-y-1/2"></div>
-                  
+
                   {/* Main gradient line */}
                   <div className="absolute top-1/2 left-0 w-full h-1 bg-gradient-to-r from-amber-500 via-amber-400 to-amber-500 rounded-full shadow-lg shadow-amber-500/40 transform -translate-y-1/2"></div>
-                  
+
                   {/* Decorative dots with border to stand out */}
                   <div className="absolute top-1/2 left-1/4 w-3 h-3 bg-gradient-to-br from-amber-400 to-amber-500 rounded-full transform -translate-y-1/2 shadow-lg shadow-amber-400/50 border-2 border-slate-800/80"></div>
                   <div className="absolute top-1/2 left-1/2 w-3 h-3 bg-gradient-to-br from-amber-300 to-amber-400 rounded-full transform -translate-y-1/2 shadow-lg shadow-amber-300/50 border-2 border-slate-800/80"></div>
                   <div className="absolute top-1/2 left-3/4 w-3 h-3 bg-gradient-to-br from-amber-400 to-amber-500 rounded-full transform -translate-y-1/2 shadow-lg shadow-amber-400/50 border-2 border-slate-800/80"></div>
-                  
+
                   {/* Arrow indicator with background circle */}
                   <div className="absolute top-1/2 right-0 transform -translate-y-1/2 translate-x-1/2 z-20">
                     <div className="w-7 h-7 bg-slate-800 rounded-full flex items-center justify-center shadow-xl border-2 border-amber-400/30">
@@ -633,32 +632,32 @@ const Landing = () => {
           <div className="border-t border-slate-800 pt-8 flex flex-col md:flex-row items-center justify-between gap-4">
             <p className="text-sm text-gray-400">© 2024 Gold Crafts Manager. All rights reserved.</p>
             <div className="flex gap-6 flex-wrap">
-              <Link 
-                to="/policy" 
+              <Link
+                to="/policy"
                 className="text-sm text-gray-400/90 hover:text-amber-400 transition-colors cursor-pointer"
               >
                 Privacy Policy
               </Link>
-              <Link 
-                to="/terms" 
+              <Link
+                to="/terms"
                 className="text-sm text-gray-400/90 hover:text-amber-400 transition-colors cursor-pointer"
               >
                 Terms of Service
               </Link>
-              <Link 
-                to="/refund" 
+              <Link
+                to="/refund"
                 className="text-sm text-gray-400/90 hover:text-amber-400 transition-colors cursor-pointer"
               >
                 Refund Policy
               </Link>
-              <Link 
-                to="/disclaimer" 
+              <Link
+                to="/disclaimer"
                 className="text-sm text-gray-400/90 hover:text-amber-400 transition-colors cursor-pointer"
               >
                 Disclaimer
               </Link>
-              <Link 
-                to="/cookies" 
+              <Link
+                to="/cookies"
                 className="text-sm text-gray-400/90 hover:text-amber-400 transition-colors cursor-pointer"
               >
                 Cookie Notice
@@ -667,10 +666,6 @@ const Landing = () => {
           </div>
         </div>
       </footer>
-
-      {/* AI Chatbot */}
-      <ChatbotButton onClick={() => setShowChatbot(true)} />
-      <AIChatbot open={showChatbot} onOpenChange={setShowChatbot} />
 
       {/* Sign Up Modal */}
       <Dialog open={showSignUpModal} onOpenChange={setShowSignUpModal}>
@@ -692,7 +687,7 @@ const Landing = () => {
               </div>
             </div>
           </DialogHeader>
-          
+
           <div className="flex flex-col sm:flex-row gap-3 mt-6">
             <Button
               onClick={() => {
@@ -708,7 +703,7 @@ const Landing = () => {
                 <ExternalLink className="h-4 w-4" />
               </div>
             </Button>
-            
+
             <Button
               onClick={() => {
                 window.open('https://apps.apple.com/app/gold-crafts-manager/id123456789', '_blank');

@@ -471,8 +471,7 @@ const Index = () => {
       name: craftsman.name,
       specialty: craftsman.specialty,
       experience: craftsman.experience, // Keep as-is (can be string or number), sync will parse
-      phone: craftsman.contact || '', // Local uses 'contact', sync will map to 'phone'
-      contact: craftsman.contact || '', // Keep both for compatibility
+      phone: craftsman.phone || '', // Local uses 'contact', sync will map to 'phone'
       email: craftsman.email || '',
       address: craftsman.address || '',
       status: craftsman.status || 'available', // Sync will map to Supabase status values
@@ -493,8 +492,7 @@ const Index = () => {
         name: updatedCraftsman.name,
         specialty: updatedCraftsman.specialty,
         experience: updatedCraftsman.experience, // Keep as-is, sync will parse
-        phone: updatedCraftsman.contact || '', // Local uses 'contact'
-        contact: updatedCraftsman.contact || '', // Keep both for compatibility
+        phone: updatedCraftsman.phone || '', // Local uses 'contact'
         email: updatedCraftsman.email || '',
         address: updatedCraftsman.address || '',
         status: updatedCraftsman.status || 'available', // Sync will map to Supabase status

@@ -8,13 +8,12 @@ import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { Mail, Lock, User, Package, Send, Phone, Building2, Eye, EyeOff, AlertCircle, ExternalLink, Loader2 } from "lucide-react";
-import { AIChatbot, ChatbotButton } from "@/components/AIChatbot";
 
 export const Auth = () => {
   const supabase = getSupabase();
   const { toast } = useToast();
   const navigate = useNavigate();
-  
+
   // View state: 'signin' or 'getintouch'
   const [currentView, setCurrentView] = useState<"signin" | "getintouch">("signin");
 
@@ -68,7 +67,7 @@ export const Auth = () => {
           if (profileErr) {
             console.warn('User profile upsert failed:', profileErr.message);
           }
-          
+
           // Initialize subscription for user
           try {
             const { initializeSubscription } = await import('@/lib/subscription');
@@ -94,7 +93,7 @@ export const Auth = () => {
       } catch (e) {
         console.error('Error caching user ID on login:', e);
       }
-      
+
       // Redirect to dashboard after successful login using React Router (avoids full page reload)
       navigate("/dashboard", { replace: true });
     } catch (err: any) {
@@ -108,13 +107,13 @@ export const Auth = () => {
   const onContactSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setContactLoading(true);
-    
+
     // Validate required fields
     if (!contactForm.fullName || !contactForm.email || !contactForm.message) {
-      toast({ 
-        title: "Missing Information", 
-        description: "Please fill in all required fields (Full Name, Email, and Message).", 
-        variant: "destructive" 
+      toast({
+        title: "Missing Information",
+        description: "Please fill in all required fields (Full Name, Email, and Message).",
+        variant: "destructive"
       });
       setContactLoading(false);
       return;
@@ -145,9 +144,9 @@ export const Auth = () => {
       const result = await response.json();
 
       if (result.success) {
-        toast({ 
-          title: "Message Sent Successfully!", 
-          description: "Thank you for contacting us. We'll get back to you soon!" 
+        toast({
+          title: "Message Sent Successfully!",
+          description: "Thank you for contacting us. We'll get back to you soon!"
         });
         // Reset form
         setContactForm({
@@ -162,10 +161,10 @@ export const Auth = () => {
       }
     } catch (err: any) {
       console.error("Form submission error:", err);
-      toast({ 
-        title: "Error", 
-        description: err?.message || "Failed to send message. Please try again.", 
-        variant: "destructive" 
+      toast({
+        title: "Error",
+        description: err?.message || "Failed to send message. Please try again.",
+        variant: "destructive"
       });
     } finally {
       setContactLoading(false);
@@ -180,7 +179,7 @@ export const Auth = () => {
         <div className="absolute top-0 left-1/4 w-96 h-96 bg-cyan-500/20 rounded-full blur-3xl animate-pulse"></div>
         <div className="absolute top-1/4 right-1/4 w-96 h-96 bg-blue-500/20 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1s' }}></div>
         <div className="absolute bottom-1/4 left-1/3 w-96 h-96 bg-indigo-500/20 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '2s' }}></div>
-        
+
         {/* Enhanced particle effects */}
         <div className="absolute inset-0 opacity-40">
           {particles.map((particle) => (
@@ -198,7 +197,7 @@ export const Auth = () => {
             />
           ))}
         </div>
-        
+
         {/* Grid pattern overlay */}
         <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.02)_1px,transparent_1px)] bg-[size:50px_50px]"></div>
       </div>
@@ -207,233 +206,233 @@ export const Auth = () => {
       <div className="w-full max-w-md relative z-10">
         {/* Sign In Form */}
         {currentView === "signin" ? (
-        <Card className="backdrop-blur-md bg-slate-800/90 border border-slate-700/50 shadow-2xl shadow-cyan-500/10 hover:shadow-cyan-500/20 transition-all duration-300">
-          <CardHeader className="space-y-3 pb-6">
-            <div className="flex items-center justify-center gap-3 mb-2">
-              <div className="p-2 rounded-lg bg-gradient-to-br from-cyan-500 to-blue-600 shadow-lg shadow-cyan-500/50 animate-pulse">
-                <Package className="h-6 w-6 text-white" />
-              </div>
-              <CardTitle className="text-3xl font-bold bg-gradient-to-r from-cyan-400 to-blue-400 bg-clip-text text-transparent">Gold Crafts Manager</CardTitle>
-            </div>
-            <p className="text-center text-slate-300 text-sm font-medium">Account Management</p>
-            <p className="text-center text-white/70 text-sm">Sign in to manage your account</p>
-          </CardHeader>
-          
-          <CardContent>
-            <form onSubmit={onSignIn} className="space-y-5">
-              <div className="group space-y-2">
-                <label className="block text-sm font-medium text-slate-200">Email Address</label>
-                <div className="relative">
-                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400 group-focus-within:text-cyan-400 transition-colors" />
-                  <Input
-                    type="email"
-                    inputMode="email"
-                    autoComplete="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="Enter your email"
-                    className="pl-10 h-12 bg-slate-900/50 border-slate-600 text-white placeholder:text-slate-500 focus:border-cyan-500/50 focus:ring-cyan-500/20 focus:bg-slate-900/70 transition-all duration-200"
-                  />
+          <Card className="backdrop-blur-md bg-slate-800/90 border border-slate-700/50 shadow-2xl shadow-cyan-500/10 hover:shadow-cyan-500/20 transition-all duration-300">
+            <CardHeader className="space-y-3 pb-6">
+              <div className="flex items-center justify-center gap-3 mb-2">
+                <div className="p-2 rounded-lg bg-gradient-to-br from-cyan-500 to-blue-600 shadow-lg shadow-cyan-500/50 animate-pulse">
+                  <Package className="h-6 w-6 text-white" />
                 </div>
+                <CardTitle className="text-3xl font-bold bg-gradient-to-r from-cyan-400 to-blue-400 bg-clip-text text-transparent">Gold Crafts Manager</CardTitle>
               </div>
-              
-              <div className="group space-y-2">
-                <label className="block text-sm font-medium text-slate-200">Password</label>
-                <div className="relative">
-                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400 group-focus-within:text-cyan-400 transition-colors" />
-                  <Input
-                    type={showPassword ? "text" : "password"}
-                    autoComplete="current-password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder="Enter your password"
-                    className="pl-10 pr-10 h-12 bg-slate-900/50 border-slate-600 text-white placeholder:text-slate-500 focus:border-cyan-500/50 focus:ring-cyan-500/20 focus:bg-slate-900/70 transition-all duration-200"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-cyan-400 transition-colors"
-                  >
-                    {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
-                  </button>
-                </div>
-              </div>
+              <p className="text-center text-slate-300 text-sm font-medium">Account Management</p>
+              <p className="text-center text-white/70 text-sm">Sign in to manage your account</p>
+            </CardHeader>
 
-              {error && (
-                <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/30 backdrop-blur-sm animate-fadeIn">
-                  <p className="text-red-300 text-sm flex items-center gap-2">
-                    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                    {error}
-                  </p>
+            <CardContent>
+              <form onSubmit={onSignIn} className="space-y-5">
+                <div className="group space-y-2">
+                  <label className="block text-sm font-medium text-slate-200">Email Address</label>
+                  <div className="relative">
+                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400 group-focus-within:text-cyan-400 transition-colors" />
+                    <Input
+                      type="email"
+                      inputMode="email"
+                      autoComplete="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      placeholder="Enter your email"
+                      className="pl-10 h-12 bg-slate-900/50 border-slate-600 text-white placeholder:text-slate-500 focus:border-cyan-500/50 focus:ring-cyan-500/20 focus:bg-slate-900/70 transition-all duration-200"
+                    />
+                  </div>
                 </div>
-              )}
 
-              <Button
-                type="submit"
-                disabled={loading}
-                className="w-full h-12 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-semibold text-base rounded-lg shadow-lg shadow-cyan-500/30 hover:shadow-cyan-500/50 hover:scale-[1.02] transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {loading ? (
-                  <>
-                    <Loader2 className="h-5 w-5 animate-spin mr-2" />
-                    Please wait...
-                  </>
-                ) : (
-                  <>
-                    <Lock className="h-5 w-5 mr-2" />
-                    Sign In
-                  </>
+                <div className="group space-y-2">
+                  <label className="block text-sm font-medium text-slate-200">Password</label>
+                  <div className="relative">
+                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400 group-focus-within:text-cyan-400 transition-colors" />
+                    <Input
+                      type={showPassword ? "text" : "password"}
+                      autoComplete="current-password"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      placeholder="Enter your password"
+                      className="pl-10 pr-10 h-12 bg-slate-900/50 border-slate-600 text-white placeholder:text-slate-500 focus:border-cyan-500/50 focus:ring-cyan-500/20 focus:bg-slate-900/70 transition-all duration-200"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-cyan-400 transition-colors"
+                    >
+                      {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                    </button>
+                  </div>
+                </div>
+
+                {error && (
+                  <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/30 backdrop-blur-sm animate-fadeIn">
+                    <p className="text-red-300 text-sm flex items-center gap-2">
+                      <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      {error}
+                    </p>
+                  </div>
                 )}
-              </Button>
-            </form>
-            
-            <p className="text-center text-slate-400 text-xs mt-4">
-              Don't have an account?{" "}
-              <button
-                type="button"
-                onClick={() => {
-                  setCurrentView("getintouch");
-                  setShowSignUpModal(true);
-                }}
-                className="text-cyan-400 hover:text-cyan-300 font-medium underline underline-offset-2 transition-colors"
-              >
-                Sign Up
-              </button>
-            </p>
-          </CardContent>
-        </Card>
-        ) : (
-        /* Get in Touch Form */
-        <Card className="backdrop-blur-md bg-slate-800/90 border border-slate-700/50 shadow-2xl shadow-cyan-500/10 hover:shadow-cyan-500/20 transition-all duration-300">
-          <CardHeader className="space-y-3 pb-6">
-            <CardTitle className="text-3xl font-bold bg-gradient-to-r from-cyan-400 to-blue-400 bg-clip-text text-transparent">Get in Touch</CardTitle>
-            <p className="text-white/70 text-sm leading-relaxed">Fill out the form below and our team will contact you to help set up your business account.</p>
-            <div className="mt-4 p-3 bg-amber-500/10 border border-amber-500/30 rounded-lg">
-              <p className="text-amber-300 text-xs leading-relaxed">
-                <strong>Important:</strong> Each signup supports <strong>1 business only</strong>. 
-                For additional locations, please create a separate account with a new signup.
-              </p>
-            </div>
-          </CardHeader>
-          
-          <CardContent>
-            <form onSubmit={onContactSubmit} className="space-y-4">
-              {/* Honeypot field for spam protection */}
-              <input
-                type="checkbox"
-                name="botcheck"
-                className="hidden"
-                style={{ display: "none" }}
-                tabIndex={-1}
-                autoComplete="off"
-              />
-              
-              <div className="group space-y-2">
-                <label className="block text-sm font-medium text-slate-200">Full Name <span className="text-red-400">*</span></label>
-                <div className="relative">
-                  <User className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400 group-focus-within:text-cyan-400 transition-colors" />
-                  <Input
-                    value={contactForm.fullName}
-                    onChange={(e) => setContactForm({ ...contactForm, fullName: e.target.value })}
-                    placeholder="Enter your full name"
-                    required
-                    className="pl-10 h-12 bg-slate-900/50 border-slate-600 text-white placeholder:text-slate-500 focus:border-cyan-500/50 focus:ring-cyan-500/20 focus:bg-slate-900/70 transition-all duration-200"
-                  />
-                </div>
-              </div>
 
-              <div className="group space-y-2">
-                <label className="block text-sm font-medium text-slate-200">Email Address <span className="text-red-400">*</span></label>
-                <div className="relative">
-                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400 group-focus-within:text-cyan-400 transition-colors" />
-                  <Input
-                    type="email"
-                    value={contactForm.email}
-                    onChange={(e) => setContactForm({ ...contactForm, email: e.target.value })}
-                    placeholder="your@email.com"
-                    required
-                    className="pl-10 h-12 bg-slate-900/50 border-slate-600 text-white placeholder:text-slate-500 focus:border-cyan-500/50 focus:ring-cyan-500/20 focus:bg-slate-900/70 transition-all duration-200"
-                  />
-                </div>
-              </div>
-
-              <div className="group space-y-2">
-                <label className="block text-sm font-medium text-slate-200">Mobile Number</label>
-                <div className="relative">
-                  <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400 group-focus-within:text-cyan-400 transition-colors" />
-                  <Input
-                    type="tel"
-                    value={contactForm.mobileNumber}
-                    onChange={(e) => setContactForm({ ...contactForm, mobileNumber: e.target.value })}
-                    placeholder="Enter your mobile number"
-                    className="pl-10 h-12 bg-slate-900/50 border-slate-600 text-white placeholder:text-slate-500 focus:border-cyan-500/50 focus:ring-cyan-500/20 focus:bg-slate-900/70 transition-all duration-200"
-                  />
-                </div>
-              </div>
-
-              <div className="group space-y-2">
-                <label className="block text-sm font-medium text-slate-200">
-                  Business Type <span className="text-slate-400 text-xs">(1 Business per Account)</span>
-                </label>
-                <div className="relative">
-                  <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400 group-focus-within:text-cyan-400 transition-colors" />
-                  <Input
-                    value={contactForm.businessType}
-                    onChange={(e) => setContactForm({ ...contactForm, businessType: e.target.value })}
-                    placeholder="Enter your business name or type (e.g., Gold Jewelry Store)"
-                    className="pl-10 h-12 bg-slate-900/50 border-slate-600 text-white placeholder:text-slate-500 focus:border-cyan-500/50 focus:ring-cyan-500/20 focus:bg-slate-900/70 transition-all duration-200"
-                  />
-                </div>
-                <p className="text-xs text-slate-400 mt-1">
-                  Note: Each account supports one business. Additional locations require separate signups.
-                </p>
-              </div>
-
-              <div className="group space-y-2">
-                <label className="block text-sm font-medium text-slate-200">Message <span className="text-red-400">*</span></label>
-                <Textarea
-                  value={contactForm.message}
-                  onChange={(e) => setContactForm({ ...contactForm, message: e.target.value })}
-                  placeholder="Tell us about your business and setup requirements. Remember: 1 business = 1 account. For multiple locations, create separate accounts."
-                  rows={4}
-                  required
-                  className="bg-slate-900/50 border-slate-600 text-white placeholder:text-slate-500 focus:border-cyan-500/50 focus:ring-cyan-500/20 focus:bg-slate-900/70 transition-all duration-200 resize-none"
-                />
-              </div>
-
-              <Button
-                type="submit"
-                disabled={contactLoading}
-                className="w-full h-12 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-semibold text-base rounded-lg shadow-lg shadow-cyan-500/30 hover:shadow-cyan-500/50 hover:scale-[1.02] transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {contactLoading ? (
-                  <>
-                    <Loader2 className="h-5 w-5 animate-spin mr-2" />
-                    Sending...
-                  </>
-                ) : (
-                  <>
-                    <Send className="h-5 w-5 mr-2" />
-                    Send Message
-                  </>
-                )}
-              </Button>
+                <Button
+                  type="submit"
+                  disabled={loading}
+                  className="w-full h-12 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-semibold text-base rounded-lg shadow-lg shadow-cyan-500/30 hover:shadow-cyan-500/50 hover:scale-[1.02] transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {loading ? (
+                    <>
+                      <Loader2 className="h-5 w-5 animate-spin mr-2" />
+                      Please wait...
+                    </>
+                  ) : (
+                    <>
+                      <Lock className="h-5 w-5 mr-2" />
+                      Sign In
+                    </>
+                  )}
+                </Button>
+              </form>
 
               <p className="text-center text-slate-400 text-xs mt-4">
-                Already have an account?{" "}
+                Don't have an account?{" "}
                 <button
                   type="button"
-                  onClick={() => setCurrentView("signin")}
+                  onClick={() => {
+                    setCurrentView("getintouch");
+                    setShowSignUpModal(true);
+                  }}
                   className="text-cyan-400 hover:text-cyan-300 font-medium underline underline-offset-2 transition-colors"
                 >
-                  Login here
+                  Sign Up
                 </button>
               </p>
-            </form>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        ) : (
+          /* Get in Touch Form */
+          <Card className="backdrop-blur-md bg-slate-800/90 border border-slate-700/50 shadow-2xl shadow-cyan-500/10 hover:shadow-cyan-500/20 transition-all duration-300">
+            <CardHeader className="space-y-3 pb-6">
+              <CardTitle className="text-3xl font-bold bg-gradient-to-r from-cyan-400 to-blue-400 bg-clip-text text-transparent">Get in Touch</CardTitle>
+              <p className="text-white/70 text-sm leading-relaxed">Fill out the form below and our team will contact you to help set up your business account.</p>
+              <div className="mt-4 p-3 bg-amber-500/10 border border-amber-500/30 rounded-lg">
+                <p className="text-amber-300 text-xs leading-relaxed">
+                  <strong>Important:</strong> Each signup supports <strong>1 business only</strong>.
+                  For additional locations, please create a separate account with a new signup.
+                </p>
+              </div>
+            </CardHeader>
+
+            <CardContent>
+              <form onSubmit={onContactSubmit} className="space-y-4">
+                {/* Honeypot field for spam protection */}
+                <input
+                  type="checkbox"
+                  name="botcheck"
+                  className="hidden"
+                  style={{ display: "none" }}
+                  tabIndex={-1}
+                  autoComplete="off"
+                />
+
+                <div className="group space-y-2">
+                  <label className="block text-sm font-medium text-slate-200">Full Name <span className="text-red-400">*</span></label>
+                  <div className="relative">
+                    <User className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400 group-focus-within:text-cyan-400 transition-colors" />
+                    <Input
+                      value={contactForm.fullName}
+                      onChange={(e) => setContactForm({ ...contactForm, fullName: e.target.value })}
+                      placeholder="Enter your full name"
+                      required
+                      className="pl-10 h-12 bg-slate-900/50 border-slate-600 text-white placeholder:text-slate-500 focus:border-cyan-500/50 focus:ring-cyan-500/20 focus:bg-slate-900/70 transition-all duration-200"
+                    />
+                  </div>
+                </div>
+
+                <div className="group space-y-2">
+                  <label className="block text-sm font-medium text-slate-200">Email Address <span className="text-red-400">*</span></label>
+                  <div className="relative">
+                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400 group-focus-within:text-cyan-400 transition-colors" />
+                    <Input
+                      type="email"
+                      value={contactForm.email}
+                      onChange={(e) => setContactForm({ ...contactForm, email: e.target.value })}
+                      placeholder="your@email.com"
+                      required
+                      className="pl-10 h-12 bg-slate-900/50 border-slate-600 text-white placeholder:text-slate-500 focus:border-cyan-500/50 focus:ring-cyan-500/20 focus:bg-slate-900/70 transition-all duration-200"
+                    />
+                  </div>
+                </div>
+
+                <div className="group space-y-2">
+                  <label className="block text-sm font-medium text-slate-200">Mobile Number</label>
+                  <div className="relative">
+                    <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400 group-focus-within:text-cyan-400 transition-colors" />
+                    <Input
+                      type="tel"
+                      value={contactForm.mobileNumber}
+                      onChange={(e) => setContactForm({ ...contactForm, mobileNumber: e.target.value })}
+                      placeholder="Enter your mobile number"
+                      className="pl-10 h-12 bg-slate-900/50 border-slate-600 text-white placeholder:text-slate-500 focus:border-cyan-500/50 focus:ring-cyan-500/20 focus:bg-slate-900/70 transition-all duration-200"
+                    />
+                  </div>
+                </div>
+
+                <div className="group space-y-2">
+                  <label className="block text-sm font-medium text-slate-200">
+                    Business Type <span className="text-slate-400 text-xs">(1 Business per Account)</span>
+                  </label>
+                  <div className="relative">
+                    <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400 group-focus-within:text-cyan-400 transition-colors" />
+                    <Input
+                      value={contactForm.businessType}
+                      onChange={(e) => setContactForm({ ...contactForm, businessType: e.target.value })}
+                      placeholder="Enter your business name or type (e.g., Gold Jewelry Store)"
+                      className="pl-10 h-12 bg-slate-900/50 border-slate-600 text-white placeholder:text-slate-500 focus:border-cyan-500/50 focus:ring-cyan-500/20 focus:bg-slate-900/70 transition-all duration-200"
+                    />
+                  </div>
+                  <p className="text-xs text-slate-400 mt-1">
+                    Note: Each account supports one business. Additional locations require separate signups.
+                  </p>
+                </div>
+
+                <div className="group space-y-2">
+                  <label className="block text-sm font-medium text-slate-200">Message <span className="text-red-400">*</span></label>
+                  <Textarea
+                    value={contactForm.message}
+                    onChange={(e) => setContactForm({ ...contactForm, message: e.target.value })}
+                    placeholder="Tell us about your business and setup requirements. Remember: 1 business = 1 account. For multiple locations, create separate accounts."
+                    rows={4}
+                    required
+                    className="bg-slate-900/50 border-slate-600 text-white placeholder:text-slate-500 focus:border-cyan-500/50 focus:ring-cyan-500/20 focus:bg-slate-900/70 transition-all duration-200 resize-none"
+                  />
+                </div>
+
+                <Button
+                  type="submit"
+                  disabled={contactLoading}
+                  className="w-full h-12 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-semibold text-base rounded-lg shadow-lg shadow-cyan-500/30 hover:shadow-cyan-500/50 hover:scale-[1.02] transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {contactLoading ? (
+                    <>
+                      <Loader2 className="h-5 w-5 animate-spin mr-2" />
+                      Sending...
+                    </>
+                  ) : (
+                    <>
+                      <Send className="h-5 w-5 mr-2" />
+                      Send Message
+                    </>
+                  )}
+                </Button>
+
+                <p className="text-center text-slate-400 text-xs mt-4">
+                  Already have an account?{" "}
+                  <button
+                    type="button"
+                    onClick={() => setCurrentView("signin")}
+                    className="text-cyan-400 hover:text-cyan-300 font-medium underline underline-offset-2 transition-colors"
+                  >
+                    Login here
+                  </button>
+                </p>
+              </form>
+            </CardContent>
+          </Card>
         )}
       </div>
 
@@ -457,7 +456,7 @@ export const Auth = () => {
               </div>
             </div>
           </DialogHeader>
-          
+
           <div className="flex flex-col sm:flex-row gap-3 mt-6">
             <Button
               onClick={() => {
@@ -474,7 +473,7 @@ export const Auth = () => {
                 <ExternalLink className="h-4 w-4" />
               </div>
             </Button>
-            
+
             <Button
               onClick={() => {
                 // Replace with your actual App Store URL
@@ -493,12 +492,6 @@ export const Auth = () => {
           </div>
         </DialogContent>
       </Dialog>
-
-      {/* AI Chatbot Button - Fixed bottom right */}
-      <ChatbotButton onClick={() => setShowChatbot(true)} />
-
-      {/* AI Chatbot Modal */}
-      <AIChatbot open={showChatbot} onOpenChange={setShowChatbot} />
     </div>
   );
 };

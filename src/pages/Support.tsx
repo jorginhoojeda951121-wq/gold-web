@@ -97,139 +97,35 @@ const Support = () => {
     }
 
     try {
-      // Get current user ID for tracking
+      const { getUserData, setUserData } = await import('@/lib/userStorage');
       const userId = await getCurrentUserId();
-      const accessKey = import.meta.env.VITE_WEB3FORMS_ACCESS_KEY;
+      const supportRequests = (await getUserData<any[]>('support_requests')) || [];
+      supportRequests.push({
+        id: `SUP-${Date.now()}`,
+        user_id: userId || "Unknown",
+        user_email: userEmail,
+        user_name: userName || userEmail || "Authenticated User",
+        subject: formData.subject,
+        message: formData.message,
+        created_at: new Date().toISOString(),
+        status: 'saved'
+      });
+      await setUserData('support_requests', supportRequests);
 
-      // Check if access key is configured
-      if (!accessKey || accessKey === "YOUR_ACCESS_KEY_HERE") {
-        // Fallback: Save to local storage
-        const { getUserData, setUserData } = await import('@/lib/userStorage');
-        const supportRequests = (await getUserData<any[]>('support_requests')) || [];
-        const supportRequest = {
-          id: `SUP-${Date.now()}`,
-          user_id: userId || "Unknown",
-          user_email: userEmail,
-          user_name: userName || userEmail || "Authenticated User",
-          subject: formData.subject,
-          message: formData.message,
-          created_at: new Date().toISOString(),
-          status: 'pending'
-        };
-        supportRequests.push(supportRequest);
-        await setUserData('support_requests', supportRequests);
-
-        toast({
-          title: "Support Request Saved Locally",
-          description: "Your request has been saved. Please configure VITE_WEB3FORMS_ACCESS_KEY to enable email delivery."
-        });
-        // Reset form
-        setFormData({
-          subject: "",
-          message: ""
-        });
-        setOpen(false);
-        setLoading(false);
-        return;
-      }
-
-      // Web3Forms API endpoint - messages go to administrator only
-      const response = await fetch("https://api.web3forms.com/submit", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Accept: "application/json",
-        },
-        body: JSON.stringify({
-          access_key: accessKey,
-          subject: `[Support Request] ${formData.subject} - User: ${userEmail}`,
-          from_name: "Gold Crafts Manager Support",
-          name: userName || userEmail || "Authenticated User",
-          email: userEmail,
-          user_id: userId || "Unknown",
-          message: `Support Request from Authenticated User:\n\nUser Email: ${userEmail}\nUser ID: ${userId || "Unknown"}\n\nSubject: ${formData.subject}\n\nMessage:\n${formData.message}`,
-          // Send to administrator email only
-          to: "retailmarketingpro1.0@gmail.com",
-        }),
+      toast({
+        title: "Support Request Saved",
+        description: "Your request has been saved. We will review and contact you shortly."
       });
 
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const result = await response.json();
-
-      if (result.success) {
-        // Also save to local storage as backup
-        try {
-          const { getUserData, setUserData } = await import('@/lib/userStorage');
-          const supportRequests = (await getUserData<any[]>('support_requests')) || [];
-          supportRequests.push({
-            id: `SUP-${Date.now()}`,
-            user_id: userId || "Unknown",
-            user_email: userEmail,
-            user_name: userName || userEmail || "Authenticated User",
-            subject: formData.subject,
-            message: formData.message,
-            created_at: new Date().toISOString(),
-            status: 'sent'
-          });
-          await setUserData('support_requests', supportRequests);
-        } catch (storageError) {
-          console.warn('Failed to save support request to local storage:', storageError);
-        }
-
-        toast({
-          title: "Support Request Sent!",
-          description: "Your message has been sent to our support team. We'll get back to you soon!"
-        });
-        // Reset form
-        setFormData({
-          subject: "",
-          message: ""
-        });
-        setOpen(false);
-      } else {
-        throw new Error(result.message || "Failed to send message");
-      }
+      setFormData({ subject: "", message: "" });
+      setOpen(false);
     } catch (err: any) {
       console.error("Support form submission error:", err);
-
-      // Fallback: Save to local storage if API fails
-      try {
-        const { getUserData, setUserData } = await import('@/lib/userStorage');
-        const userId = await getCurrentUserId();
-        const supportRequests = (await getUserData<any[]>('support_requests')) || [];
-        supportRequests.push({
-          id: `SUP-${Date.now()}`,
-          user_id: userId || "Unknown",
-          user_email: userEmail,
-          user_name: userName || userEmail || "Authenticated User",
-          subject: formData.subject,
-          message: formData.message,
-          created_at: new Date().toISOString(),
-          status: 'failed',
-          error: err?.message || "Unknown error"
-        });
-        await setUserData('support_requests', supportRequests);
-
-        toast({
-          title: "Support Request Saved Locally",
-          description: "Your request has been saved locally. We'll process it when connection is restored."
-        });
-        // Reset form
-        setFormData({
-          subject: "",
-          message: ""
-        });
-        setOpen(false);
-      } catch (storageError) {
-        toast({
-          title: "Error",
-          description: err?.message || "Failed to send support request. Please try again later.",
-          variant: "destructive"
-        });
-      }
+      toast({
+        title: "Error",
+        description: err?.message || "Failed to save support request. Please try again later.",
+        variant: "destructive"
+      });
     } finally {
       setLoading(false);
     }

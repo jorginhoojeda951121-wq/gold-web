@@ -133,6 +133,14 @@ const POS = () => {
     bankAccount: "1234567890123456",
     ifscCode: "HDFC0001234"
   });
+
+  const formatInr = (value: number) =>
+    new Intl.NumberFormat('en-IN', {
+      style: 'currency',
+      currency: 'INR',
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(value || 0);
   
   // Load inventory directly from IndexedDB (bypass cache issues)
   const [availableItems, setAvailableItems] = useState<JewelryItem[]>([]);
@@ -875,7 +883,7 @@ const POS = () => {
                           <p className="text-sm text-muted-foreground truncate">{invoice.customerName || "Walk-in Customer"}</p>
                         </div>
                         <div className="text-right mr-4 flex-shrink-0">
-                          <p className="font-bold text-foreground">₹{invoice.total.toFixed(2)}</p>
+                          <p className="font-bold text-foreground">{formatInr(invoice.total)}</p>
                           <p className="text-xs text-muted-foreground">{invoice.paymentMethod}</p>
                         </div>
                         <div className="flex gap-2 flex-shrink-0">
@@ -1586,7 +1594,7 @@ const POS = () => {
                       <div className="flex justify-between items-start">
                         <div className="flex-1">
                           <p className="font-medium">{item.name}</p>
-                          <p className="text-sm text-muted-foreground">Qty: {item.quantity} × ₹{item.price.toLocaleString('en-IN')}</p>
+                          <p className="text-sm text-muted-foreground">Qty: {item.quantity} × {formatInr(item.price)}</p>
                           {(item.weight || item.purity || item.customRate || item.taxRate || item.details) && (
                             <div className="mt-2 space-y-1 text-xs">
                               {item.weight && (
@@ -1607,7 +1615,7 @@ const POS = () => {
                             </div>
                           )}
                         </div>
-                        <p className="font-bold ml-4">₹{(item.price * item.quantity).toLocaleString('en-IN')}</p>
+                        <p className="font-bold ml-4">{formatInr(item.price * item.quantity)}</p>
                       </div>
                     </div>
                   ))}
@@ -1619,16 +1627,16 @@ const POS = () => {
               <div className="space-y-2">
                 <div className="flex justify-between">
                   <Label className="text-muted-foreground">Subtotal</Label>
-                  <p className="font-semibold">₹{viewingInvoice.subtotal.toLocaleString('en-IN')}</p>
+                  <p className="font-semibold">{formatInr(viewingInvoice.subtotal)}</p>
                 </div>
                 <div className="flex justify-between">
                   <Label className="text-muted-foreground">Total GST</Label>
-                  <p className="font-semibold">₹{viewingInvoice.tax.toLocaleString('en-IN')}</p>
+                  <p className="font-semibold">{formatInr(viewingInvoice.tax)}</p>
                 </div>
                 <Separator />
                 <div className="flex justify-between">
                   <Label className="text-lg font-bold">Total</Label>
-                  <p className="text-lg font-bold text-primary">₹{viewingInvoice.total.toLocaleString('en-IN')}</p>
+                  <p className="text-lg font-bold text-primary">{formatInr(viewingInvoice.total)}</p>
                 </div>
               </div>
             </div>

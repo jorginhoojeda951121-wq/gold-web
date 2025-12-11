@@ -10,6 +10,7 @@ import { AddVendorDialog } from '@/components/AddVendorDialog';
 import { VendorDetailsDialog } from '@/components/VendorDetailsDialog';
 import { PurchaseOrdersTab } from '@/components/PurchaseOrdersTab';
 import { SupplierInvoicesTab } from '@/components/SupplierInvoicesTab';
+import { VendorPaymentsTab } from '@/components/VendorPaymentsTab';
 import { getSupabase } from '@/lib/supabase';
 import { useUserStorage } from '@/hooks/useUserStorage';
 
@@ -565,15 +566,7 @@ export default function Vendors() {
 
         {/* Payments Tab */}
         <TabsContent value="payments" className="mt-6">
-          <Card>
-            <CardContent className="p-12 text-center">
-              <CreditCard className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-              <h3 className="text-lg font-semibold mb-2">Payments Management</h3>
-              <p className="text-muted-foreground">
-                Payment tracking and history will be displayed here
-              </p>
-            </CardContent>
-          </Card>
+          <VendorPaymentsTab vendors={vendors} onUpdate={refreshVendors} />
         </TabsContent>
       </Tabs>
 

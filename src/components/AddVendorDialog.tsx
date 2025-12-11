@@ -13,7 +13,7 @@ import { Loader2 } from 'lucide-react';
 interface AddVendorDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onSuccess: () => void;
+  onSuccess: (vendor?: any) => void;
 }
 
 export function AddVendorDialog({ open, onOpenChange, onSuccess }: AddVendorDialogProps) {
@@ -99,6 +99,10 @@ export function AddVendorDialog({ open, onOpenChange, onSuccess }: AddVendorDial
       const vendors = (await getUserData<any[]>('vendors')) || [];
       vendors.push(newVendor);
       await setUserData('vendors', vendors);
+      // Broadcast update so useUserStorage subscribers refresh immediately
+      window.dispatchEvent(new CustomEvent('user-storage-updated:vendors', {
+        detail: { key: 'vendors', value: vendors }
+      }));
 
       // Queue for sync to Supabase
       try {
@@ -113,7 +117,7 @@ export function AddVendorDialog({ open, onOpenChange, onSuccess }: AddVendorDial
         description: 'Vendor created successfully.',
       });
 
-      onSuccess();
+      onSuccess(newVendor);
       onOpenChange(false);
       resetForm();
     } catch (error) {

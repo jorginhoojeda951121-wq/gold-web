@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { MessageSquare, Send, Loader2, AlertCircle, CheckCircle2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { getSupabase } from "@/lib/supabase";
@@ -17,6 +18,7 @@ const Support = () => {
     message: ""
   });
   const [loading, setLoading] = useState(false);
+  const [open, setOpen] = useState(false);
   const [userEmail, setUserEmail] = useState<string>("");
   const [userName, setUserName] = useState<string>("");
 
@@ -126,6 +128,7 @@ const Support = () => {
           subject: "",
           message: ""
         });
+        setOpen(false);
         setLoading(false);
         return;
       }
@@ -185,6 +188,7 @@ const Support = () => {
           subject: "",
           message: ""
         });
+        setOpen(false);
       } else {
         throw new Error(result.message || "Failed to send message");
       }
@@ -218,6 +222,7 @@ const Support = () => {
           subject: "",
           message: ""
         });
+        setOpen(false);
       } catch (storageError) {
         toast({
           title: "Error",
@@ -262,18 +267,28 @@ const Support = () => {
 
         {/* Support Form Card */}
         <Card className="bg-card shadow-card border-border/50">
-          <CardHeader>
-            <CardTitle className="text-2xl font-bold text-foreground">
-              Send Support Request
-            </CardTitle>
-            <p className="text-muted-foreground text-sm mt-2">
-              Describe your issue or question in detail. Our team will respond as soon as possible.
-            </p>
-          </CardHeader>
+          <CardContent className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+            <div>
+              <h3 className="text-xl font-semibold text-foreground">Need help?</h3>
+              <p className="text-sm text-muted-foreground">Create a support ticket just like adding a vendor.</p>
+            </div>
+            <Button onClick={() => setOpen(true)} className="bg-gradient-gold hover:bg-gold-dark text-primary">
+              <Send className="h-4 w-4 mr-2" />
+              New Support Request
+            </Button>
+          </CardContent>
+        </Card>
 
-          <CardContent>
+        <Dialog open={open} onOpenChange={setOpen}>
+          <DialogContent className="sm:max-w-[700px]">
+            <DialogHeader>
+              <DialogTitle>Send Support Request</DialogTitle>
+              <DialogDescription>
+                Describe your issue in detail. We’ll track it against your account.
+              </DialogDescription>
+            </DialogHeader>
+
             <form onSubmit={handleSubmit} className="space-y-6">
-              {/* User Info Display (Read-only) */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 bg-muted/50 rounded-lg">
                 <div>
                   <label className="text-sm font-medium text-muted-foreground">Your Email</label>
@@ -288,7 +303,6 @@ const Support = () => {
                 </div>
               </div>
 
-              {/* Subject Field */}
               <div className="space-y-2">
                 <label className="block text-sm font-medium text-foreground">
                   Subject <span className="text-red-500">*</span>
@@ -302,7 +316,6 @@ const Support = () => {
                 />
               </div>
 
-              {/* Message Field */}
               <div className="space-y-2">
                 <label className="block text-sm font-medium text-foreground">
                   Message <span className="text-red-500">*</span>
@@ -320,7 +333,6 @@ const Support = () => {
                 </p>
               </div>
 
-              {/* Submit Button */}
               <Button
                 type="submit"
                 disabled={loading || !userEmail}
@@ -338,18 +350,9 @@ const Support = () => {
                   </>
                 )}
               </Button>
-
-              {/* Help Text */}
-              <div className="text-center">
-                <p className="text-xs text-muted-foreground">
-                  Your support request will be sent directly to our administrator team.
-                  <br />
-                  We typically respond within 24-48 hours.
-                </p>
-              </div>
             </form>
-          </CardContent>
-        </Card>
+          </DialogContent>
+        </Dialog>
 
         {/* Additional Help Section */}
         <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-4">

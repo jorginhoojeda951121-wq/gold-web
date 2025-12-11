@@ -28,7 +28,8 @@ import {
   CheckCircle,
   Eye,
   X,
-  Scan
+  Scan,
+  Pencil
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useUserStorage } from "@/hooks/useUserStorage";
@@ -293,6 +294,7 @@ const POS = () => {
   const [invoiceToDelete, setInvoiceToDelete] = useState<Invoice | null>(null);
   const [showItemDetailsDialog, setShowItemDetailsDialog] = useState(false);
   const [itemToAdd, setItemToAdd] = useState<JewelryItem | null>(null);
+  const [editingCartId, setEditingCartId] = useState<string | null>(null);
   const [itemDetails, setItemDetails] = useState({
     weight: "",
     purity: "",
@@ -343,6 +345,7 @@ const POS = () => {
         taxRate: (item.taxRate ?? 3).toString(),
         details: ""
       });
+      setEditingCartId(null);
       setShowItemDetailsDialog(true);
     } catch (error) {
       console.error('Error loading item details:', error);
@@ -355,43 +358,77 @@ const POS = () => {
         taxRate: (item.taxRate ?? 3).toString(),
         details: ""
       });
+      setEditingCartId(null);
       setShowItemDetailsDialog(true);
     }
+  };
+
+  const handleEditCartItem = (cartItem: CartItem) => {
+    const baseItem = availableItems.find(it => it.id === cartItem.id) || {
+      id: cartItem.id,
+      name: cartItem.name,
+      type: cartItem.type,
+      price: cartItem.customRate ?? cartItem.price,
+      metal: cartItem.purity,
+      gemstone: "None",
+      carat: 0,
+      inStock: cartItem.quantity,
+    } as JewelryItem;
+
+    setItemToAdd(baseItem);
+    setItemDetails({
+      weight: cartItem.weight || "",
+      purity: cartItem.purity || "",
+      customRate: cartItem.customRate?.toString() || "",
+      taxRate: (cartItem.taxRate ?? 3).toString(),
+      details: cartItem.details || "",
+    });
+    setEditingCartId(cartItem.id);
+    setShowItemDetailsDialog(true);
   };
 
   const confirmAddToCart = () => {
     if (!itemToAdd) return;
 
+    const existingCartItem = cart.find(c => c.id === (editingCartId || itemToAdd.id));
+    const quantity = editingCartId ? (existingCartItem?.quantity ?? 1) : 1;
+    const resolvedPrice = itemDetails.customRate ? parseFloat(itemDetails.customRate) : itemToAdd.price;
+
     const cartItem: CartItem = {
       id: itemToAdd.id,
       name: itemToAdd.name,
-      price: itemDetails.customRate ? parseFloat(itemDetails.customRate) : itemToAdd.price,
-      quantity: 1,
+      price: resolvedPrice,
+      quantity,
       type: itemToAdd.type,
       taxRate: parseFloat(itemDetails.taxRate) || 3,
-      taxIncluded: itemToAdd.taxIncluded ?? false,
-      taxCategory: itemToAdd.taxCategory ?? 'jewelry',
+      taxIncluded: itemToAdd.taxIncluded ?? existingCartItem?.taxIncluded ?? false,
+      taxCategory: itemToAdd.taxCategory ?? existingCartItem?.taxCategory ?? 'jewelry',
       weight: itemDetails.weight || undefined,
       purity: itemDetails.purity || undefined,
       customRate: itemDetails.customRate ? parseFloat(itemDetails.customRate) : undefined,
       details: itemDetails.details || undefined
     };
 
-    setCart(prev => {
-      const existing = prev.find(cartItem => cartItem.id === itemToAdd.id);
-      if (existing) {
-        return prev.map(c =>
-          c.id === itemToAdd.id
-            ? { ...c, quantity: c.quantity + 1 }
-            : c
-        );
-      }
-      return [...prev, cartItem];
-    });
+    if (editingCartId) {
+      setCart(prev => prev.map(c => c.id === editingCartId ? { ...cartItem } : c));
+    } else {
+      setCart(prev => {
+        const existing = prev.find(cartItem => cartItem.id === itemToAdd.id);
+        if (existing) {
+          return prev.map(c =>
+            c.id === itemToAdd.id
+              ? { ...c, quantity: c.quantity + 1 }
+              : c
+          );
+        }
+        return [...prev, cartItem];
+      });
+    }
 
     // Reset and close dialog
     setShowItemDetailsDialog(false);
     setItemToAdd(null);
+    setEditingCartId(null);
     setItemDetails({
       weight: "",
       purity: "",
@@ -1046,6 +1083,14 @@ const POS = () => {
                             )}
                           </div>
                           <div className="flex items-center gap-2 ml-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleEditCartItem(item)}
+                              className="h-8 px-2"
+                            >
+                              <Pencil className="h-4 w-4" />
+                            </Button>
                             <Button
                               variant="outline"
                               size="sm"
@@ -1712,6 +1757,8 @@ const POS = () => {
                 <Button variant="outline" onClick={() => {
                   setShowItemDetailsDialog(false);
                   setItemToAdd(null);
+    setEditingCartId(null);
+                  setEditingCartId(null);
                   setItemDetails({
                     weight: "",
                     purity: "",

@@ -581,7 +581,15 @@ export default function Vendors() {
       <AddVendorDialog
         open={showAddDialog}
         onOpenChange={setShowAddDialog}
-        onSuccess={refreshVendors}
+        onSuccess={(vendor) => {
+          if (vendor) {
+            setVendors((prev: any) => {
+              const current = Array.isArray(prev) ? prev : [];
+              return [...current, vendor];
+            });
+          }
+          refreshVendors();
+        }}
       />
 
       {selectedVendor && (

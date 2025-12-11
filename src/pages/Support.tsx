@@ -11,6 +11,7 @@ import { getCurrentUserId } from "@/lib/userStorage";
 const Support = () => {
   const { toast } = useToast();
   const supabase = getSupabase();
+
   const [formData, setFormData] = useState({
     subject: "",
     message: ""
@@ -19,39 +20,61 @@ const Support = () => {
   const [userEmail, setUserEmail] = useState<string>("");
   const [userName, setUserName] = useState<string>("");
 
+  const setUserFromSession = (user: any) => {
+    if (!user) {
+      setUserEmail("");
+      setUserName("");
+      return;
+    }
+
+    const email = user.email || "";
+    const name = user.user_metadata?.full_name ||
+      user.user_metadata?.name ||
+      email?.split("@")[0] ||
+      "User";
+
+    setUserEmail(email);
+    setUserName(name);
+  };
+
+  const loadUserInfo = async (isActive = true) => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!isActive) return;
+
+      if (session?.user) {
+        setUserFromSession(session.user);
+        return;
+      }
+
+      // Fallback: explicitly fetch the user (helps when session isn't hydrated yet)
+      const { data: userData } = await supabase.auth.getUser();
+      if (!isActive) return;
+      setUserFromSession(userData.user);
+    } catch (error) {
+      console.error("Error loading user info:", error);
+    }
+  };
+
   // Get user information from session
   useEffect(() => {
-    const loadUserInfo = async () => {
-      try {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (session?.user) {
-          setUserEmail(session.user.email || "");
-          // Try to get user name from metadata or email
-          const name = session.user.user_metadata?.full_name || 
-                      session.user.user_metadata?.name ||
-                      session.user.email?.split('@')[0] || 
-                      "User";
-          setUserName(name);
-        }
-      } catch (error) {
-        console.error("Error loading user info:", error);
-      }
-    };
-    loadUserInfo();
+    let isMounted = true;
+
+    loadUserInfo(isMounted);
 
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (!isMounted) return;
       if (session?.user) {
-        setUserEmail(session.user.email || "");
-        const name = session.user.user_metadata?.full_name || 
-                    session.user.user_metadata?.name ||
-                    session.user.email?.split('@')[0] || 
-                    "User";
-        setUserName(name);
+        setUserFromSession(session.user);
+      } else {
+        setUserEmail("");
+        setUserName("");
       }
     });
 
     return () => {
+      isMounted = false;
       subscription.unsubscribe();
     };
   }, [supabase]);
@@ -59,13 +82,13 @@ const Support = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    
+
     // Validate required fields
     if (!formData.subject || !formData.message) {
-      toast({ 
-        title: "Missing Information", 
-        description: "Please fill in both Subject and Message fields.", 
-        variant: "destructive" 
+      toast({
+        title: "Missing Information",
+        description: "Please fill in both Subject and Message fields.",
+        variant: "destructive"
       });
       setLoading(false);
       return;
@@ -75,7 +98,7 @@ const Support = () => {
       // Get current user ID for tracking
       const userId = await getCurrentUserId();
       const accessKey = import.meta.env.VITE_WEB3FORMS_ACCESS_KEY;
-      
+
       // Check if access key is configured
       if (!accessKey || accessKey === "YOUR_ACCESS_KEY_HERE") {
         // Fallback: Save to local storage
@@ -93,10 +116,10 @@ const Support = () => {
         };
         supportRequests.push(supportRequest);
         await setUserData('support_requests', supportRequests);
-        
-        toast({ 
-          title: "Support Request Saved Locally", 
-          description: "Your request has been saved. Please configure VITE_WEB3FORMS_ACCESS_KEY to enable email delivery." 
+
+        toast({
+          title: "Support Request Saved Locally",
+          description: "Your request has been saved. Please configure VITE_WEB3FORMS_ACCESS_KEY to enable email delivery."
         });
         // Reset form
         setFormData({
@@ -106,7 +129,7 @@ const Support = () => {
         setLoading(false);
         return;
       }
-      
+
       // Web3Forms API endpoint - messages go to administrator only
       const response = await fetch("https://api.web3forms.com/submit", {
         method: "POST",
@@ -152,10 +175,10 @@ const Support = () => {
         } catch (storageError) {
           console.warn('Failed to save support request to local storage:', storageError);
         }
-        
-        toast({ 
-          title: "Support Request Sent!", 
-          description: "Your message has been sent to our support team. We'll get back to you soon!" 
+
+        toast({
+          title: "Support Request Sent!",
+          description: "Your message has been sent to our support team. We'll get back to you soon!"
         });
         // Reset form
         setFormData({
@@ -167,7 +190,7 @@ const Support = () => {
       }
     } catch (err: any) {
       console.error("Support form submission error:", err);
-      
+
       // Fallback: Save to local storage if API fails
       try {
         const { getUserData, setUserData } = await import('@/lib/userStorage');
@@ -185,10 +208,10 @@ const Support = () => {
           error: err?.message || "Unknown error"
         });
         await setUserData('support_requests', supportRequests);
-        
-        toast({ 
-          title: "Support Request Saved Locally", 
-          description: "Your request has been saved locally. We'll process it when connection is restored." 
+
+        toast({
+          title: "Support Request Saved Locally",
+          description: "Your request has been saved locally. We'll process it when connection is restored."
         });
         // Reset form
         setFormData({
@@ -196,10 +219,10 @@ const Support = () => {
           message: ""
         });
       } catch (storageError) {
-        toast({ 
-          title: "Error", 
-          description: err?.message || "Failed to send support request. Please try again later.", 
-          variant: "destructive" 
+        toast({
+          title: "Error",
+          description: err?.message || "Failed to send support request. Please try again later.",
+          variant: "destructive"
         });
       }
     } finally {
@@ -229,7 +252,7 @@ const Support = () => {
               <div>
                 <h3 className="font-semibold text-foreground mb-1">Authenticated Support</h3>
                 <p className="text-sm text-muted-foreground">
-                  You are logged in as <strong className="text-foreground">{userEmail || "User"}</strong>. 
+                  You are logged in as <strong className="text-foreground">{userEmail || "User"}</strong>.
                   Your support requests will be tracked and prioritized.
                 </p>
               </div>
@@ -247,7 +270,7 @@ const Support = () => {
               Describe your issue or question in detail. Our team will respond as soon as possible.
             </p>
           </CardHeader>
-          
+
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-6">
               {/* User Info Display (Read-only) */}

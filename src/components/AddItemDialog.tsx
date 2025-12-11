@@ -34,6 +34,13 @@ const jewelryTypes = [
   "Ring", "Necklace", "Earrings", "Bracelet", "Brooch", "Pendant", "Chain", "Anklet"
 ];
 
+const categories = [
+  { value: "gold", label: "Gold" },
+  { value: "stones", label: "Precious" },
+  { value: "artificial", label: "Artificial" },
+  { value: "jewelry", label: "Jewellery" },
+];
+
 const gemstones = [
   "Diamond", "Emerald", "Sapphire", "Ruby", "Pearl", "Amethyst", "Topaz", "Garnet", "Opal", "Turquoise", "Crystal", "None"
 ];
@@ -52,6 +59,7 @@ export const AddItemDialog = ({ open, onOpenChange, onAdd }: AddItemDialogProps)
   const [formData, setFormData] = useState({
     name: "",
     type: "",
+    category: "gold",
     gemstone: "",
     carat: "",
     metal: "",
@@ -99,10 +107,10 @@ export const AddItemDialog = ({ open, onOpenChange, onAdd }: AddItemDialogProps)
     e.preventDefault();
     
     // Validate required fields with user feedback
-    if (!formData.name || !formData.type || !formData.metal || !formData.price || !formData.inStock) {
+    if (!formData.name || !formData.type || !formData.category || !formData.metal || !formData.price || !formData.inStock) {
       toast({
         title: "Missing Information",
-        description: "Please fill in all required fields (Name, Type, Metal, Price, and Stock Quantity).",
+        description: "Please fill in all required fields (Name, Type, Category, Metal, Price, and Stock Quantity).",
         variant: "destructive"
       });
       return;
@@ -134,6 +142,7 @@ export const AddItemDialog = ({ open, onOpenChange, onAdd }: AddItemDialogProps)
       onAdd({
         name: formData.name,
         type: formData.type,
+        category: formData.category,
         gemstone: formData.gemstone || "None",
         carat: formData.carat ? parseFloat(formData.carat) : 0,
         metal: formData.metal,
@@ -165,6 +174,7 @@ export const AddItemDialog = ({ open, onOpenChange, onAdd }: AddItemDialogProps)
     setFormData({
       name: "",
       type: "",
+      category: "gold",
       gemstone: "",
       carat: "",
       metal: "",
@@ -228,6 +238,23 @@ export const AddItemDialog = ({ open, onOpenChange, onAdd }: AddItemDialogProps)
                 <SelectContent>
                   {jewelryTypes.map(type => (
                     <SelectItem key={type} value={type}>{type}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="category">Category *</Label>
+              <Select
+                value={formData.category}
+                onValueChange={(value) => setFormData(prev => ({ ...prev, category: value }))}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select category" />
+                </SelectTrigger>
+                <SelectContent>
+                  {categories.map(({ value, label }) => (
+                    <SelectItem key={value} value={value}>{label}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>

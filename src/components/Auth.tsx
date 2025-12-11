@@ -34,7 +34,6 @@ export const Auth = () => {
   });
   const [contactLoading, setContactLoading] = useState(false);
   const [showSignUpModal, setShowSignUpModal] = useState(false);
-  const [showChatbot, setShowChatbot] = useState(false);
 
   // Generate fixed particle positions
   const particles = useMemo(() => {

@@ -22,6 +22,7 @@ export interface JewelryItem {
   price: number;
   inStock: number;
   isArtificial?: boolean;
+  category?: 'gold' | 'stones' | 'stone' | 'artificial' | 'jewelry' | 'precious' | string;
   image?: string;
   // Multiple Images (up to 4)
   image_1?: string;

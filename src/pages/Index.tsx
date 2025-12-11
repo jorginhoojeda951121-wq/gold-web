@@ -8,10 +8,9 @@ import { ViewItemDialog } from "@/components/ViewItemDialog";
 import { InventoryShare, InventoryItem } from "@/components/InventoryShare";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
-import { CraftsmenManagement, Craftsman } from "@/components/CraftsmenManagement";
+import { Craftsman } from "@/components/CraftsmenManagement";
 import { TransactionDialog } from "@/components/TransactionDialog";
 import { BusinessSettings } from "@/components/BusinessSettings";
-import { EmployeeManagement } from "@/components/EmployeeManagement";
 import { AIAnalyticsDashboard } from "@/components/AIAnalyticsDashboard";
 import { ReportingDashboard } from "@/components/ReportingDashboard";
 import { CustomerLedger } from "@/components/CustomerLedger";
@@ -76,33 +75,33 @@ const Index = () => {
   const loadAllInventory = useCallback(async (forceReload = false) => {
     // Prevent multiple simultaneous loads (unless forced)
     if (itemsLoaded && !forceReload) return;
-    
+
     try {
       // Load from unified inventory_items table
       const inventoryData = await getUserData<any[]>("inventory_items") || [];
 
       const allItems: JewelryItem[] = inventoryData.map((item: any) => {
         // Determine item type - check item_type first, then category, then type field
-        const itemType = item.item_type || 
+        const itemType = item.item_type ||
           (item.category === 'gold' ? 'gold' :
-           item.category === 'stones' ? 'stone' :
-           item.category === 'stone' ? 'stone' :
-           item.type === 'Gold Bar' ? 'gold' : 
-           item.type === 'Gemstone' ? 'stone' : 'jewelry');
+            item.category === 'stones' ? 'stone' :
+              item.category === 'stone' ? 'stone' :
+                item.type === 'Gold Bar' ? 'gold' :
+                  item.type === 'Gemstone' ? 'stone' : 'jewelry');
 
         // Transform to JewelryItem format
         const stockValue = item.inStock ?? item.stock ?? item.in_stock ?? 10;
-        
+
         return {
-              id: item.id,
-              name: item.name || 'Unknown Item',
-          type: itemType === 'gold' ? 'Gold Bar' 
-                : itemType === 'stone' ? 'Gemstone'
-                  : (item.type || 'Ring'),
-          gemstone: itemType === 'stone' 
-              ? (item.name || 'Stone')
+          id: item.id,
+          name: item.name || 'Unknown Item',
+          type: itemType === 'gold' ? 'Gold Bar'
+            : itemType === 'stone' ? 'Gemstone'
+              : (item.type || 'Ring'),
+          gemstone: itemType === 'stone'
+            ? (item.name || 'Stone')
             : (item.gemstone || item.attributes?.gemstone || 'None'),
-          carat: itemType === 'stone' 
+          carat: itemType === 'stone'
             ? (parseFloat(item.attributes?.carat || item.carat) || 0)
             : (parseFloat(item.carat) || 0),
           metal: itemType === 'gold'
@@ -110,9 +109,9 @@ const Index = () => {
             : itemType === 'stone'
               ? 'Platinum'
               : (item.metal || 'Gold 18K'),
-            price: item.price || 0,
+          price: item.price || 0,
           inStock: stockValue,
-            isArtificial: item.isArtificial || false,
+          isArtificial: item.isArtificial || false,
           image: item.image || item.image_1 || '',
           image_1: item.image_1 || item.image || '',
           image_2: item.image_2 || '',
@@ -147,7 +146,7 @@ const Index = () => {
         setItemsLoaded(false);
       }
     });
-    
+
     return () => {
       subscription.unsubscribe();
     };
@@ -161,7 +160,7 @@ const Index = () => {
     };
 
     window.addEventListener('data-synced', handleDataSynced);
-    
+
     return () => {
       window.removeEventListener('data-synced', handleDataSynced);
     };
@@ -226,32 +225,37 @@ const Index = () => {
       // Get current user ID
       const { getCurrentUserId } = await import('@/lib/userStorage');
       const userId = await getCurrentUserId();
-      
+
       if (!userId) {
-        toast({ 
-          title: "Error", 
-          description: "User not logged in. Please log in again.", 
-          variant: "destructive" 
+        toast({
+          title: "Error",
+          description: "User not logged in. Please log in again.",
+          variant: "destructive"
         });
         return;
       }
-      
+
       const item: JewelryItem = {
         ...newItem,
         id: Date.now().toString()
       };
-      
+
       // Save to appropriate user-scoped IndexedDB key based on item type
       // Save to unified inventory_items table (Single Source of Truth)
       const inventoryItems = (await getUserData<any[]>('inventory_items')) || [];
-      const itemType = item.type === 'Gold Bar' ? 'gold' 
-                     : item.type === 'Gemstone' ? 'stone'
-                     : 'jewelry';
-      
+      const category = (item.category || '').toLowerCase();
+      const itemType = category === 'gold' ? 'gold'
+        : (category === 'stones' || category === 'stone' || category === 'precious') ? 'stone'
+          : category === 'artificial' ? 'artificial'
+            : item.type === 'Gold Bar' ? 'gold'
+              : item.type === 'Gemstone' ? 'stone'
+                : 'jewelry';
+
       const newInventoryItem = {
         id: item.id,
         user_id: userId,
         item_type: itemType,
+        category: category || 'jewelry',
         name: item.name,
         type: item.type,
         gemstone: item.gemstone,
@@ -276,16 +280,16 @@ const Index = () => {
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       };
-      
+
       inventoryItems.push(newInventoryItem);
       await setUserData('inventory_items', inventoryItems);
-      
+
       // Queue for sync
       enqueueChange('inventory_items', 'upsert', newInventoryItem);
-      
+
       // Reload inventory to get latest from IndexedDB
       await loadAllInventory();
-      
+
       toast({
         title: "Item Added",
         description: `${item.name} has been added to your inventory.`
@@ -311,39 +315,39 @@ const Index = () => {
   const handleSaveEditedItem = async (updatedItem: JewelryItem) => {
     try {
       // Determine item type
-      const itemType = updatedItem.type === 'Gold Bar' ? 'gold' 
-                     : updatedItem.type === 'Gemstone' ? 'stone' 
-                     : 'jewelry';
-    
+      const itemType = updatedItem.type === 'Gold Bar' ? 'gold'
+        : updatedItem.type === 'Gemstone' ? 'stone'
+          : 'jewelry';
+
       // Update inventory_items directly (Single Source of Truth)
       const inventoryItems = await getUserData<any[]>('inventory_items') || [];
       const itemIndex = inventoryItems.findIndex((item: any) => item.id === updatedItem.id);
 
       const updatedInventoryItem = {
-      id: updatedItem.id,
+        id: updatedItem.id,
         item_type: itemType,
-      name: updatedItem.name,
-      type: updatedItem.type,
-      gemstone: updatedItem.gemstone,
-      carat: updatedItem.carat,
-      metal: updatedItem.metal,
-      attributes: {
-          description: updatedItem.type,
+        name: updatedItem.name,
+        type: updatedItem.type,
+        gemstone: updatedItem.gemstone,
         carat: updatedItem.carat,
-        purity: updatedItem.type === 'Gold Bar' ? updatedItem.metal : undefined,
-        clarity: updatedItem.type === 'Gemstone' ? undefined : undefined,
-        cut: updatedItem.type === 'Gemstone' ? undefined : undefined,
-      },
-      price: updatedItem.price,
-      inStock: updatedItem.inStock,
+        metal: updatedItem.metal,
+        attributes: {
+          description: updatedItem.type,
+          carat: updatedItem.carat,
+          purity: updatedItem.type === 'Gold Bar' ? updatedItem.metal : undefined,
+          clarity: updatedItem.type === 'Gemstone' ? undefined : undefined,
+          cut: updatedItem.type === 'Gemstone' ? undefined : undefined,
+        },
+        price: updatedItem.price,
+        inStock: updatedItem.inStock,
         stock: updatedItem.inStock,
         image: updatedItem.image || updatedItem.image_1 || "",
         image_1: updatedItem.image_1 || updatedItem.image || "",
         image_2: updatedItem.image_2 || "",
         image_3: updatedItem.image_3 || "",
         image_4: updatedItem.image_4 || "",
-      isArtificial: updatedItem.isArtificial || false,
-      updated_at: new Date().toISOString(),
+        isArtificial: updatedItem.isArtificial || false,
+        updated_at: new Date().toISOString(),
         created_at: inventoryItems[itemIndex]?.created_at || new Date().toISOString(),
         user_id: inventoryItems[itemIndex]?.user_id,
       };
@@ -360,19 +364,19 @@ const Index = () => {
       enqueueChange('inventory_items', 'upsert', updatedInventoryItem);
 
       // Update UI state
-      setItems(prev => prev.map(item => 
+      setItems(prev => prev.map(item =>
         item.id === updatedItem.id ? updatedItem : item
       ));
-      
+
       // Reload inventory to ensure consistency
       await loadAllInventory(true);
-    
-    toast({
-      title: "Item Updated",
-      description: `${updatedItem.name} has been updated successfully.`
-    });
-    setShowEditDialog(false);
-    setEditingItem(null);
+
+      toast({
+        title: "Item Updated",
+        description: `${updatedItem.name} has been updated successfully.`
+      });
+      setShowEditDialog(false);
+      setEditingItem(null);
     } catch (error) {
       console.error('Error updating item:', error);
       toast({
@@ -385,10 +389,10 @@ const Index = () => {
 
   const handleDeleteItem = (id: string) => {
     setItems(prev => prev.filter(item => item.id !== id));
-    
+
     // Reload inventory to get latest from IndexedDB
     loadAllInventory();
-    
+
     toast({
       title: "Item Deleted",
       description: "Item has been removed from inventory.",
@@ -403,11 +407,11 @@ const Index = () => {
 
   const handleAddToCart = (item: JewelryItem) => {
     const existingItem = cartItems.find(cartItem => cartItem.id === item.id);
-    
+
     if (existingItem) {
-      setCartItems(prev => 
-        prev.map(cartItem => 
-          cartItem.id === item.id 
+      setCartItems(prev =>
+        prev.map(cartItem =>
+          cartItem.id === item.id
             ? { ...cartItem, quantity: cartItem.quantity + 1 }
             : cartItem
         )
@@ -424,7 +428,7 @@ const Index = () => {
       };
       setCartItems(prev => [...prev, cartItem]);
     }
-    
+
     toast({
       title: "Added to Cart",
       description: `${item.name} added to cart`
@@ -436,8 +440,8 @@ const Index = () => {
       handleRemoveFromCart(id);
       return;
     }
-    setCartItems(prev => 
-      prev.map(item => 
+    setCartItems(prev =>
+      prev.map(item =>
         item.id === id ? { ...item, quantity } : item
       )
     );
@@ -528,15 +532,15 @@ const Index = () => {
                 <h2 className="text-2xl font-bold text-green-600 mb-2">Welcome to Golden Treasures</h2>
                 <p className="text-gray-600">Your one-stop shop for gold, stones, and jewelry.</p>
               </div>
-              
+
               {/* Collection Grid */}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 {/* Gold Collection */}
-                <div 
+                <div
                   onClick={() => navigate('/gold-collection')}
                   className="bg-gradient-to-br from-yellow-400 to-yellow-600 rounded-lg p-6 text-white flex flex-col items-center text-center cursor-pointer hover:scale-105 transition-all duration-300 shadow-lg hover:shadow-xl"
                 >
-                  <div 
+                  <div
                     className="h-32 w-full bg-cover bg-center rounded-lg mb-4"
                     style={{ backgroundImage: `url(${heroImage})` }}
                   />
@@ -545,11 +549,11 @@ const Index = () => {
                 </div>
 
                 {/* Precious Stones */}
-                <div 
+                <div
                   onClick={() => navigate('/precious-stones')}
                   className="bg-white border-2 border-green-200 rounded-lg p-6 flex flex-col items-center text-center cursor-pointer hover:scale-105 transition-all duration-300 shadow-lg hover:shadow-xl hover:border-green-400"
                 >
-                  <div 
+                  <div
                     className="h-32 w-full bg-gray-800 rounded-lg mb-4 bg-cover bg-center"
                     style={{ backgroundImage: "url('https://images.unsplash.com/photo-1631832724508-ea8df04ad455?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3wzNzg4OTl8MHwxfHNlYXJjaHwxfHxwcmVjaW91cy1zdG9uZXN8ZW58MXwwfHx8MTc1Mzc2NjkyMHww&ixlib=rb-4.0.3&q=80&w=1080')" }}
                   />
@@ -558,11 +562,11 @@ const Index = () => {
                 </div>
 
                 {/* Artificial Stones */}
-                <div 
+                <div
                   onClick={() => navigate('/artificial-stones')}
                   className="bg-white border-2 border-blue-200 rounded-lg p-6 flex flex-col items-center text-center cursor-pointer hover:scale-105 transition-all duration-300 shadow-lg hover:shadow-xl hover:border-blue-400"
                 >
-                  <div 
+                  <div
                     className="h-32 w-full bg-blue-800 rounded-lg mb-4 bg-cover bg-center"
                     style={{ backgroundImage: "url('https://images.unsplash.com/photo-1605100804763-247f67b3557e?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=1080')" }}
                   />
@@ -571,11 +575,11 @@ const Index = () => {
                 </div>
 
                 {/* Jewelry Collection */}
-                <div 
+                <div
                   onClick={() => navigate('/jewelry-collection')}
                   className="bg-white border-2 border-purple-200 rounded-lg p-6 flex flex-col items-center text-center cursor-pointer hover:scale-105 transition-all duration-300 shadow-lg hover:shadow-xl hover:border-purple-400"
                 >
-                  <div 
+                  <div
                     className="h-32 w-full bg-cover bg-center rounded-lg mb-4"
                     style={{ backgroundImage: "url('https://images.unsplash.com/photo-1543294001-f7cd5d7fb516?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3wzNzg4OTl8MHwxfHNlYXJjaHwxfHxqZXdlbHJ5fGVufDF8MHx8fDE3NTM3NTkzMjh8MA&ixlib=rb-4.0.3&q=80&w=1080')" }}
                   />
@@ -583,10 +587,10 @@ const Index = () => {
                   <p className="text-purple-500 text-sm">Elegant and timeless pieces.</p>
                 </div>
               </div>
-              
+
               {/* Inventory Management Card */}
               <div className="mt-6">
-                <div 
+                <div
                   onClick={() => setActiveTab('inventory')}
                   className="bg-gradient-to-r from-indigo-500 to-purple-600 rounded-lg p-6 text-white cursor-pointer hover:scale-105 transition-all duration-300 shadow-lg hover:shadow-xl"
                 >
@@ -613,7 +617,7 @@ const Index = () => {
                     className="pl-12 h-12 text-base border-2 border-gray-200 focus:border-blue-500 focus:ring-blue-500/20 shadow-sm"
                   />
                 </div>
-                <Button 
+                <Button
                   onClick={() => setShowAddDialog(true)}
                   className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white shadow-lg hover:shadow-xl h-12 px-6 font-semibold"
                 >
@@ -685,7 +689,7 @@ const Index = () => {
                   )}
                 </div>
               </div>
-              
+
               {/* Bulk Selection Controls */}
               {filteredItems.length > 0 && itemsLoaded && (
                 <div className="flex items-center justify-between mb-4 pb-3 border-b border-gray-200/80">
@@ -789,14 +793,14 @@ const Index = () => {
               </div>
               {cartItems.length > 0 && (
                 <div className="flex gap-2">
-                  <Button 
-                    variant="outline" 
+                  <Button
+                    variant="outline"
                     onClick={handleClearCart}
                     className="border-gray-300 text-gray-700 hover:border-gray-400"
                   >
                     Clear Cart
                   </Button>
-                  <Button 
+                  <Button
                     onClick={() => setShowTransactionDialog(true)}
                     className="bg-green-600 hover:bg-green-700 text-white"
                   >
@@ -829,8 +833,8 @@ const Index = () => {
                       <div>
                         <span className="font-medium">{item.name}</span>
                         <div className="flex gap-2 mt-1">
-                          <Button 
-                            size="sm" 
+                          <Button
+                            size="sm"
                             variant="outline"
                             onClick={() => handleUpdateCartQuantity(item.id, item.quantity - 1)}
                             className="border-gray-300"
@@ -838,8 +842,8 @@ const Index = () => {
                             -
                           </Button>
                           <Badge variant="secondary">{item.quantity}</Badge>
-                          <Button 
-                            size="sm" 
+                          <Button
+                            size="sm"
                             variant="outline"
                             onClick={() => handleUpdateCartQuantity(item.id, item.quantity + 1)}
                             className="border-gray-300"
@@ -921,34 +925,34 @@ const Index = () => {
         onAdd={handleAddItem}
       />
 
-        <EditItemDialog
-          open={showEditDialog}
-          onOpenChange={(open) => {
-            setShowEditDialog(open);
-            if (!open) {
-              // Clean up when dialog closes
-              setEditingItem(null);
-            }
-          }}
-          onSave={handleSaveEditedItem}
-          item={editingItem}
-        />
+      <EditItemDialog
+        open={showEditDialog}
+        onOpenChange={(open) => {
+          setShowEditDialog(open);
+          if (!open) {
+            // Clean up when dialog closes
+            setEditingItem(null);
+          }
+        }}
+        onSave={handleSaveEditedItem}
+        item={editingItem}
+      />
 
-        <ViewItemDialog
-          open={showViewDialog}
-          onOpenChange={setShowViewDialog}
-          onEdit={handleEditItem}
-          item={viewingItem}
-        />
+      <ViewItemDialog
+        open={showViewDialog}
+        onOpenChange={setShowViewDialog}
+        onEdit={handleEditItem}
+        item={viewingItem}
+      />
 
-        <TransactionDialog
+      <TransactionDialog
         open={showTransactionDialog}
         onOpenChange={setShowTransactionDialog}
         items={cartItems}
         onComplete={handleTransactionComplete}
         onClearCart={handleClearCart}
       />
-      
+
       {/* Bulk Share Dialog */}
       {selectedItems.size > 0 && (
         <InventoryShare

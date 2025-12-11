@@ -5,18 +5,13 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import {
   Gem,
-  DollarSign,
   BarChart3,
   Package,
   ShoppingCart,
   FileText,
-  Calendar,
-  TrendingUp,
-  BookOpen,
   Users,
   Hammer,
   Shield,
-  Zap,
   ArrowRight,
   CheckCircle2,
   Activity,
@@ -44,7 +39,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 const Landing = () => {
   const navigate = useNavigate();
   const [showSignUpModal, setShowSignUpModal] = useState(false);
-  const [showChatbot, setShowChatbot] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const { theme, setTheme, themeClasses } = useTheme();
   const supabase = getSupabase();

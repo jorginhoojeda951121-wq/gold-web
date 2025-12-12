@@ -23,7 +23,7 @@ export function useOfflineStorage<T>(key: string, initialValue: T) {
             initialValue.length > 0
           ) {
             // Empty array exists but we have seed data - use seed data if key is in seed list
-            const seedableKeys = ['craftsmen', 'customers', 'staff_employees', 'jewelry_items', 'gold_items', 'stones_items', 'pos_recentInvoices'];
+            const seedableKeys = ['craftsmen', 'customers', 'staff', 'jewelry_items', 'gold_items', 'stones_items', 'pos_recentInvoices'];
             if (seedableKeys.includes(key)) {
               setStoredValue(initialValue);
               // Also save seed data to IndexedDB

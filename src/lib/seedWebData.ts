@@ -255,7 +255,7 @@ export async function seedWebData() {
     await idbSet('gold_items', goldItems);
     await idbSet('stones_items', stonesItems);
     await idbSet('craftsmen', craftsmen);
-    await idbSet('staff_employees', staffEmployees);
+    await idbSet('staff', staffEmployees);
     await idbSet('customers', customers);
     await idbSet('pos_recentInvoices', posInvoices);
 
@@ -276,7 +276,7 @@ if (typeof window !== 'undefined') {
         'gold_items',
         'stones_items',
         'craftsmen',
-        'staff_employees',
+        'staff',
         'customers',
         'pos_recentInvoices'
       ];

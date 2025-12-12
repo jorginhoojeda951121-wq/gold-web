@@ -48,7 +48,7 @@ const Staff = () => {
   const { data: statusFilter, updateData: setStatusFilter } = useUserStorage<string>("staff_statusFilter", "all");
   
   // CRITICAL: Use useUserStorage for user-scoped data isolation
-  const { data: employees, updateData: setEmployees, loaded: employeesLoaded } = useUserStorage<Employee[]>("staff_employees", [
+  const { data: employees, updateData: setEmployees, loaded: employeesLoaded } = useUserStorage<Employee[]>("staff", [
     {
       id: "1",
       name: "Sarah Johnson",
@@ -142,7 +142,7 @@ const Staff = () => {
       };
 
       // Save to user-scoped storage
-      const employeesData = (await getUserData<any[]>('staff_employees')) || [];
+      const employeesData = (await getUserData<any[]>('staff')) || [];
       
       // Check for duplicate email
       if (employeesData.some((emp: any) => emp.email.toLowerCase() === formData.email.toLowerCase())) {
@@ -156,14 +156,14 @@ const Staff = () => {
       }
       
       employeesData.push(newEmployee);
-      await setUserData('staff_employees', employeesData);
+      await setUserData('staff', employeesData);
       
       // Update state
       setEmployees(prev => [...prev, newEmployee]);
       
       // Insert directly into Supabase
       try {
-        await upsertDirect('staff_employees', {
+        await upsertDirect('staff', {
           id: newEmployee.id,
           user_id: userId, // CRITICAL: Include user_id for data isolation
           name: newEmployee.name,
@@ -269,7 +269,7 @@ const Staff = () => {
       };
 
       // Update in user-scoped storage
-      const employeesData = (await getUserData<any[]>('staff_employees')) || [];
+      const employeesData = (await getUserData<any[]>('staff')) || [];
       
       // Check for duplicate email (excluding current employee)
       const duplicateEmail = employeesData.some(
@@ -290,14 +290,14 @@ const Staff = () => {
       const updatedEmployees = employeesData.map((emp: any) => 
         emp.id === editingEmployee.id ? updatedEmployee : emp
       );
-      await setUserData('staff_employees', updatedEmployees);
+      await setUserData('staff', updatedEmployees);
       
       // Update state
       setEmployees(prev => prev.map(emp => emp.id === editingEmployee.id ? updatedEmployee : emp));
       
       // Update directly in Supabase
       try {
-        await upsertDirect('staff_employees', {
+        await upsertDirect('staff', {
           id: updatedEmployee.id,
           user_id: userId, // CRITICAL: Include user_id for data isolation
           name: updatedEmployee.name,
@@ -365,16 +365,16 @@ const Staff = () => {
       }
       
       // Remove from user-scoped storage
-      const employeesData = (await getUserData<any[]>('staff_employees')) || [];
+      const employeesData = (await getUserData<any[]>('staff')) || [];
       const updatedEmployees = employeesData.filter((emp: any) => emp.id !== id);
-      await setUserData('staff_employees', updatedEmployees);
+      await setUserData('staff', updatedEmployees);
       
       // Update state
       setEmployees(prev => prev.filter(emp => emp.id !== id));
       
       // Delete directly from Supabase
       try {
-        await deleteDirect('staff_employees', id);
+        await deleteDirect('staff', id);
       } catch (syncError) {
         console.warn('Failed to delete from Supabase, but employee deleted locally:', syncError);
         // Don't fail the operation if delete fails - data is deleted locally

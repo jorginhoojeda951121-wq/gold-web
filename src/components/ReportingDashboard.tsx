@@ -35,7 +35,7 @@ export const ReportingDashboard = () => {
         getUserData<any[]>('pos_recentInvoices'),
         getUserData<any[]>('inventory_items'),
         getUserData<any[]>('customers'),
-        getUserData<any[]>('staff_employees'),
+        getUserData<any[]>('staff'),
         getUserData<any[]>('vendors'),
         getUserData<any[]>('craftsmen'),
         getUserData<any[]>('customer_transactions'),

@@ -97,42 +97,11 @@ export const EmployeeManagement = () => {
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
 
-  // CRITICAL: Use useUserStorage with 'staff_employees' key to sync with Staff page and Supabase
-  const { data: rawEmployees, updateData: setEmployees, loaded: employeesLoaded } = useUserStorage<any[]>('staff_employees', [
-    {
-      id: "1",
-      name: "Arjun Singh",
-      email: "arjun.singh@example.com",
-      phone: "+91 8910921128",
-      role: "Store Manager",
-      department: "Operations",
-      baseSalary: 45000,
-      joinDate: "2023-01-15",
-      status: "active",
-      address: "Mumbai, Maharashtra",
-      emergencyContact: "+91 87654 32109",
-      bankAccount: "1234567890",
-      pfNumber: "PF123456",
-      esiNumber: "ESI789012"
-    },
-    {
-      id: "2",
-      name: "Priya Patel",
-      email: "priya.patel@example.com",
-      phone: "+91 87654 32109",
-      role: "Sales Executive",
-      department: "Sales",
-      baseSalary: 25000,
-      joinDate: "2023-03-20",
-      status: "active",
-      address: "Delhi, NCR",
-      emergencyContact: "+91 76543 21098",
-      bankAccount: "0987654321"
-    }
-  ]);
+  // CRITICAL: Use useUserStorage with 'staff' key to sync with Staff page and Supabase
+  const { data: rawEmployees, updateData: setEmployees, loaded: employeesLoaded } = useUserStorage<any[]>('staff', []);
 
-  const { data: attendanceRecords, updateData: setAttendanceRecords } = useUserStorage<AttendanceRecord[]>('attendance_records', []);
-  const { data: salarySlips, updateData: setSalarySlips } = useUserStorage<SalarySlip[]>('salary_slips', []);
+  const { data: attendanceRecords, updateData: setAttendanceRecords } = useUserStorage<AttendanceRecord[]>('attendance', []);
+  const { data: salarySlips, updateData: setSalarySlips } = useUserStorage<SalarySlip[]>('salary_rules', []);
 
   // Normalize employee data - handle both 'salary' (from Staff page) and 'baseSalary' (from Payroll)
   const employees: Employee[] = (rawEmployees || []).map((emp: any) => ({
@@ -167,53 +136,7 @@ export const EmployeeManagement = () => {
     })(),
   }));
 
-  const { data: salaryRules, updateData: setSalaryRules } = useUserStorage<SalaryRule[]>('salary_rules', [
-    {
-      id: "1",
-      name: "Provident Fund (PF)",
-      type: "deduction",
-      calculation: "percentage",
-      value: 12,
-      isActive: true,
-      description: "Employee Provident Fund as per Indian law"
-    },
-    {
-      id: "2",
-      name: "ESI",
-      type: "deduction",
-      calculation: "percentage",
-      value: 0.75,
-      isActive: true,
-      description: "Employee State Insurance"
-    },
-    {
-      id: "3",
-      name: "Professional Tax",
-      type: "deduction",
-      calculation: "fixed",
-      value: 200,
-      isActive: true,
-      description: "Professional Tax as per state law"
-    },
-    {
-      id: "4",
-      name: "Late Coming Penalty",
-      type: "deduction",
-      calculation: "fixed",
-      value: 500,
-      isActive: true,
-      description: "Penalty for late coming (per day)"
-    },
-    {
-      id: "5",
-      name: "Performance Bonus",
-      type: "addition",
-      calculation: "percentage",
-      value: 10,
-      isActive: false,
-      description: "Performance-based bonus"
-    }
-  ]);
+  const { data: salaryRules, updateData: setSalaryRules } = useUserStorage<SalaryRule[]>('salary_rules', []);
 
   const [newEmployee, setNewEmployee] = useState({
     name: "",
@@ -247,9 +170,9 @@ export const EmployeeManagement = () => {
   const calculateSalarySummary = (employee: Employee, month: number, year: number): SalarySummary => {
     const monthlyAttendance = attendanceRecords.filter(record => {
       const recordDate = new Date(record.date);
-      return record.employeeId === employee.id && 
-             recordDate.getMonth() === month && 
-             recordDate.getFullYear() === year;
+      return record.employeeId === employee.id &&
+        recordDate.getMonth() === month &&
+        recordDate.getFullYear() === year;
     });
 
     // FIXED: Calculate actual days in the month (30/31 days, or 28/29 for February)
@@ -266,10 +189,10 @@ export const EmployeeManagement = () => {
 
     // CRITICAL: Only apply rules that are selected for this employee
     const employeeRules = employee.appliedSalaryRules || [];
-    
+
     salaryRules.forEach(rule => {
       if (!rule.isActive) return;
-      
+
       // Check if this rule applies to this employee (if no rules selected, apply all for backward compatibility)
       if (employeeRules.length > 0 && !employeeRules.includes(rule.id)) {
         return; // Skip this rule if not selected for this employee
@@ -350,7 +273,7 @@ export const EmployeeManagement = () => {
       // Get current user ID for data isolation
       const { getCurrentUserId } = await import('@/lib/userStorage');
       const userId = await getCurrentUserId();
-      
+
       if (!userId) {
         toast({
           title: "Authentication Error",
@@ -370,10 +293,10 @@ export const EmployeeManagement = () => {
 
       // Update local storage
       await setEmployees([...employees, employee]);
-      
+
       // Queue for Supabase sync
       try {
-        await upsertDirect('staff_employees', {
+        await upsertDirect('staff', {
           id: employee.id,
           user_id: userId,
           name: employee.name,
@@ -395,7 +318,7 @@ export const EmployeeManagement = () => {
       } catch (syncError) {
         console.warn('Failed to queue sync, but employee saved locally:', syncError);
       }
-      
+
       setNewEmployee({
         name: "",
         email: "",
@@ -411,7 +334,7 @@ export const EmployeeManagement = () => {
         appliedSalaryRules: []
       });
       setShowAddDialog(false);
-      
+
       toast({
         title: "Employee Added",
         description: `${employee.name} has been added to the team.`
@@ -440,7 +363,7 @@ export const EmployeeManagement = () => {
       // Get current user ID for data isolation
       const { getCurrentUserId } = await import('@/lib/userStorage');
       const userId = await getCurrentUserId();
-      
+
       if (!userId) {
         toast({
           title: "Authentication Error",
@@ -457,14 +380,14 @@ export const EmployeeManagement = () => {
       };
 
       // Update local storage
-      const updatedEmployees = employees.map(emp => 
+      const updatedEmployees = employees.map(emp =>
         emp.id === editingEmployee.id ? updatedEmployee : emp
       );
       await setEmployees(updatedEmployees);
-      
+
       // Queue for Supabase sync
       try {
-        await upsertDirect('staff_employees', {
+        await upsertDirect('staff', {
           id: updatedEmployee.id,
           user_id: userId,
           name: updatedEmployee.name,
@@ -486,7 +409,7 @@ export const EmployeeManagement = () => {
       } catch (syncError) {
         console.warn('Failed to queue sync, but employee updated locally:', syncError);
       }
-      
+
       setNewEmployee({
         name: "",
         email: "",
@@ -503,7 +426,7 @@ export const EmployeeManagement = () => {
       });
       setEditingEmployee(null);
       setShowEditDialog(false);
-      
+
       toast({
         title: "Employee Updated",
         description: `${updatedEmployee.name} has been updated.`
@@ -550,14 +473,14 @@ export const EmployeeManagement = () => {
   };
 
   const toggleRuleStatus = (ruleId: string) => {
-    setSalaryRules(salaryRules.map(rule => 
+    setSalaryRules(salaryRules.map(rule =>
       rule.id === ruleId ? { ...rule, isActive: !rule.isActive } : rule
     ));
   };
 
   const markAttendance = (employeeId: string, status: AttendanceRecord['status']) => {
     const today = new Date().toISOString().split('T')[0];
-    const existingRecord = attendanceRecords.find(r => 
+    const existingRecord = attendanceRecords.find(r =>
       r.employeeId === employeeId && r.date === today
     );
 
@@ -580,7 +503,7 @@ export const EmployeeManagement = () => {
     };
 
     setAttendanceRecords([...attendanceRecords, newRecord]);
-    
+
     toast({
       title: "Attendance Marked",
       description: `Attendance marked as ${status} for today.`
@@ -589,14 +512,14 @@ export const EmployeeManagement = () => {
 
   const generateSalarySlipPDF = (employee: Employee, summary: SalarySummary) => {
     const doc = new jsPDF();
-    
+
     // Header
     doc.setFontSize(20);
     doc.text('SALARY SLIP', 105, 20, { align: 'center' });
-    
+
     doc.setFontSize(12);
     doc.text(`For the month of ${summary.month} ${summary.year}`, 105, 30, { align: 'center' });
-    
+
     // Employee Details
     let yPos = 50;
     doc.setFontSize(14);
@@ -622,14 +545,14 @@ export const EmployeeManagement = () => {
       yPos += 7;
       doc.text(`Bank Account: ${employee.bankAccount}`, 20, yPos);
     }
-    
+
     // Salary Details
     yPos += 15;
     doc.setFontSize(14);
     doc.text('Salary Details', 20, yPos);
     yPos += 10;
     doc.setFontSize(11);
-    
+
     // Earnings
     doc.setFontSize(12);
     doc.text('EARNINGS', 20, yPos);
@@ -638,7 +561,7 @@ export const EmployeeManagement = () => {
     doc.text(`Basic Salary`, 20, yPos);
     doc.text(`₹${summary.baseSalary.toLocaleString()}`, 180, yPos, { align: 'right' });
     yPos += 7;
-    
+
     if (summary.breakdown?.additions && summary.breakdown.additions.length > 0) {
       summary.breakdown.additions.forEach(item => {
         doc.text(item.name, 25, yPos);
@@ -646,19 +569,19 @@ export const EmployeeManagement = () => {
         yPos += 7;
       });
     }
-    
+
     doc.setFontSize(12);
     doc.text('Total Earnings', 20, yPos);
     const totalEarnings = summary.baseSalary + summary.totalAdditions;
     doc.text(`₹${totalEarnings.toLocaleString()}`, 180, yPos, { align: 'right' });
-    
+
     // Deductions
     yPos += 15;
     doc.setFontSize(12);
     doc.text('DEDUCTIONS', 20, yPos);
     yPos += 8;
     doc.setFontSize(11);
-    
+
     if (summary.breakdown?.deductions && summary.breakdown.deductions.length > 0) {
       summary.breakdown.deductions.forEach(item => {
         doc.text(item.name, 25, yPos);
@@ -666,18 +589,18 @@ export const EmployeeManagement = () => {
         yPos += 7;
       });
     }
-    
+
     doc.setFontSize(12);
     doc.text('Total Deductions', 20, yPos);
     doc.text(`₹${summary.totalDeductions.toLocaleString()}`, 180, yPos, { align: 'right' });
-    
+
     // Net Salary
     yPos += 15;
     doc.setFontSize(14);
     doc.setFont(undefined, 'bold');
     doc.text('NET SALARY', 20, yPos);
     doc.text(`₹${summary.netSalary.toLocaleString()}`, 180, yPos, { align: 'right' });
-    
+
     // Attendance Summary
     yPos += 15;
     doc.setFontSize(12);
@@ -688,18 +611,18 @@ export const EmployeeManagement = () => {
     doc.text(`Working Days: ${summary.workingDays}`, 20, yPos);
     yPos += 7;
     doc.text(`Present Days: ${summary.presentDays}`, 20, yPos);
-    
+
     // Footer
     yPos += 15;
     doc.setFontSize(10);
     doc.text(`Generated on: ${new Date().toLocaleDateString()}`, 105, yPos, { align: 'center' });
     yPos += 5;
     doc.text('This is a computer-generated document.', 105, yPos, { align: 'center' });
-    
+
     // Save PDF
     const fileName = `Salary_Slip_${employee.name.replace(/\s+/g, '_')}_${summary.month}_${summary.year}.pdf`;
     doc.save(fileName);
-    
+
     toast({
       title: "Salary Slip Generated",
       description: `Salary slip for ${employee.name} has been downloaded.`
@@ -710,21 +633,21 @@ export const EmployeeManagement = () => {
     try {
       const activeEmployees = employees.filter(emp => emp.status === 'active');
       const newSlips: SalarySlip[] = [];
-      
+
       for (const employee of activeEmployees) {
         // Check if slip already exists
         const existingSlip = salarySlips.find(
-          slip => slip.employeeId === employee.id && 
-                  slip.month === month && 
-                  slip.year === year
+          slip => slip.employeeId === employee.id &&
+            slip.month === month &&
+            slip.year === year
         );
-        
+
         if (existingSlip) {
           continue; // Skip if already processed
         }
-        
+
         const summary = calculateSalarySummary(employee, month, year);
-        
+
         const slip: SalarySlip = {
           id: `${employee.id}_${year}_${month}`,
           employeeId: employee.id,
@@ -735,10 +658,10 @@ export const EmployeeManagement = () => {
           summary,
           isProcessed: true
         };
-        
+
         newSlips.push(slip);
       }
-      
+
       if (newSlips.length === 0) {
         toast({
           title: "Already Processed",
@@ -747,9 +670,9 @@ export const EmployeeManagement = () => {
         });
         return;
       }
-      
+
       await setSalarySlips([...salarySlips, ...newSlips]);
-      
+
       toast({
         title: "Salary Processing Complete",
         description: `Processed salary for ${newSlips.length} employee(s) for ${new Date(year, month).toLocaleString('default', { month: 'long' })} ${year}.`
@@ -841,8 +764,8 @@ export const EmployeeManagement = () => {
                         </TableCell>
                         <TableCell>
                           <div className="flex space-x-2">
-                            <Button 
-                              size="sm" 
+                            <Button
+                              size="sm"
                               variant="outline"
                               onClick={() => {
                                 setSelectedEmployee(employee);
@@ -851,8 +774,8 @@ export const EmployeeManagement = () => {
                             >
                               Salary
                             </Button>
-                            <Button 
-                              size="sm" 
+                            <Button
+                              size="sm"
                               variant="outline"
                               onClick={() => {
                                 setEditingEmployee(employee);
@@ -875,7 +798,7 @@ export const EmployeeManagement = () => {
                             >
                               Edit
                             </Button>
-                            <Button 
+                            <Button
                               size="sm"
                               onClick={() => markAttendance(employee.id, 'present')}
                             >
@@ -901,10 +824,10 @@ export const EmployeeManagement = () => {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
                 {employees.map(employee => {
                   const today = new Date().toISOString().split('T')[0];
-                  const todayRecord = attendanceRecords.find(r => 
+                  const todayRecord = attendanceRecords.find(r =>
                     r.employeeId === employee.id && r.date === today
                   );
-                  
+
                   return (
                     <Card key={employee.id} className="p-4">
                       <div className="flex items-center justify-between mb-3">
@@ -920,22 +843,22 @@ export const EmployeeManagement = () => {
                       </div>
                       {!todayRecord && (
                         <div className="flex gap-2">
-                          <Button 
-                            size="sm" 
+                          <Button
+                            size="sm"
                             onClick={() => markAttendance(employee.id, 'present')}
                             className="flex-1"
                           >
                             Present
                           </Button>
-                          <Button 
-                            size="sm" 
+                          <Button
+                            size="sm"
                             variant="outline"
                             onClick={() => markAttendance(employee.id, 'late')}
                           >
                             Late
                           </Button>
-                          <Button 
-                            size="sm" 
+                          <Button
+                            size="sm"
                             variant="destructive"
                             onClick={() => markAttendance(employee.id, 'absent')}
                           >
@@ -967,9 +890,9 @@ export const EmployeeManagement = () => {
                       value={newRule.name}
                       onChange={(e) => setNewRule({ ...newRule, name: e.target.value })}
                     />
-                    <Select 
-                      value={newRule.type} 
-                      onValueChange={(value) => 
+                    <Select
+                      value={newRule.type}
+                      onValueChange={(value) =>
                         setNewRule({ ...newRule, type: value as 'deduction' | 'addition' })
                       }
                     >
@@ -981,9 +904,9 @@ export const EmployeeManagement = () => {
                         <SelectItem value="addition">Addition</SelectItem>
                       </SelectContent>
                     </Select>
-                    <Select 
-                      value={newRule.calculation} 
-                      onValueChange={(value) => 
+                    <Select
+                      value={newRule.calculation}
+                      onValueChange={(value) =>
                         setNewRule({ ...newRule, calculation: value as 'fixed' | 'percentage' })
                       }
                     >
@@ -1048,7 +971,7 @@ export const EmployeeManagement = () => {
             <CardHeader>
               <div className="flex justify-between items-center">
                 <CardTitle>Payroll Reports & Salary Slips</CardTitle>
-                <Button 
+                <Button
                   onClick={() => processMonthlySalary(selectedMonth, selectedYear)}
                   className="bg-green-600 hover:bg-green-700"
                 >
@@ -1059,8 +982,8 @@ export const EmployeeManagement = () => {
             </CardHeader>
             <CardContent>
               <div className="mb-6 flex gap-4">
-                <Select 
-                  value={selectedMonth.toString()} 
+                <Select
+                  value={selectedMonth.toString()}
                   onValueChange={(value) => setSelectedMonth(Number(value))}
                 >
                   <SelectTrigger className="w-48">
@@ -1074,8 +997,8 @@ export const EmployeeManagement = () => {
                     ))}
                   </SelectContent>
                 </Select>
-                <Select 
-                  value={selectedYear.toString()} 
+                <Select
+                  value={selectedYear.toString()}
                   onValueChange={(value) => setSelectedYear(Number(value))}
                 >
                   <SelectTrigger className="w-32">
@@ -1093,11 +1016,11 @@ export const EmployeeManagement = () => {
                 {employees.map(employee => {
                   const summary = calculateSalarySummary(employee, selectedMonth, selectedYear);
                   const existingSlip = salarySlips.find(
-                    slip => slip.employeeId === employee.id && 
-                            slip.month === selectedMonth && 
-                            slip.year === selectedYear
+                    slip => slip.employeeId === employee.id &&
+                      slip.month === selectedMonth &&
+                      slip.year === selectedYear
                   );
-                  
+
                   return (
                     <Card key={employee.id} className="p-4">
                       <div className="flex justify-between items-start">
@@ -1136,8 +1059,8 @@ export const EmployeeManagement = () => {
                             ₹{(summary.netSalary || 0).toLocaleString()}
                           </div>
                           <div className="text-xs text-muted-foreground">Net Salary</div>
-                          <Button 
-                            size="sm" 
+                          <Button
+                            size="sm"
                             variant="outline"
                             onClick={() => generateSalarySlipPDF(employee, summary)}
                             className="mt-2"
@@ -1147,7 +1070,7 @@ export const EmployeeManagement = () => {
                           </Button>
                         </div>
                       </div>
-                      
+
                       {/* Breakdown Details */}
                       {(summary.breakdown?.additions.length > 0 || summary.breakdown?.deductions.length > 0) && (
                         <div className="mt-4 pt-4 border-t grid grid-cols-2 gap-4 text-xs">
@@ -1296,7 +1219,7 @@ export const EmployeeManagement = () => {
                 onChange={(e) => setNewEmployee({ ...newEmployee, esiNumber: e.target.value })}
               />
             </div>
-            
+
             {/* Salary Rules Selection */}
             <div className="col-span-2">
               <Label>Applied Salary Rules (Select rules that apply to this employee)</Label>
@@ -1318,7 +1241,7 @@ export const EmployeeManagement = () => {
                     <label htmlFor={`rule-${rule.id}`} className="text-sm cursor-pointer flex-1">
                       <span className="font-medium">{rule.name}</span>
                       <span className="text-muted-foreground ml-2">
-                        ({rule.type === 'deduction' ? '-' : '+'} 
+                        ({rule.type === 'deduction' ? '-' : '+'}
                         {rule.calculation === 'percentage' ? `${rule.value}%` : `₹${rule.value}`})
                       </span>
                     </label>
@@ -1483,7 +1406,7 @@ export const EmployeeManagement = () => {
                 onChange={(e) => setNewEmployee({ ...newEmployee, esiNumber: e.target.value })}
               />
             </div>
-            
+
             {/* Salary Rules Selection */}
             <div className="col-span-2">
               <Label>Applied Salary Rules (Select rules that apply to this employee)</Label>
@@ -1505,7 +1428,7 @@ export const EmployeeManagement = () => {
                     <label htmlFor={`edit-rule-${rule.id}`} className="text-sm cursor-pointer flex-1">
                       <span className="font-medium">{rule.name}</span>
                       <span className="text-muted-foreground ml-2">
-                        ({rule.type === 'deduction' ? '-' : '+'} 
+                        ({rule.type === 'deduction' ? '-' : '+'}
                         {rule.calculation === 'percentage' ? `${rule.value}%` : `₹${rule.value}`})
                       </span>
                     </label>

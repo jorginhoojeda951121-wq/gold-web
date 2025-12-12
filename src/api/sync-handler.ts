@@ -25,7 +25,7 @@ const TABLE_KEY_MAPPING: Record<string, string> = {
   'gold': 'gold_items',
   'stones': 'stones_items',
   'craftsmen': 'craftsmen',
-  'staff': 'staff_employees',
+  'staff': 'staff',
   'customers': 'customers',
   'sales': 'pos_recentInvoices'
 };

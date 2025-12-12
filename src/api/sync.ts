@@ -70,7 +70,7 @@ async function applyChangeToIndexedDB(change: SyncChange): Promise<void> {
     'gold': 'gold_items',
     'stones': 'stones_items',
     'craftsmen': 'craftsmen',
-    'staff': 'staff_employees',
+    'staff': 'staff',
     'customers': 'customers',
     'sales': 'pos_recentInvoices',
   };
@@ -114,7 +114,7 @@ async function getChangesSince(since: string): Promise<SyncChange[]> {
   const sinceDate = new Date(since);
   
   // Get changes from all relevant tables
-  const tables = ['jewelry_items', 'gold_items', 'stones_items', 'craftsmen', 'staff_employees', 'customers', 'pos_recentInvoices'];
+  const tables = ['jewelry_items', 'gold_items', 'stones_items', 'craftsmen', 'staff', 'customers', 'pos_recentInvoices'];
   
   for (const table of tables) {
     const items = (await idbGet<any[]>(table)) || [];
@@ -143,7 +143,7 @@ function getTableNameFromKey(key: string): string {
     'gold_items': 'gold',
     'stones_items': 'stones',
     'craftsmen': 'craftsmen',
-    'staff_employees': 'staff',
+    'staff': 'staff',
     'customers': 'customers',
     'pos_recentInvoices': 'sales',
   };

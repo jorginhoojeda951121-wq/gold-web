@@ -8,7 +8,8 @@ import { fetchAll } from '@/lib/supabaseDirect';
 import { getCurrentUserId } from '@/lib/userStorage';
 
 export function useUserStorage<T>(key: string, initialValue: T) {
-  const [storedValue, setStoredValue] = useState<T>(initialValue);
+  // Don't apply initialValue until after loading completes
+  const [storedValue, setStoredValue] = useState<T | undefined>(undefined);
   const [loaded, setLoaded] = useState(false);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
 
@@ -48,6 +49,7 @@ export function useUserStorage<T>(key: string, initialValue: T) {
         const data = await fetchAll<T>(key);
         
         if (isMounted) {
+          // Only apply initialValue if no stored data exists
           if (Array.isArray(initialValue) && Array.isArray(data)) {
             setStoredValue((data.length > 0 ? data : initialValue) as T);
           } else if (Array.isArray(initialValue)) {
@@ -57,15 +59,15 @@ export function useUserStorage<T>(key: string, initialValue: T) {
             // For non-array values (like settings objects)
             setStoredValue((data && Object.keys(data).length > 0 ? data : initialValue) as T);
           }
+          setLoaded(true);
         }
       } catch (error) {
         console.error(`Error loading data for key ${key}:`, error);
         // On error, use initial value
         if (isMounted) {
           setStoredValue(initialValue);
+          setLoaded(true);
         }
-      } finally {
-        if (isMounted) setLoaded(true);
       }
     };
 
@@ -74,12 +76,13 @@ export function useUserStorage<T>(key: string, initialValue: T) {
     return () => {
       isMounted = false;
     };
-  }, [key, refreshTrigger]);
+  }, [key, refreshTrigger, initialValue]);
 
   const setValue = async (value: T | ((val: T) => T)) => {
     // This function is kept for compatibility but doesn't write to storage
     // Components should use direct Supabase operations instead
-    const valueToStore = value instanceof Function ? value(storedValue) : value;
+    const currentValue = storedValue !== undefined ? storedValue : initialValue;
+    const valueToStore = value instanceof Function ? value(currentValue) : value;
     setStoredValue(valueToStore);
     
     // Dispatch custom event to notify other components using the same key
@@ -108,6 +111,13 @@ export function useUserStorage<T>(key: string, initialValue: T) {
     setRefreshTrigger(prev => prev + 1);
   };
 
-  return { data: storedValue, updateData: setValue, loaded, refresh };
+  // Return initialValue as fallback until loaded, then return storedValue
+  // This ensures components always have a value, but we don't overwrite stored data
+  return { 
+    data: (storedValue !== undefined ? storedValue : initialValue) as T, 
+    updateData: setValue, 
+    loaded, 
+    refresh 
+  };
 }
 

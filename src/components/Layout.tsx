@@ -68,7 +68,13 @@ export const Layout = () => {
           clearUserIdCache();
         } catch {}
         
-        // 3. Clear auth tokens from storage
+        // 3. Clear user storage cache (performance optimization)
+        try {
+          const { clearAllUserStorageCache } = await import('@/hooks/useUserStorage');
+          clearAllUserStorageCache();
+        } catch {}
+        
+        // 4. Clear auth tokens from storage
         try {
           localStorage.removeItem('supabase.auth.token');
           sessionStorage.clear();

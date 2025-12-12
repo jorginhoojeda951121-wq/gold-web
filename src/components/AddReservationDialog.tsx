@@ -6,7 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { enqueueChange } from '@/lib/sync';
+import { insertDirect } from '@/lib/supabaseDirect';
 import { getUserData, setUserData, getCurrentUserId } from '@/lib/userStorage';
 import { Calendar as CalendarIcon, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
@@ -106,9 +106,9 @@ export function AddReservationDialog({ open, onOpenChange, onSuccess }: AddReser
       reservations.push(newReservation);
       await setUserData('reservations', reservations);
 
-      // Queue for sync to Supabase
+      // Insert directly into Supabase
       try {
-        await enqueueChange('reservations', 'upsert', newReservation);
+        await insertDirect('reservations', newReservation);
         console.log('✅ Reservation queued for sync to Supabase');
       } catch (syncError: any) {
         console.warn('⚠️ Failed to queue sync, but reservation saved locally:', syncError);

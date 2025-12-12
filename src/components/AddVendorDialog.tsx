@@ -6,7 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { enqueueChange } from '@/lib/sync';
+import { upsertToSupabase } from '@/lib/supabaseDirect';
 import { getUserData, setUserData, getCurrentUserId } from '@/lib/userStorage';
 import { Loader2 } from 'lucide-react';
 
@@ -104,13 +104,8 @@ export function AddVendorDialog({ open, onOpenChange, onSuccess }: AddVendorDial
         detail: { key: 'vendors', value: vendors }
       }));
 
-      // Queue for sync to Supabase
-      try {
-        await enqueueChange('vendors', 'upsert', newVendor);
-      } catch (syncError) {
-        console.warn('Failed to queue sync, but vendor saved locally:', syncError);
-        // Don't fail the operation if sync fails - data is saved locally
-      }
+      // Save directly to Supabase
+      await upsertToSupabase('vendors', newVendor);
 
       toast({
         title: 'Success',

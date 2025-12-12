@@ -21,7 +21,7 @@ import {
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { useUserStorage } from "@/hooks/useUserStorage";
-import { enqueueChange } from "@/lib/sync";
+import { upsertDirect, deleteDirect } from "@/lib/supabaseDirect";
 
 interface Employee {
   id: string;
@@ -161,9 +161,9 @@ const Staff = () => {
       // Update state
       setEmployees(prev => [...prev, newEmployee]);
       
-      // Queue for sync
+      // Insert directly into Supabase
       try {
-        await enqueueChange('staff', 'upsert', {
+        await upsertDirect('staff_employees', {
           id: newEmployee.id,
           user_id: userId, // CRITICAL: Include user_id for data isolation
           name: newEmployee.name,
@@ -295,9 +295,9 @@ const Staff = () => {
       // Update state
       setEmployees(prev => prev.map(emp => emp.id === editingEmployee.id ? updatedEmployee : emp));
       
-      // Queue for sync
+      // Update directly in Supabase
       try {
-        await enqueueChange('staff', 'upsert', {
+        await upsertDirect('staff_employees', {
           id: updatedEmployee.id,
           user_id: userId, // CRITICAL: Include user_id for data isolation
           name: updatedEmployee.name,
@@ -311,8 +311,8 @@ const Staff = () => {
           updated_at: new Date().toISOString(),
         });
       } catch (syncError) {
-        console.warn('Failed to queue sync, but employee updated locally:', syncError);
-        // Don't fail the operation if sync fails - data is saved locally
+        console.warn('Failed to update in Supabase, but employee updated locally:', syncError);
+        // Don't fail the operation if update fails - data is saved locally
       }
     
       setFormData({
@@ -372,12 +372,12 @@ const Staff = () => {
       // Update state
       setEmployees(prev => prev.filter(emp => emp.id !== id));
       
-      // Queue for sync
+      // Delete directly from Supabase
       try {
-        await enqueueChange('staff', 'delete', { id });
+        await deleteDirect('staff_employees', id);
       } catch (syncError) {
-        console.warn('Failed to queue sync, but employee deleted locally:', syncError);
-        // Don't fail the operation if sync fails - data is deleted locally
+        console.warn('Failed to delete from Supabase, but employee deleted locally:', syncError);
+        // Don't fail the operation if delete fails - data is deleted locally
       }
       
       toast({

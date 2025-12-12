@@ -14,12 +14,12 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { 
-  CreditCard, 
-  Calendar, 
-  AlertCircle, 
-  CheckCircle, 
-  Clock, 
+import {
+  CreditCard,
+  Calendar,
+  AlertCircle,
+  CheckCircle,
+  Clock,
   IndianRupee,
   Loader2,
   ArrowLeft,
@@ -40,11 +40,11 @@ export const Subscription = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { toast } = useToast();
-  
+
   // CRITICAL: Use IndexedDB first for instant loading (no loading screen!)
-  const { data: subscriptionStatus, updateData: setSubscriptionStatus, loaded } = 
+  const { data: subscriptionStatus, updateData: setSubscriptionStatus, loaded } =
     useUserStorage<SubscriptionStatus | null>('subscription_status', null);
-  
+
   const [processing, setProcessing] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
   const [timeRemaining, setTimeRemaining] = useState({ days: 0, hours: 0, minutes: 0 });
@@ -86,7 +86,7 @@ export const Subscription = () => {
     const mihpayid = searchParams.get('mihpayid');
     const payuStatus = searchParams.get('status');
     const txnId = searchParams.get('txnid');
-    
+
     if (!userId) return;
 
     const handlePaymentCallback = async () => {
@@ -94,7 +94,7 @@ export const Subscription = () => {
         // Check for PayU response parameters (mihpayid indicates PayU response)
         if (mihpayid) {
           console.log('PayU Response detected:', { mihpayid, payuStatus, txnId });
-          
+
           // PayU sent response - process it
           if (payuStatus === 'success' || paymentStatus === 'success') {
             await handlePaymentSuccess(txnId || '', {
@@ -115,11 +115,11 @@ export const Subscription = () => {
 
         // Try parsing callback data
         const callbackData = parsePayUCallback();
-        
+
         if (!callbackData) {
           // Check URL params for payment status
           const status = searchParams.get('status');
-          
+
           if (paymentStatus === 'success' && txnId) {
             // Payment successful - verify and record
             await handlePaymentSuccess(txnId);
@@ -181,11 +181,11 @@ export const Subscription = () => {
   useEffect(() => {
     const errorHandler = (event: ErrorEvent) => {
       // Ignore PayU CDN errors (known issue with PayU test environment)
-      if (event.message?.includes('testtxncdn.payubiz.in') || 
-          event.message?.includes('payubiz.in') ||
-          event.message?.includes('payu.in') ||
-          event.filename?.includes('payubiz') ||
-          event.filename?.includes('payu.in')) {
+      if (event.message?.includes('testtxncdn.payubiz.in') ||
+        event.message?.includes('payubiz.in') ||
+        event.message?.includes('payu.in') ||
+        event.filename?.includes('payubiz') ||
+        event.filename?.includes('payu.in')) {
         console.warn('PayU CDN/Asset error (non-critical, can be ignored):', event.message);
         event.preventDefault();
         return true;
@@ -209,16 +209,16 @@ export const Subscription = () => {
     };
 
     window.addEventListener('error', errorHandler);
-    
+
     // Also suppress console errors for PayU domains
     const originalConsoleError = console.error;
     console.error = (...args) => {
       const message = args.join(' ');
-      if (message.includes('payubiz.in') || 
-          message.includes('payu.in') ||
-          message.includes('testpgnb.svg') ||
-          message.includes('403') && message.includes('payu') ||
-          message.includes('500') && message.includes('payubiz')) {
+      if (message.includes('payubiz.in') ||
+        message.includes('payu.in') ||
+        message.includes('testpgnb.svg') ||
+        message.includes('403') && message.includes('payu') ||
+        message.includes('500') && message.includes('payubiz')) {
         console.warn('PayU error (suppressed, non-critical):', ...args);
         return;
       }
@@ -235,12 +235,12 @@ export const Subscription = () => {
   // Load fresh subscription status from Supabase in background (no loading screen!)
   useEffect(() => {
     if (!loaded) return; // Wait for IndexedDB to load first
-    
+
     const syncSubscription = async () => {
       try {
         // Use cached user ID for fast access
         const cachedUserId = await getCurrentUserId();
-        
+
         if (!cachedUserId) {
           // If no cached user ID, check session
           const { data: { session } } = await supabase.auth.getSession();
@@ -256,7 +256,7 @@ export const Subscription = () => {
           setUserId(cachedUserId);
           const status = await getSubscriptionStatus(cachedUserId);
           await setSubscriptionStatus(status);
-          
+
           // Verify session in background (no loading screen)
           supabase.auth.getSession().then(({ data: { session } }) => {
             if (!session?.user?.id) {
@@ -282,7 +282,7 @@ export const Subscription = () => {
     setProcessing(true);
     try {
       console.log('Processing successful payment:', { txnId, callbackData });
-      
+
       // Update payment transaction status
       if (callbackData) {
         await updatePaymentTransaction(txnId, {
@@ -417,11 +417,11 @@ export const Subscription = () => {
     setShowPaymentConfirmDialog(false);
     setSelectedPaymentMethod(pendingPaymentMethod);
     setProcessing(true);
-    
+
     try {
       // Get user details for PayU
       const { data: { user }, error: userError } = await supabase.auth.getUser();
-      
+
       if (userError || !user) {
         throw new Error('Unable to fetch user details. Please log in again.');
       }
@@ -461,10 +461,10 @@ export const Subscription = () => {
       if (payuResponse.status === 'success' && payuResponse.formData && payuResponse.paymentUrl) {
         console.log('Submitting form to PayU:', payuResponse.paymentUrl); // Debug log
         console.log('Form Data Keys:', Object.keys(payuResponse.formData)); // Debug log
-        
+
         // Small delay to ensure UI updates
         await new Promise(resolve => setTimeout(resolve, 100));
-        
+
         // Submit form to PayU
         try {
           submitPayUForm(payuResponse.formData, payuResponse.paymentUrl);
@@ -473,7 +473,7 @@ export const Subscription = () => {
           console.error('Form submission error:', formError); // Debug log
           throw new Error('Failed to submit payment form. Please try again.');
         }
-        
+
         toast({
           title: "Redirecting to Payment Gateway",
           description: "You will be redirected to PayU to complete your payment.",
@@ -517,7 +517,7 @@ export const Subscription = () => {
     setProcessing(true);
     try {
       await recordSubscriptionPayment(userId, subscriptionStatus.renewalAmount);
-      
+
       // Refresh subscription status and save to IndexedDB
       const newStatus = await getSubscriptionStatus(userId);
       await setSubscriptionStatus(newStatus);
@@ -583,202 +583,202 @@ export const Subscription = () => {
                 </AlertDescription>
               </Alert>
             ) : (
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  {isActive ? (
-                    <>
-                      <CheckCircle className="h-6 w-6 text-green-600" />
-                      <div>
-                        <h3 className="text-xl font-bold text-green-600">Subscription Active</h3>
-                        <p className="text-sm text-muted-foreground">
-                          {subscriptionStatus.isFreeTrial ? "Free Trial Period" : "Paid Subscription"}
-                        </p>
-                      </div>
-                    </>
-                  ) : isInGracePeriod ? (
-                    <>
-                      <Clock className="h-6 w-6 text-yellow-600" />
-                      <div>
-                        <h3 className="text-xl font-bold text-yellow-600">Grace Period</h3>
-                        <p className="text-sm text-muted-foreground">Renew soon to continue</p>
-                      </div>
-                    </>
-                  ) : (
-                    <>
-                      <AlertCircle className="h-6 w-6 text-red-600" />
-                      <div>
-                        <h3 className="text-xl font-bold text-red-600">Subscription Expired</h3>
-                        <p className="text-sm text-muted-foreground">Payment required</p>
-                      </div>
-                    </>
-                  )}
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    {isActive ? (
+                      <>
+                        <CheckCircle className="h-6 w-6 text-green-600" />
+                        <div>
+                          <h3 className="text-xl font-bold text-green-600">Subscription Active</h3>
+                          <p className="text-sm text-muted-foreground">
+                            {subscriptionStatus.isFreeTrial ? "Free Trial Period" : "Paid Subscription"}
+                          </p>
+                        </div>
+                      </>
+                    ) : isInGracePeriod ? (
+                      <>
+                        <Clock className="h-6 w-6 text-yellow-600" />
+                        <div>
+                          <h3 className="text-xl font-bold text-yellow-600">Grace Period</h3>
+                          <p className="text-sm text-muted-foreground">Renew soon to continue</p>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <AlertCircle className="h-6 w-6 text-red-600" />
+                        <div>
+                          <h3 className="text-xl font-bold text-red-600">Subscription Expired</h3>
+                          <p className="text-sm text-muted-foreground">Payment required</p>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                  <Badge variant={isActive ? "default" : isInGracePeriod ? "secondary" : "destructive"} className="text-lg px-4 py-2">
+                    {subscriptionStatus.isFreeTrial ? "Free Trial" : "Paid"}
+                  </Badge>
                 </div>
-                <Badge variant={isActive ? "default" : isInGracePeriod ? "secondary" : "destructive"} className="text-lg px-4 py-2">
-                  {subscriptionStatus.isFreeTrial ? "Free Trial" : "Paid"}
-                </Badge>
+
+                {/* Progress Bar */}
+                {isActive && subscriptionStatus.expiryDate && (
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-muted-foreground">Time Remaining</span>
+                      <span className="font-semibold">
+                        {subscriptionStatus.daysRemaining} days, {subscriptionStatus.hoursRemaining} hours
+                      </span>
+                    </div>
+                    <Progress
+                      value={subscriptionStatus.percentageRemaining}
+                      className="h-3"
+                    />
+                    <div className="flex items-center justify-between text-xs text-muted-foreground">
+                      <span>Started: {subscriptionStatus.subscriptionStartDate ? format(subscriptionStatus.subscriptionStartDate, "PPP") : "N/A"}</span>
+                      <span>Expires: {subscriptionStatus.expiryDate ? format(subscriptionStatus.expiryDate, "PPP") : "N/A"}</span>
+                    </div>
+                  </div>
+                )}
+
+                {/* Countdown Timer */}
+                {isActive && subscriptionStatus.expiryDate && (
+                  <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-4 rounded-lg border border-blue-200">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Timer className="h-5 w-5 text-blue-600" />
+                      <span className="font-semibold text-blue-900">Time Until Next Renewal</span>
+                    </div>
+                    <div className="flex items-center gap-4">
+                      <div className="text-center">
+                        <div className="text-3xl font-bold text-blue-600">{timeRemaining.days}</div>
+                        <div className="text-xs text-muted-foreground">Days</div>
+                      </div>
+                      <div className="text-2xl text-blue-400">:</div>
+                      <div className="text-center">
+                        <div className="text-3xl font-bold text-blue-600">{timeRemaining.hours}</div>
+                        <div className="text-xs text-muted-foreground">Hours</div>
+                      </div>
+                      <div className="text-2xl text-blue-400">:</div>
+                      <div className="text-center">
+                        <div className="text-3xl font-bold text-blue-600">{timeRemaining.minutes}</div>
+                        <div className="text-xs text-muted-foreground">Minutes</div>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
-
-              {/* Progress Bar */}
-              {isActive && subscriptionStatus.expiryDate && (
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-muted-foreground">Time Remaining</span>
-                    <span className="font-semibold">
-                      {subscriptionStatus.daysRemaining} days, {subscriptionStatus.hoursRemaining} hours
-                    </span>
-                  </div>
-                  <Progress 
-                    value={subscriptionStatus.percentageRemaining} 
-                    className="h-3"
-                  />
-                  <div className="flex items-center justify-between text-xs text-muted-foreground">
-                    <span>Started: {subscriptionStatus.subscriptionStartDate ? format(subscriptionStatus.subscriptionStartDate, "PPP") : "N/A"}</span>
-                    <span>Expires: {subscriptionStatus.expiryDate ? format(subscriptionStatus.expiryDate, "PPP") : "N/A"}</span>
-                  </div>
-                </div>
-              )}
-
-              {/* Countdown Timer */}
-              {isActive && subscriptionStatus.expiryDate && (
-                <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-4 rounded-lg border border-blue-200">
-                  <div className="flex items-center gap-2 mb-2">
-                    <Timer className="h-5 w-5 text-blue-600" />
-                    <span className="font-semibold text-blue-900">Time Until Next Renewal</span>
-                  </div>
-                  <div className="flex items-center gap-4">
-                    <div className="text-center">
-                      <div className="text-3xl font-bold text-blue-600">{timeRemaining.days}</div>
-                      <div className="text-xs text-muted-foreground">Days</div>
-                    </div>
-                    <div className="text-2xl text-blue-400">:</div>
-                    <div className="text-center">
-                      <div className="text-3xl font-bold text-blue-600">{timeRemaining.hours}</div>
-                      <div className="text-xs text-muted-foreground">Hours</div>
-                    </div>
-                    <div className="text-2xl text-blue-400">:</div>
-                    <div className="text-center">
-                      <div className="text-3xl font-bold text-blue-600">{timeRemaining.minutes}</div>
-                      <div className="text-xs text-muted-foreground">Minutes</div>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
             )}
           </CardContent>
         </Card>
 
         {/* Subscription Details Card */}
         {subscriptionStatus && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Crown className="h-5 w-5" />
-              Subscription Details
-            </CardTitle>
-            <CardDescription>
-              View and manage your subscription information
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            {/* Subscription Details Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="p-4 bg-muted rounded-lg">
-                <p className="text-sm text-muted-foreground mb-1">Account Created</p>
-                <p className="font-semibold text-lg">
-                  {subscriptionStatus.subscriptionStartDate
-                    ? format(subscriptionStatus.subscriptionStartDate, "PPP 'at' p")
-                    : "N/A"}
-                </p>
-              </div>
-              <div className="p-4 bg-muted rounded-lg">
-                <p className="text-sm text-muted-foreground mb-1">Expiry Date</p>
-                <p className="font-semibold text-lg">
-                  {subscriptionStatus.expiryDate
-                    ? format(subscriptionStatus.expiryDate, "PPP 'at' p")
-                    : "N/A"}
-                </p>
-              </div>
-              <div className="p-4 bg-muted rounded-lg">
-                <p className="text-sm text-muted-foreground mb-1">Days Remaining</p>
-                <p className="font-semibold text-lg">
-                  {subscriptionStatus.daysRemaining > 0
-                    ? `${subscriptionStatus.daysRemaining} days`
-                    : "Expired"}
-                </p>
-              </div>
-              <div className="p-4 bg-muted rounded-lg">
-                <p className="text-sm text-muted-foreground mb-1">Renewal Amount</p>
-                <p className="font-semibold text-lg flex items-center gap-1">
-                  <IndianRupee className="h-5 w-5" />
-                  {subscriptionStatus.renewalAmount.toLocaleString()}
-                </p>
-              </div>
-            </div>
-
-            {/* Subscription Method */}
-            <div className="border-t pt-4">
-              <h4 className="font-semibold mb-3">Subscription Method</h4>
-              <div className="flex items-center gap-3 p-4 bg-gradient-to-r from-purple-50 to-pink-50 rounded-lg border border-purple-200">
-                <Crown className="h-6 w-6 text-purple-600" />
-                <div>
-                  <p className="font-semibold">
-                    {subscriptionStatus.isFreeTrial ? "Free Trial (11 Months)" : "Annual Subscription (12 Months)"}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Crown className="h-5 w-5" />
+                Subscription Details
+              </CardTitle>
+              <CardDescription>
+                View and manage your subscription information
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {/* Subscription Details Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="p-4 bg-muted rounded-lg">
+                  <p className="text-sm text-muted-foreground mb-1">Account Created</p>
+                  <p className="font-semibold text-lg">
+                    {subscriptionStatus.subscriptionStartDate
+                      ? format(subscriptionStatus.subscriptionStartDate, "PPP 'at' p")
+                      : "N/A"}
                   </p>
-                  <p className="text-sm text-muted-foreground">
-                    {subscriptionStatus.isFreeTrial 
-                      ? "Enjoying your free trial period. Renew after 11 months for continued access."
-                      : "Active paid subscription. Renews annually."}
+                </div>
+                <div className="p-4 bg-muted rounded-lg">
+                  <p className="text-sm text-muted-foreground mb-1">Expiry Date</p>
+                  <p className="font-semibold text-lg">
+                    {subscriptionStatus.expiryDate
+                      ? format(subscriptionStatus.expiryDate, "PPP 'at' p")
+                      : "N/A"}
+                  </p>
+                </div>
+                <div className="p-4 bg-muted rounded-lg">
+                  <p className="text-sm text-muted-foreground mb-1">Days Remaining</p>
+                  <p className="font-semibold text-lg">
+                    {subscriptionStatus.daysRemaining > 0
+                      ? `${subscriptionStatus.daysRemaining} days`
+                      : "Expired"}
+                  </p>
+                </div>
+                <div className="p-4 bg-muted rounded-lg">
+                  <p className="text-sm text-muted-foreground mb-1">Renewal Amount</p>
+                  <p className="font-semibold text-lg flex items-center gap-1">
+                    <IndianRupee className="h-5 w-5" />
+                    {(subscriptionStatus?.renewalAmount ?? 0).toLocaleString()}
                   </p>
                 </div>
               </div>
-            </div>
 
-            {/* Alerts */}
-            {isExpired && (
-              <Alert variant="destructive">
-                <AlertCircle className="h-4 w-4" />
-                <AlertTitle>Subscription Expired</AlertTitle>
-                <AlertDescription>
-                  Your subscription has expired. Please renew to continue using the service.
-                  {subscriptionStatus.gracePeriodEndDate && (
-                    <span className="block mt-2">
-                      Grace period ended on: {format(subscriptionStatus.gracePeriodEndDate, "PPP")}
-                    </span>
-                  )}
-                </AlertDescription>
-              </Alert>
-            )}
+              {/* Subscription Method */}
+              <div className="border-t pt-4">
+                <h4 className="font-semibold mb-3">Subscription Method</h4>
+                <div className="flex items-center gap-3 p-4 bg-gradient-to-r from-purple-50 to-pink-50 rounded-lg border border-purple-200">
+                  <Crown className="h-6 w-6 text-purple-600" />
+                  <div>
+                    <p className="font-semibold">
+                      {subscriptionStatus.isFreeTrial ? "Free Trial (11 Months)" : "Annual Subscription (12 Months)"}
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      {subscriptionStatus.isFreeTrial
+                        ? "Enjoying your free trial period. Renew after 11 months for continued access."
+                        : "Active paid subscription. Renews annually."}
+                    </p>
+                  </div>
+                </div>
+              </div>
 
-            {isInGracePeriod && (
-              <Alert>
-                <Clock className="h-4 w-4" />
-                <AlertTitle>Grace Period</AlertTitle>
-                <AlertDescription>
-                  Your subscription has expired, but you're still in the grace period.
-                  Please renew before the grace period ends to avoid service interruption.
-                  {subscriptionStatus.gracePeriodEndDate && (
-                    <span className="block mt-2">
-                      Grace period ends on: {format(subscriptionStatus.gracePeriodEndDate, "PPP")}
-                    </span>
-                  )}
-                </AlertDescription>
-              </Alert>
-            )}
+              {/* Alerts */}
+              {isExpired && (
+                <Alert variant="destructive">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertTitle>Subscription Expired</AlertTitle>
+                  <AlertDescription>
+                    Your subscription has expired. Please renew to continue using the service.
+                    {subscriptionStatus.gracePeriodEndDate && (
+                      <span className="block mt-2">
+                        Grace period ended on: {format(subscriptionStatus.gracePeriodEndDate, "PPP")}
+                      </span>
+                    )}
+                  </AlertDescription>
+                </Alert>
+              )}
 
-            {isActive && subscriptionStatus.daysRemaining <= 30 && (
-              <Alert>
-                <AlertCircle className="h-4 w-4" />
-                <AlertTitle>Renewal Reminder</AlertTitle>
-                <AlertDescription>
-                  Your subscription will expire in {subscriptionStatus.daysRemaining} days.
-                  Please renew to avoid service interruption.
-                </AlertDescription>
-              </Alert>
-            )}
-          </CardContent>
-        </Card>
+              {isInGracePeriod && (
+                <Alert>
+                  <Clock className="h-4 w-4" />
+                  <AlertTitle>Grace Period</AlertTitle>
+                  <AlertDescription>
+                    Your subscription has expired, but you're still in the grace period.
+                    Please renew before the grace period ends to avoid service interruption.
+                    {subscriptionStatus.gracePeriodEndDate && (
+                      <span className="block mt-2">
+                        Grace period ends on: {format(subscriptionStatus.gracePeriodEndDate, "PPP")}
+                      </span>
+                    )}
+                  </AlertDescription>
+                </Alert>
+              )}
+
+              {isActive && subscriptionStatus.daysRemaining <= 30 && (
+                <Alert>
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertTitle>Renewal Reminder</AlertTitle>
+                  <AlertDescription>
+                    Your subscription will expire in {subscriptionStatus.daysRemaining} days.
+                    Please renew to avoid service interruption.
+                  </AlertDescription>
+                </Alert>
+              )}
+            </CardContent>
+          </Card>
         )}
 
         {/* Payment Section */}
@@ -814,7 +814,7 @@ export const Subscription = () => {
                         key={method.id}
                         variant={selectedPaymentMethod === method.id ? "default" : "outline"}
                         className="h-auto p-4 flex flex-col items-start gap-2"
-                        onClick={() => handlePayment(method.id)}
+                        onClick={() => handlePaymentClick(method.id)}
                         disabled={processing}
                       >
                         <div className="flex items-center gap-3 w-full">
@@ -833,7 +833,7 @@ export const Subscription = () => {
               {/* Payment Actions */}
               <div className="flex gap-4 pt-4 border-t">
                 <Button
-                  onClick={() => handlePayment('upi')}
+                  onClick={() => handlePaymentClick('upi')}
                   disabled={processing}
                   className="flex-1"
                   size="lg"
@@ -957,7 +957,7 @@ export const Subscription = () => {
                 Confirm your subscription renewal payment details
               </DialogDescription>
             </DialogHeader>
-            
+
             <div className="space-y-6 py-4">
               {/* Annual renewal fee */}
               <div>
@@ -984,7 +984,7 @@ export const Subscription = () => {
                   <div className="mt-3 p-3 bg-blue-50 rounded border border-blue-200 flex items-start gap-2">
                     <Wallet className="h-4 w-4 text-blue-600 mt-0.5" />
                     <p className="text-xs text-muted-foreground">
-                      You will be redirected to PayU payment gateway to complete your payment securely. 
+                      You will be redirected to PayU payment gateway to complete your payment securely.
                       All major credit/debit cards, UPI, net banking, and wallets are accepted.
                     </p>
                   </div>
@@ -1088,15 +1088,14 @@ export const Subscription = () => {
                     >
                       <div className="flex-1">
                         <div className="flex items-center gap-3 mb-2">
-                          <div className={`p-2 rounded-full ${
-                            transaction.status === 'success' 
-                              ? 'bg-green-100 text-green-600' 
+                          <div className={`p-2 rounded-full ${transaction.status === 'success'
+                              ? 'bg-green-100 text-green-600'
                               : transaction.status === 'failed'
-                              ? 'bg-red-100 text-red-600'
-                              : transaction.status === 'pending'
-                              ? 'bg-yellow-100 text-yellow-600'
-                              : 'bg-gray-100 text-gray-600'
-                          }`}>
+                                ? 'bg-red-100 text-red-600'
+                                : transaction.status === 'pending'
+                                  ? 'bg-yellow-100 text-yellow-600'
+                                  : 'bg-gray-100 text-gray-600'
+                            }`}>
                             {transaction.status === 'success' ? (
                               <CheckCircle className="h-4 w-4" />
                             ) : transaction.status === 'failed' ? (
@@ -1108,15 +1107,15 @@ export const Subscription = () => {
                           <div className="flex-1">
                             <div className="flex items-center gap-2 mb-1">
                               <p className="font-semibold">
-                                {transaction.status === 'success' ? 'Payment Successful' : 
-                                 transaction.status === 'failed' ? 'Payment Failed' :
-                                 transaction.status === 'pending' ? 'Payment Pending' :
-                                 'Payment Cancelled'}
+                                {transaction.status === 'success' ? 'Payment Successful' :
+                                  transaction.status === 'failed' ? 'Payment Failed' :
+                                    transaction.status === 'pending' ? 'Payment Pending' :
+                                      'Payment Cancelled'}
                               </p>
                               <Badge variant={
                                 transaction.status === 'success' ? 'default' :
-                                transaction.status === 'failed' ? 'destructive' :
-                                'secondary'
+                                  transaction.status === 'failed' ? 'destructive' :
+                                    'secondary'
                               }>
                                 {transaction.status}
                               </Badge>

@@ -13,7 +13,7 @@ import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { useUserStorage } from "@/hooks/useUserStorage";
-import { enqueueChange } from "@/lib/sync";
+import { upsertDirect } from "@/lib/supabaseDirect";
 import jsPDF from 'jspdf';
 
 interface AttendanceRecord {
@@ -373,7 +373,7 @@ export const EmployeeManagement = () => {
       
       // Queue for Supabase sync
       try {
-        await enqueueChange('staff', 'upsert', {
+        await upsertDirect('staff_employees', {
           id: employee.id,
           user_id: userId,
           name: employee.name,
@@ -464,7 +464,7 @@ export const EmployeeManagement = () => {
       
       // Queue for Supabase sync
       try {
-        await enqueueChange('staff', 'upsert', {
+        await upsertDirect('staff_employees', {
           id: updatedEmployee.id,
           user_id: userId,
           name: updatedEmployee.name,

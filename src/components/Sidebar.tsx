@@ -29,7 +29,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { useBusinessName } from "@/hooks/useBusinessName";
-import { syncAll, pushLocalChanges, backfillAllFromIdb } from "@/lib/sync";
+// Sync removed - all operations go directly to Supabase
 import { useToast } from "@/hooks/use-toast";
 
 interface SidebarProps {
@@ -140,78 +140,6 @@ export const Sidebar = ({ isCollapsed, onToggle }: SidebarProps) => {
   const location = useLocation();
   const businessName = useBusinessName();
   const { toast } = useToast();
-  const [isSyncing, setIsSyncing] = useState(false);
-  const [isPushing, setIsPushing] = useState(false);
-
-  // Helper function to handle sync with comprehensive error handling
-  const handleSync = async () => {
-    setIsSyncing(true);
-    try {
-      // CRITICAL FIX: Ensure user ID is cached before syncing
-      const { getCurrentUserId } = await import('@/lib/userStorage');
-      const userId = await getCurrentUserId();
-      
-      if (!userId) {
-        console.error('❌ Sidebar: No user ID found - user not authenticated');
-        toast({
-          title: "Authentication Required",
-          description: "Please log out and log back in to sync data.",
-          variant: "destructive"
-        });
-        return;
-      }
-      
-      await syncAll();
-      toast({
-        title: "Sync Complete",
-        description: "Data synced from server successfully"
-      });
-    } catch (e: any) {
-      console.error('❌ Sidebar: Sync failed:', e);
-      toast({
-        title: "Sync Failed",
-        description: e?.message || "Unknown error. Check console for details.",
-        variant: "destructive"
-      });
-    } finally {
-      setIsSyncing(false);
-    }
-  };
-
-  // Helper function to handle push with comprehensive error handling
-  const handlePush = async () => {
-    setIsPushing(true);
-    try {
-      // CRITICAL FIX: Ensure user ID is cached before pushing
-      const { getCurrentUserId } = await import('@/lib/userStorage');
-      const userId = await getCurrentUserId();
-      
-      if (!userId) {
-        console.error('❌ Sidebar: No user ID found - user not authenticated');
-        toast({
-          title: "Authentication Required",
-          description: "Please log out and log back in to sync data.",
-          variant: "destructive"
-        });
-        return;
-      }
-      
-      await pushLocalChanges();
-      toast({
-        title: "Push Complete",
-        description: "Changed data uploaded to server (fast sync)"
-      });
-    } catch (e: any) {
-      console.error('❌ Sidebar: Push failed:', e);
-      toast({
-        title: "Push Failed",
-        description: e?.message || "Unknown error. Check console for details.",
-        variant: "destructive"
-      });
-    } finally {
-      setIsPushing(false);
-    }
-  };
 
   return (
     <div className={cn(
@@ -323,70 +251,21 @@ export const Sidebar = ({ isCollapsed, onToggle }: SidebarProps) => {
         </div>
       </nav>
 
-      {/* Footer with Sync Buttons */}
+      {/* Footer */}
       <div className="border-t border-gray-200/60 p-4 bg-white/50 backdrop-blur-sm flex-shrink-0">
-        {!isCollapsed ? (
-          <div className="space-y-3">
-            {/* Sync Buttons */}
-            <div className="space-y-2">
-              <Button
-                onClick={handleSync}
-                disabled={isSyncing || isPushing}
-                className="w-full h-9 bg-blue-500 hover:bg-blue-600 text-white text-xs font-medium shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <Download className={cn("h-3.5 w-3.5 mr-2", isSyncing && "animate-spin")} />
-                {isSyncing ? "Syncing..." : "Pull Server Data"}
-              </Button>
-              
-              <Button
-                onClick={handlePush}
-                disabled={isSyncing || isPushing}
-                className="w-full h-9 bg-green-500 hover:bg-green-600 text-white text-xs font-medium shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <Upload className={cn("h-3.5 w-3.5 mr-2", isPushing && "animate-spin")} />
-                {isPushing ? "Pushing..." : "Push Local Data"}
-              </Button>
+        <div className="space-y-3">
+          {/* System Status */}
+          <div className="p-3 bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl border border-green-200 text-center">
+            <div className="flex items-center justify-center gap-2 mb-1">
+              <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+              <span className="text-xs font-medium text-green-700">System Online</span>
             </div>
-
-            {/* System Status */}
-            <div className="p-3 bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl border border-green-200 text-center">
-              <div className="flex items-center justify-center gap-2 mb-1">
-                <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                <span className="text-xs font-medium text-green-700">System Online</span>
-              </div>
-              <p className="text-xs text-gray-500">Version 1.0.0</p>
-            </div>
-            <div className="text-xs text-gray-400 text-center">
-              © 2024 {businessName}
-            </div>
+            <p className="text-xs text-gray-500">Direct Supabase Connection</p>
           </div>
-        ) : (
-          <div className="flex flex-col items-center gap-2 w-full">
-            <Button
-              onClick={handleSync}
-              disabled={isSyncing || isPushing}
-              size="sm"
-              className="h-8 w-8 p-0 bg-blue-500 hover:bg-blue-600 text-white disabled:opacity-50 disabled:cursor-not-allowed"
-              title="Pull Server Data"
-            >
-              <Download className={cn("h-4 w-4", isSyncing && "animate-spin")} />
-            </Button>
-            
-            <Button
-              onClick={handlePush}
-              disabled={isSyncing || isPushing}
-              size="sm"
-              className="h-8 w-8 p-0 bg-green-500 hover:bg-green-600 text-white disabled:opacity-50 disabled:cursor-not-allowed"
-              title="Push Local Data"
-            >
-              <Upload className={cn("h-4 w-4", isPushing && "animate-spin")} />
-            </Button>
-            
-            <div className="p-2 bg-gradient-to-r from-green-50 to-emerald-50 rounded-lg border border-green-200 flex items-center justify-center">
-              <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" title="System Online"></div>
-            </div>
+          <div className="text-xs text-gray-400 text-center">
+            © 2024 {businessName}
           </div>
-        )}
+        </div>
       </div>
     </div>
   );

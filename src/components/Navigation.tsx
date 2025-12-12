@@ -18,7 +18,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { syncAll, pushLocalChanges, backfillAllFromIdb } from "@/lib/sync";
+// Sync removed - all operations go directly to Supabase
 import { useToast } from "@/hooks/use-toast";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { useBusinessName } from "@/hooks/useBusinessName";
@@ -154,77 +154,7 @@ export const Navigation = () => {
             </div>
           </div>
 
-          {/* Sync Actions - Shows above 1480px */}
-          <div className="hidden nav:flex items-center space-x-2 flex-shrink-0 ml-2 pl-2">
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="sm" className="flex items-center justify-center gap-1.5 min-h-[40px] px-3 text-sm whitespace-nowrap">
-                  <Settings className="h-4 w-4 flex-shrink-0" />
-                  <span>Sync</span>
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem
-                  onClick={async () => {
-                    toast({ title: 'Syncing...', description: 'Refreshing data from server' });
-                    try {
-                      // Check user authentication first
-                      const { getCurrentUserId } = await import('@/lib/userStorage');
-                      const userId = await getCurrentUserId();
-                      
-                      if (!userId) {
-                        console.error('❌ Nav: No user ID found');
-                        toast({ 
-                          title: 'Authentication Required', 
-                          description: 'Please log out and log back in to sync data.',
-                          variant: 'destructive' 
-                        });
-                        return;
-                      }
-                      
-                      await syncAll();
-                      toast({ title: 'Sync complete', description: 'Local data updated' });
-                    } catch (e: any) {
-                      console.error('❌ Nav: Sync failed:', e);
-                      const msg = e?.message || 'Unknown error';
-                      toast({ title: 'Sync failed', description: msg, variant: 'destructive' });
-                    }
-                  }}
-                >
-                  Pull Server Data
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={async () => {
-                    toast({ title: 'Pushing...', description: 'Pushing local data to server' });
-                    try {
-                      // Check user authentication first
-                      const { getCurrentUserId } = await import('@/lib/userStorage');
-                      const userId = await getCurrentUserId();
-                      
-                      if (!userId) {
-                        console.error('❌ Nav: No user ID found');
-                        toast({ 
-                          title: 'Authentication Required', 
-                          description: 'Please log out and log back in to sync data.',
-                          variant: 'destructive' 
-                        });
-                        return;
-                      }
-                      
-                      await pushLocalChanges();
-                      toast({ title: 'Push complete', description: 'Changed data uploaded (fast sync)' });
-                    } catch (e: any) {
-                      console.error('❌ Nav: Push failed:', e);
-                      const msg = e?.message || 'Unknown error';
-                      toast({ title: 'Push failed', description: msg, variant: 'destructive' });
-                    }
-                  }}
-                >
-                  Push Local Data
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
+          {/* Sync removed - all operations go directly to Supabase */}
 
           {/* Hamburger menu button - Shows at 1480px and below */}
           <div className="nav:hidden flex-shrink-0">
@@ -262,76 +192,7 @@ export const Navigation = () => {
                   </Link>
                 );
               })}
-              <div className="pt-2 border-t border-gray-200">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="w-full justify-start"
-                  onClick={async () => {
-                    setIsOpen(false);
-                    toast({ title: 'Syncing...', description: 'Refreshing data from server' });
-                    try {
-                      // Check user authentication first
-                      const { getCurrentUserId } = await import('@/lib/userStorage');
-                      const userId = await getCurrentUserId();
-                      
-                      if (!userId) {
-                        console.error('❌ Mobile Nav: No user ID found');
-                        toast({ 
-                          title: 'Authentication Required', 
-                          description: 'Please log out and log back in to sync data.',
-                          variant: 'destructive' 
-                        });
-                        return;
-                      }
-                      
-                      await syncAll();
-                      toast({ title: 'Sync complete', description: 'Local data updated' });
-                    } catch (e: any) {
-                      console.error('❌ Mobile Nav: Sync failed:', e);
-                      const msg = e?.message || 'Unknown error';
-                      toast({ title: 'Sync failed', description: msg, variant: 'destructive' });
-                    }
-                  }}
-                >
-                  <Settings className="h-4 w-4 mr-2" />
-                  Pull Server Data
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="w-full justify-start mt-2"
-                  onClick={async () => {
-                    setIsOpen(false);
-                    toast({ title: 'Pushing...', description: 'Pushing local data to server' });
-                    try {
-                      // Check user authentication first
-                      const { getCurrentUserId } = await import('@/lib/userStorage');
-                      const userId = await getCurrentUserId();
-                      
-                      if (!userId) {
-                        console.error('❌ Mobile Nav: No user ID found');
-                        toast({ 
-                          title: 'Authentication Required', 
-                          description: 'Please log out and log back in to sync data.',
-                          variant: 'destructive' 
-                        });
-                        return;
-                      }
-                      
-                      await pushLocalChanges();
-                      toast({ title: 'Push complete', description: 'Changed data uploaded (fast sync)' });
-                    } catch (e: any) {
-                      console.error('❌ Mobile Nav: Push failed:', e);
-                      const msg = e?.message || 'Unknown error';
-                      toast({ title: 'Push failed', description: msg, variant: 'destructive' });
-                    }
-                  }}
-                >
-                  <Settings className="h-4 w-4 mr-2" />
-                  Push Local Data
-                </Button>
-              </div>
+              {/* Sync removed - all operations go directly to Supabase */}
             </div>
           </div>
         )}

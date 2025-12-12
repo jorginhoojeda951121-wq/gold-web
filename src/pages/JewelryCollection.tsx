@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
-import { enqueueChange } from "@/lib/sync";
+import { upsertDirect, deleteDirect } from "@/lib/supabaseDirect";
 import { getUserData, setUserData } from "@/lib/userStorage";
 import { MultiImageUpload } from "@/components/MultiImageUpload";
 import { ItemDetailsDialog } from "@/components/ItemDetailsDialog";
@@ -90,12 +90,18 @@ const JewelryCollection = () => {
 
           const stockValue = item.stock ?? item.inStock ?? item.in_stock ?? 10;
           
+          // Convert carat to number if it's a string
+          const caratValue = item.carat || item.attributes?.carat || '';
+          const caratNumber = typeof caratValue === 'string' 
+            ? (caratValue === '' ? 0 : parseFloat(caratValue) || 0)
+            : (caratValue || 0);
+          
           return {
               id: item.id,
               name: item.name || 'Unknown Item',
             type: item.type || 'Ring',
               gemstone: item.gemstone || item.attributes?.gemstone || 'None',
-              carat: item.carat || item.attributes?.carat || '',
+              carat: caratNumber, // Convert to number for JewelryItem compatibility
               metal: item.metal || item.attributes?.metal || 'Gold 18K',
               price: item.price || 0,
             stock: stockValue,
@@ -178,10 +184,10 @@ const JewelryCollection = () => {
         name: formData.name,
         type: formData.type,
         gemstone: formData.gemstone,
-        carat: formData.carat,
+        carat: parseFloat(formData.carat) || 0,
         metal: formData.metal,
         price: parseFloat(formData.price) || 0,
-        stock: parseInt(formData.stock) || 0,
+        inStock: parseInt(formData.stock) || 0,
         image: images[0] || "https://images.unsplash.com/photo-1543294001-f7cd5d7fb516?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3wzNzg4OTl8MHwxfHNlYXJjaHwxfHxqZXdlbHJ5fGVufDF8MHx8fDE3NTM3NTkzMjh8MA&ixlib=rb-4.1.0&q=80&w=1080",
         image_1: images[0] || undefined,
         image_2: images[1] || undefined,
@@ -210,8 +216,8 @@ const JewelryCollection = () => {
         metal: newItem.metal,
         attributes: { type: newItem.type, gemstone: newItem.gemstone, carat: newItem.carat, metal: newItem.metal },
         price: newItem.price,
-        inStock: newItem.stock,
-        stock: newItem.stock,
+        inStock: newItem.inStock,
+        stock: newItem.inStock,
         image: newItem.image,
         image_1: newItem.image_1,
         image_2: newItem.image_2,
@@ -222,8 +228,8 @@ const JewelryCollection = () => {
       });
       await setUserData('inventory_items', inventoryItems);
       
-      // Queue for sync
-      enqueueChange('inventory_items', 'upsert', {
+      // Insert directly into Supabase
+      await upsertDirect('inventory_items', {
         id: newItem.id,
         item_type: 'jewelry',
         name: newItem.name,
@@ -233,8 +239,8 @@ const JewelryCollection = () => {
         metal: newItem.metal,
         attributes: { type: newItem.type, gemstone: newItem.gemstone, carat: newItem.carat, metal: newItem.metal },
         price: newItem.price,
-        inStock: newItem.stock,
-        stock: newItem.stock,
+        inStock: newItem.inStock,
+        stock: newItem.inStock,
         image: newItem.image,
         image_1: newItem.image_1,
         image_2: newItem.image_2,
@@ -311,10 +317,10 @@ const JewelryCollection = () => {
         name: formData.name,
         type: formData.type,
         gemstone: formData.gemstone,
-        carat: formData.carat,
+        carat: parseFloat(formData.carat) || 0,
         metal: formData.metal,
         price: parseFloat(formData.price) || 0,
-        stock: parseInt(formData.stock) || 0,
+        inStock: parseInt(formData.stock) || 0,
         image: images[0] || selectedItem.image || "",
         image_1: images[0] || selectedItem.image_1,
         image_2: images[1] || selectedItem.image_2,
@@ -345,8 +351,8 @@ const JewelryCollection = () => {
         metal: updatedItem.metal,
         attributes: { type: updatedItem.type, gemstone: updatedItem.gemstone, carat: updatedItem.carat, metal: updatedItem.metal },
         price: updatedItem.price,
-        inStock: updatedItem.stock,
-        stock: updatedItem.stock,
+        inStock: updatedItem.inStock,
+        stock: updatedItem.inStock,
         image: updatedItem.image,
         image_1: updatedItem.image_1,
         image_2: updatedItem.image_2,
@@ -362,8 +368,8 @@ const JewelryCollection = () => {
       }
       await setUserData('inventory_items', inventoryItems);
       
-      // Queue for sync
-      enqueueChange('inventory_items', 'upsert', inventoryUpdate);
+      // Update directly in Supabase
+      await upsertDirect('inventory_items', inventoryUpdate);
       
       // Reload inventory
       await loadAllInventory();
@@ -401,8 +407,8 @@ const JewelryCollection = () => {
         const inventoryItems = (await getUserData<any[]>('inventory_items')) || [];
         await setUserData('inventory_items', inventoryItems.filter((item: any) => item.id !== id));
         
-        // Queue for sync
-        enqueueChange('inventory_items', 'delete', { id });
+        // Delete directly from Supabase
+        await deleteDirect('inventory_items', id);
         
         // Reload inventory
         await loadAllInventory();
@@ -582,11 +588,14 @@ const JewelryCollection = () => {
                 />
               </div>
               <JewelryCard
-                item={item}
-                onEdit={handleEditItem}
-                onDelete={handleDeleteClick}
-                onOrder={handleOrderNow}
-                onView={handleViewItem}
+                item={{
+                  ...item,
+                  carat: typeof item.carat === 'string' ? (parseFloat(item.carat) || 0) : (item.carat || 0),
+                  inStock: item.inStock ?? item.stock ?? 0,
+                } as JewelryItem}
+                onEdit={(item) => handleEditItem(item as any)}
+                onDelete={(id) => handleDeleteClick(item)}
+                onView={(item) => handleViewItem(item as any)}
               />
             </div>
           ))}
@@ -852,16 +861,24 @@ const JewelryCollection = () => {
       </Dialog>
 
       {/* View Item Details Dialog */}
-      <ItemDetailsDialog 
-        item={selectedItem}
-        open={showDetailsDialog}
-        onOpenChange={setShowDetailsDialog}
-        onEdit={handleEditItem}
-        onOrder={(item) => {
-          setShowDetailsDialog(false);
-          handleOrderNow(item);
-        }}
-      />
+      {selectedItem && (
+        <ItemDetailsDialog 
+          item={{
+            ...selectedItem,
+            carat: typeof selectedItem.carat === 'string' ? (parseFloat(selectedItem.carat) || 0) : (selectedItem.carat || 0),
+            inStock: selectedItem.inStock ?? selectedItem.stock ?? 0,
+          } as any}
+          open={showDetailsDialog}
+          onOpenChange={setShowDetailsDialog}
+          onEdit={(item) => {
+            handleEditItem(item as any);
+          }}
+          onOrder={(item) => {
+            setShowDetailsDialog(false);
+            handleOrderNow(item as any);
+          }}
+        />
+      )}
       
       {/* Bulk Share Dialog */}
       {selectedItems.size > 0 && (

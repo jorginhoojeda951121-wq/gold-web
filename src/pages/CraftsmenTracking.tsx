@@ -171,8 +171,8 @@ const CraftsmenTracking = () => {
       if (userId) {
         const updatedCraftsman = updatedCraftsmen.find(c => c.id === selectedCraftsman.id);
         if (updatedCraftsman) {
-          const { enqueueChange } = await import('@/lib/sync');
-          await enqueueChange('craftsmen', 'upsert', {
+          const { upsertDirect } = await import('@/lib/supabaseDirect');
+          await upsertDirect('craftsmen', {
             id: updatedCraftsman.id,
             name: updatedCraftsman.name,
             specialty: updatedCraftsman.specialty || '',
@@ -235,10 +235,10 @@ const CraftsmenTracking = () => {
       const { getCurrentUserId } = await import('@/lib/userStorage');
       const userId = await getCurrentUserId();
       if (userId) {
-        const { enqueueChange } = await import('@/lib/sync');
-        // Queue sync for all craftsmen that might have been updated
+        const { upsertDirect } = await import('@/lib/supabaseDirect');
+        // Update all craftsmen directly in Supabase
         for (const craftsman of updatedCraftsmen) {
-          await enqueueChange('craftsmen', 'upsert', {
+          await upsertDirect('craftsmen', {
             id: craftsman.id,
             name: craftsman.name,
             specialty: craftsman.specialty || '',
@@ -290,10 +290,10 @@ const CraftsmenTracking = () => {
       const { getCurrentUserId } = await import('@/lib/userStorage');
       const userId = await getCurrentUserId();
       if (userId) {
-        const { enqueueChange } = await import('@/lib/sync');
-        // Queue sync for all craftsmen that might have been updated
+        const { upsertDirect } = await import('@/lib/supabaseDirect');
+        // Update all craftsmen directly in Supabase
         for (const craftsman of updatedCraftsmen) {
-          await enqueueChange('craftsmen', 'upsert', {
+          await upsertDirect('craftsmen', {
             id: craftsman.id,
             name: craftsman.name,
             specialty: craftsman.specialty || '',

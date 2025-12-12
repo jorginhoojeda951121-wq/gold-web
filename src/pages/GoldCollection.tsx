@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { enqueueChange } from "@/lib/sync";
+import { upsertDirect, deleteDirect } from "@/lib/supabaseDirect";
 import { getUserData } from "@/lib/userStorage";
 import { MultiImageUpload } from "@/components/MultiImageUpload";
 import { GoldItemCard, GoldItem } from "@/components/GoldItemCard";
@@ -102,11 +102,7 @@ const GoldCollection = () => {
       loadGoldItems();
     };
 
-    window.addEventListener('data-synced', handleDataSynced);
-    
-    return () => {
-      window.removeEventListener('data-synced', handleDataSynced);
-    };
+    // Removed data-synced listener - no longer using sync queue
   }, [loadGoldItems]);
 
   const filteredItems = goldItems.filter(item =>
@@ -175,8 +171,8 @@ const GoldCollection = () => {
       inventoryItems.push(newInventoryItem);
       await setUserData('inventory_items', inventoryItems);
       
-      // Queue for sync
-      enqueueChange('inventory_items', 'upsert', newInventoryItem);
+      // Insert directly into Supabase
+      await upsertDirect('inventory_items', newInventoryItem);
       
       // Reload gold items to show the new item
       await loadGoldItems();
@@ -302,8 +298,8 @@ const GoldCollection = () => {
         await setUserData('inventory_items', inventoryItems);
       }
       
-      // Queue for sync
-      enqueueChange('inventory_items', 'upsert', {
+      // Update directly in Supabase
+      await upsertDirect('inventory_items', {
         id: updatedItem.id,
         user_id: userId,
         item_type: 'gold',
@@ -376,8 +372,8 @@ const GoldCollection = () => {
         const updatedInventory = inventoryItems.filter((item: any) => item.id !== id);
         await setUserData('inventory_items', updatedInventory);
         
-        // Queue for sync
-        enqueueChange('inventory_items', 'delete', { id });
+        // Delete directly from Supabase
+        await deleteDirect('inventory_items', id);
         
         // Reload gold items to reflect the deletion
         await loadGoldItems();

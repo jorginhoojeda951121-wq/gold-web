@@ -53,17 +53,17 @@ const eventTypeConfig = {
 
 export default function Reservations() {
   const { toast } = useToast();
-  
+
   // CRITICAL: Use IndexedDB first for instant loading (no loading screen!)
   const { data: reservationsRaw, updateData: setReservations, loaded } = useUserStorage<Reservation[]>('reservations', []);
-  
+
   // Parse JSON fields when loading from IndexedDB - useMemo to prevent infinite loops
   const reservations = useMemo(() => {
     return reservationsRaw.map((reservation: any) => {
       // Parse category_preferences and color_preferences if they're JSON strings
       let categoryPrefs = reservation.category_preferences;
       let colorPrefs = reservation.color_preferences;
-      
+
       if (categoryPrefs && typeof categoryPrefs === 'string') {
         try {
           categoryPrefs = JSON.parse(categoryPrefs);
@@ -71,7 +71,7 @@ export default function Reservations() {
           categoryPrefs = categoryPrefs.split(',').map((c: string) => c.trim()).filter(Boolean);
         }
       }
-      
+
       if (colorPrefs && typeof colorPrefs === 'string') {
         try {
           colorPrefs = JSON.parse(colorPrefs);
@@ -79,7 +79,7 @@ export default function Reservations() {
           colorPrefs = colorPrefs.split(',').map((c: string) => c.trim()).filter(Boolean);
         }
       }
-      
+
       return {
         ...reservation,
         category_preferences: categoryPrefs,
@@ -87,7 +87,7 @@ export default function Reservations() {
       };
     });
   }, [reservationsRaw]);
-  
+
   const [filteredReservations, setFilteredReservations] = useState<Reservation[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState('all');
@@ -99,16 +99,16 @@ export default function Reservations() {
   // Load fresh data from Supabase in background (no loading screen!)
   useEffect(() => {
     if (!loaded) return; // Wait for IndexedDB to load first
-    
+
     const syncFromSupabase = async () => {
       try {
         setBackgroundSyncing(true);
         const supabase = getSupabase();
-        
+
         // Check if user is authenticated
         const { data: { session } } = await supabase.auth.getSession();
         if (!session) return;
-        
+
         // Query reservations from Supabase
         const { data, error } = await supabase
           .from('reservations')
@@ -129,7 +129,7 @@ export default function Reservations() {
           // Parse category_preferences and color_preferences if they're JSON strings
           let categoryPrefs = reservation.category_preferences;
           let colorPrefs = reservation.color_preferences;
-          
+
           if (categoryPrefs && typeof categoryPrefs === 'string') {
             try {
               categoryPrefs = JSON.parse(categoryPrefs);
@@ -137,7 +137,7 @@ export default function Reservations() {
               categoryPrefs = categoryPrefs.split(',').map((c: string) => c.trim()).filter(Boolean);
             }
           }
-          
+
           if (colorPrefs && typeof colorPrefs === 'string') {
             try {
               colorPrefs = JSON.parse(colorPrefs);
@@ -145,14 +145,14 @@ export default function Reservations() {
               colorPrefs = colorPrefs.split(',').map((c: string) => c.trim()).filter(Boolean);
             }
           }
-          
+
           return {
             ...reservation,
             category_preferences: categoryPrefs,
             color_preferences: colorPrefs,
-            is_overdue: reservation.status !== 'cancelled' && 
-                       reservation.status !== 'returned' && 
-                       new Date(reservation.event_date) < new Date()
+            is_overdue: reservation.status !== 'cancelled' &&
+              reservation.status !== 'returned' &&
+              new Date(reservation.event_date) < new Date()
           };
         });
 
@@ -176,7 +176,7 @@ export default function Reservations() {
           const supabase = getSupabase();
           const { data: { session } } = await supabase.auth.getSession();
           if (!session) return;
-          
+
           const { data, error } = await supabase
             .from('reservations')
             .select('*')
@@ -194,7 +194,7 @@ export default function Reservations() {
             // Parse category_preferences and color_preferences if they're JSON strings
             let categoryPrefs = reservation.category_preferences;
             let colorPrefs = reservation.color_preferences;
-            
+
             if (categoryPrefs && typeof categoryPrefs === 'string') {
               try {
                 categoryPrefs = JSON.parse(categoryPrefs);
@@ -202,7 +202,7 @@ export default function Reservations() {
                 categoryPrefs = categoryPrefs.split(',').map((c: string) => c.trim()).filter(Boolean);
               }
             }
-            
+
             if (colorPrefs && typeof colorPrefs === 'string') {
               try {
                 colorPrefs = JSON.parse(colorPrefs);
@@ -210,14 +210,14 @@ export default function Reservations() {
                 colorPrefs = colorPrefs.split(',').map((c: string) => c.trim()).filter(Boolean);
               }
             }
-            
+
             return {
               ...reservation,
               category_preferences: categoryPrefs,
               color_preferences: colorPrefs,
-              is_overdue: reservation.status !== 'cancelled' && 
-                         reservation.status !== 'returned' && 
-                         new Date(reservation.event_date) < new Date()
+              is_overdue: reservation.status !== 'cancelled' &&
+                reservation.status !== 'returned' &&
+                new Date(reservation.event_date) < new Date()
             };
           });
 
@@ -229,11 +229,7 @@ export default function Reservations() {
       syncFromSupabase();
     };
 
-    window.addEventListener('data-synced', handleDataSynced);
-    
-    return () => {
-      window.removeEventListener('data-synced', handleDataSynced);
-    };
+    // Removed data-synced listener - no longer using sync queue
   }, [setReservations]);
 
   useEffect(() => {
@@ -245,7 +241,7 @@ export default function Reservations() {
     try {
       setBackgroundSyncing(true);
       const supabase = getSupabase();
-      
+
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) {
         toast({
@@ -255,7 +251,7 @@ export default function Reservations() {
         });
         return;
       }
-      
+
       const { data, error } = await supabase
         .from('reservations')
         .select('*')
@@ -265,13 +261,13 @@ export default function Reservations() {
 
       const transformedData = (data || []).map(reservation => ({
         ...reservation,
-        is_overdue: reservation.status !== 'cancelled' && 
-                   reservation.status !== 'returned' && 
-                   new Date(reservation.event_date) < new Date()
+        is_overdue: reservation.status !== 'cancelled' &&
+          reservation.status !== 'returned' &&
+          new Date(reservation.event_date) < new Date()
       }));
 
       await setReservations(transformedData as any);
-      
+
       toast({
         title: 'Refreshed',
         description: 'Reservations updated successfully.',
@@ -336,7 +332,7 @@ export default function Reservations() {
 
       // Update local storage immediately
       await setReservations(reservations.filter(r => r.id !== id));
-      
+
       toast({
         title: 'Success',
         description: 'Reservation deleted successfully.',

@@ -11,7 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { useUserStorage } from "@/hooks/useUserStorage";
 import { CustomerDetailsDialog } from "@/components/CustomerDetailsDialog";
-import { enqueueChange } from "@/lib/sync";
+import { upsertDirect } from "@/lib/supabaseDirect";
 import { getUserData } from "@/lib/userStorage";
 import { getSupabase } from "@/lib/supabase";
 
@@ -224,8 +224,8 @@ export const CustomerLedger = () => {
       // Update state
       setCustomers(prev => [...prev, newCustomer]);
 
-      // Push to Supabase - use camelCase format, sync will transform
-      enqueueChange('customers', 'upsert', {
+      // Insert directly into Supabase
+      await upsertDirect('customers', {
         id: newCustomer.id,
         user_id: userId, // CRITICAL: Include user_id for data isolation
         name: newCustomer.name,
@@ -317,8 +317,8 @@ export const CustomerLedger = () => {
       // Update state
       setTransactions(prev => [...prev, newTransaction]);
 
-      // Push transaction - use camelCase to match pushQueue expectations
-      enqueueChange('customer_ledger', 'upsert', {
+      // Insert transaction directly into Supabase
+      await upsertDirect('customer_transactions', {
         id: newTransaction.id,
         user_id: userId, // CRITICAL: Include user_id for data isolation
         customerId: newTransaction.customerId, // camelCase, not snake_case
@@ -362,7 +362,7 @@ export const CustomerLedger = () => {
     // After local update, enqueue latest customer snapshot - use camelCase format
     const updatedCustomer = updatedCustomers.find(c => c.id === selectedCustomer.id);
     if (updatedCustomer) {
-      enqueueChange('customers', 'upsert', {
+      await upsertDirect('customers', {
         id: updatedCustomer.id,
         name: updatedCustomer.name,
         email: updatedCustomer.email,

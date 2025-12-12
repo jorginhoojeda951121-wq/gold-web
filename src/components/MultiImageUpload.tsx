@@ -1,26 +1,33 @@
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { Upload, X, Image as ImageIcon } from "lucide-react";
+import { Upload, X, Image as ImageIcon, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { uploadImageToStorage, deleteImageFromStorage } from "@/lib/storage";
 
 interface MultiImageUploadProps {
   images: (string | null)[];
   onImagesChange: (images: (string | null)[]) => void;
   maxImages?: number;
   label?: string;
+  bucket?: string;
+  folder?: string;
 }
 
 export const MultiImageUpload = ({ 
   images, 
   onImagesChange, 
   maxImages = 4,
-  label = "Item Images"
+  label = "Item Images",
+  bucket = 'images',
+  folder
 }: MultiImageUploadProps) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
+  const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<{ [key: number]: boolean }>({});
 
-  const handleMultipleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleMultipleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
 
@@ -36,7 +43,6 @@ export const MultiImageUpload = ({
     }
 
     const newImages = [...images];
-    let processedCount = 0;
     const filesToProcess: { file: File; targetIndex: number }[] = [];
 
     // First, determine which slot each file should go to
@@ -47,6 +53,16 @@ export const MultiImageUpload = ({
         toast({
           title: "File too large",
           description: `${file.name} exceeds 10MB limit`,
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Validate file type
+      if (!file.type.startsWith('image/')) {
+        toast({
+          title: "Invalid file type",
+          description: `${file.name} is not an image file`,
           variant: "destructive",
         });
         return;
@@ -63,27 +79,44 @@ export const MultiImageUpload = ({
       currentIndex++;
     });
 
-    // Now process each file with its assigned slot
+    // Now upload each file to Supabase Storage
     if (filesToProcess.length === 0) return;
 
-    filesToProcess.forEach(({ file, targetIndex }) => {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        const result = e.target?.result as string;
-        newImages[targetIndex] = result;
-        processedCount++;
+    setUploading(true);
+    let successCount = 0;
+    let errorCount = 0;
 
-        // Update state after all files are processed
-        if (processedCount === filesToProcess.length) {
-          onImagesChange(newImages);
-          toast({
-            title: "Images uploaded",
-            description: `${processedCount} image(s) uploaded successfully`,
-          });
-        }
-      };
-      reader.readAsDataURL(file);
-    });
+    // Upload files sequentially to avoid overwhelming the storage
+    for (const { file, targetIndex } of filesToProcess) {
+      setUploadProgress(prev => ({ ...prev, [targetIndex]: true }));
+      
+      try {
+        const url = await uploadImageToStorage(file, bucket, folder);
+        newImages[targetIndex] = url;
+        successCount++;
+      } catch (error: any) {
+        console.error(`Error uploading ${file.name}:`, error);
+        errorCount++;
+        toast({
+          title: "Upload failed",
+          description: `Failed to upload ${file.name}: ${error.message || 'Unknown error'}`,
+          variant: "destructive",
+        });
+      } finally {
+        setUploadProgress(prev => ({ ...prev, [targetIndex]: false }));
+      }
+    }
+
+    setUploading(false);
+
+    // Update state with successfully uploaded images
+    if (successCount > 0) {
+      onImagesChange(newImages);
+      toast({
+        title: "Images uploaded",
+        description: `${successCount} image(s) uploaded successfully${errorCount > 0 ? `, ${errorCount} failed` : ''}`,
+      });
+    }
 
     // Clear the input
     if (fileInputRef.current) {
@@ -91,10 +124,21 @@ export const MultiImageUpload = ({
     }
   };
 
-  const removeImage = (index: number) => {
+  const removeImage = async (index: number) => {
+    const imageToRemove = images[index];
     const newImages = [...images];
     newImages[index] = null;
     onImagesChange(newImages);
+
+    // Delete from storage if it's a Supabase Storage URL
+    if (imageToRemove && (imageToRemove.startsWith('http://') || imageToRemove.startsWith('https://'))) {
+      try {
+        await deleteImageFromStorage(imageToRemove, bucket);
+      } catch (error) {
+        console.error('Error deleting image from storage:', error);
+        // Don't show error to user - image is already removed from UI
+      }
+    }
   };
 
   const hasImages = images.some(img => img !== null);
@@ -124,10 +168,19 @@ export const MultiImageUpload = ({
           variant="outline"
           size="sm"
           onClick={() => fileInputRef.current?.click()}
-          disabled={imageCount >= maxImages}
+          disabled={imageCount >= maxImages || uploading}
         >
-          <Upload className="h-4 w-4 mr-2" />
-          {hasImages ? "Add More" : "Upload Images"}
+          {uploading ? (
+            <>
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              Uploading...
+            </>
+          ) : (
+            <>
+              <Upload className="h-4 w-4 mr-2" />
+              {hasImages ? "Add More" : "Upload Images"}
+            </>
+          )}
         </Button>
       </div>
       
@@ -136,23 +189,36 @@ export const MultiImageUpload = ({
           {images.map((image, index) => 
             image ? (
               <div key={index} className="relative group">
-                <img 
-                  src={image} 
-                  alt={`Preview ${index + 1}`} 
-                  className="w-full h-24 object-cover rounded-lg border-2 border-border"
-                />
-                <Button
-                  type="button"
-                  variant="destructive"
-                  size="sm"
-                  className="absolute -top-2 -right-2 h-7 w-7 p-0 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
-                  onClick={() => removeImage(index)}
-                >
-                  <X className="h-4 w-4" />
-                </Button>
-                <div className="absolute bottom-1 left-1 bg-black/60 text-white text-xs px-1.5 py-0.5 rounded">
-                  #{index + 1}
-                </div>
+                {uploadProgress[index] ? (
+                  <div className="w-full h-24 bg-muted rounded-lg border-2 border-border flex items-center justify-center">
+                    <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                  </div>
+                ) : (
+                  <>
+                    <img 
+                      src={image} 
+                      alt={`Preview ${index + 1}`} 
+                      className="w-full h-24 object-cover rounded-lg border-2 border-border"
+                      onError={(e) => {
+                        console.error('Failed to load image:', image);
+                        (e.target as HTMLImageElement).src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="100" height="100"%3E%3Crect fill="%23ddd" width="100" height="100"/%3E%3Ctext fill="%23999" font-family="sans-serif" font-size="14" x="50%" y="50%" text-anchor="middle" dy=".3em"%3EImage%3C/text%3E%3C/svg%3E';
+                      }}
+                    />
+                    <Button
+                      type="button"
+                      variant="destructive"
+                      size="sm"
+                      className="absolute -top-2 -right-2 h-7 w-7 p-0 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                      onClick={() => removeImage(index)}
+                      disabled={uploading}
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                    <div className="absolute bottom-1 left-1 bg-black/60 text-white text-xs px-1.5 py-0.5 rounded">
+                      #{index + 1}
+                    </div>
+                  </>
+                )}
               </div>
             ) : null
           )}

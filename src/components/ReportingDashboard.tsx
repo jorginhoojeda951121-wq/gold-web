@@ -300,18 +300,7 @@ export const ReportingDashboard = () => {
     }
   }, [selectedPeriod]);
 
-  // Listen for sync completion events to reload data in background
-  useEffect(() => {
-    const handleDataSynced = () => {
-      loadReportData();
-    };
-
-    window.addEventListener('data-synced', handleDataSynced);
-    
-    return () => {
-      window.removeEventListener('data-synced', handleDataSynced);
-    };
-  }, [loadReportData]);
+  // Removed data-synced listener - no longer using sync queue
 
   // Load data on mount and when user changes
   useEffect(() => {

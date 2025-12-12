@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { useUserStorage } from "@/hooks/useUserStorage";
-import { enqueueChange } from "@/lib/sync";
+import { upsertToSupabase } from "@/lib/supabaseDirect";
 import { getCurrentUserId } from "@/lib/userStorage";
 import { hasPermission, clearRoleCache } from "@/lib/permissions";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -114,45 +114,65 @@ export const BusinessSettings = () => {
   });
 
   const handleSaveBusinessSettings = async () => {
-    await setBusinessSettings(businessSettings);
-    
-    // Sync to Supabase - convert to key-value format
-    const userId = await getCurrentUserId();
-    if (userId) {
-      Object.entries(businessSettings).forEach(([key, value]) => {
-        enqueueChange('settings', 'upsert', {
-          key: `business_${key}`,
-          value: typeof value === 'string' ? value : JSON.stringify(value),
-          user_id: userId,
-        });
+    try {
+      // Update local state first
+      await setBusinessSettings(businessSettings);
+      
+      // Sync to Supabase - convert to key-value format
+      const userId = await getCurrentUserId();
+      if (!userId) {
+        throw new Error('User not authenticated');
+      }
+      
+      // Convert businessSettings object to key-value pairs with business_ prefix
+      const settingsToSave = Object.entries(businessSettings).reduce((acc, [key, value]) => {
+        acc[`business_${key}`] = value;
+        return acc;
+      }, {} as Record<string, any>);
+      
+      // Save all settings at once using upsertToSupabase (which will call upsertSettings)
+      await upsertToSupabase('settings', settingsToSave);
+      
+      toast({
+        title: "Settings Saved",
+        description: "Business settings have been updated successfully."
+      });
+    } catch (error) {
+      console.error('Error saving business settings:', error);
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to save settings. Please try again.",
+        variant: "destructive"
       });
     }
-    
-    toast({
-      title: "Settings Saved",
-      description: "Business settings have been updated successfully."
-    });
   };
 
   const handleSavePaymentSettings = async () => {
-    await setPaymentSettings(paymentSettings);
-    
-    // Sync to Supabase - convert to key-value format
-    const userId = await getCurrentUserId();
-    if (userId) {
-      Object.entries(paymentSettings).forEach(([key, value]) => {
-        enqueueChange('settings', 'upsert', {
-          key: `payment_${key}`,
-          value: typeof value === 'string' ? value : JSON.stringify(value),
-          user_id: userId,
-        });
+    try {
+      // Update local state first
+      await setPaymentSettings(paymentSettings);
+      
+      // Sync to Supabase - wide row in payment_settings
+      await upsertToSupabase('payment_settings', {
+        upi_id: paymentSettings.upiId,
+        business_name: paymentSettings.businessName,
+        gst_number: paymentSettings.gstNumber,
+        bank_account: paymentSettings.bankAccount,
+        ifsc_code: paymentSettings.ifscCode,
+      });
+      
+      toast({
+        title: "Payment Settings Updated",
+        description: "UPI and payment details have been saved."
+      });
+    } catch (error) {
+      console.error('Error saving payment settings:', error);
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to save payment settings. Please try again.",
+        variant: "destructive"
       });
     }
-    
-    toast({
-      title: "Payment Settings Updated",
-      description: "UPI and payment details have been saved."
-    });
   };
 
   const handleToggleNotification = async (key: keyof NotificationSettings) => {
@@ -165,7 +185,7 @@ export const BusinessSettings = () => {
     // Sync to Supabase
     const userId = await getCurrentUserId();
     if (userId) {
-      enqueueChange('settings', 'upsert', {
+      await upsertToSupabase('settings', {
         key: `notification_${key}`,
         value: JSON.stringify(updated[key]),
         user_id: userId,

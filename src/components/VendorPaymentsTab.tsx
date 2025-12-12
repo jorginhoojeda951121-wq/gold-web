@@ -13,7 +13,7 @@ import {
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { getUserData, setUserData } from '@/lib/userStorage';
-import { enqueueChange } from '@/lib/sync';
+import { upsertToSupabase } from '@/lib/supabaseDirect';
 import { CreditCard, History, PlusCircle, Download } from 'lucide-react';
 import {
   Dialog,
@@ -119,7 +119,8 @@ export function VendorPaymentsTab({ vendors, onUpdate }: VendorPaymentsTabProps)
       const updated = [...payments, payment];
       setPayments(updated);
       await setUserData('vendor_payments', updated);
-      await enqueueChange('vendor_payments', 'upsert', payment);
+      // Save directly to Supabase
+      await upsertToSupabase('vendor_payments', payment);
       toast({ title: 'Payment recorded' });
       setForm(prev => ({
         ...prev,

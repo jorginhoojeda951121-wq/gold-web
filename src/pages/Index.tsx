@@ -21,7 +21,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { useOfflineStorage } from "@/hooks/useOfflineStorage";
-import { enqueueChange } from "@/lib/sync";
+import { upsertToSupabase, deleteFromSupabase } from "@/lib/supabaseDirect";
 import { useBusinessName } from "@/hooks/useBusinessName";
 import { getUserData, setUserData } from "@/lib/userStorage";
 import { getSupabase } from "@/lib/supabase";
@@ -251,41 +251,41 @@ const Index = () => {
               : item.type === 'Gemstone' ? 'stone'
                 : 'jewelry';
 
+      // Prepare data for Supabase inventory table
       const newInventoryItem = {
         id: item.id,
-        user_id: userId,
-        item_type: itemType,
-        category: category || 'jewelry',
         name: item.name,
+        category: category || 'jewelry',
+        subcategory: item.type,
+        price: item.price,
+        stock: item.inStock,
+        weight: item.carat ? parseFloat(item.carat.toString()) : null,
+        description: `${item.type}${item.gemstone && item.gemstone !== 'None' ? ` with ${item.gemstone}` : ''}${item.metal ? ` - ${item.metal}` : ''}`,
+        image_url: item.image_1 || item.image || null,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
+
+      // Save to Supabase directly
+      await upsertToSupabase('inventory', newInventoryItem);
+
+      // Also save to local IndexedDB for fast loading
+      inventoryItems.push({
+        ...newInventoryItem,
+        item_type: itemType,
         type: item.type,
         gemstone: item.gemstone,
         carat: item.carat,
         metal: item.metal,
-        attributes: {
-          description: item.type,
-          carat: item.carat,
-          purity: item.type === 'Gold Bar' ? item.metal : undefined,
-          clarity: item.type === 'Gemstone' ? undefined : undefined,
-          cut: item.type === 'Gemstone' ? undefined : undefined,
-        },
-        price: item.price,
         inStock: item.inStock,
-        stock: item.inStock,
         image: item.image || item.image_1 || '',
         image_1: item.image_1 || item.image || '',
         image_2: item.image_2 || '',
         image_3: item.image_3 || '',
         image_4: item.image_4 || '',
         isArtificial: item.isArtificial || false,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      };
-
-      inventoryItems.push(newInventoryItem);
+      });
       await setUserData('inventory_items', inventoryItems);
-
-      // Queue for sync
-      enqueueChange('inventory_items', 'upsert', newInventoryItem);
 
       // Reload inventory to get latest from IndexedDB
       await loadAllInventory();
@@ -323,45 +323,62 @@ const Index = () => {
       const inventoryItems = await getUserData<any[]>('inventory_items') || [];
       const itemIndex = inventoryItems.findIndex((item: any) => item.id === updatedItem.id);
 
+      // Prepare data for Supabase inventory table
+      const category = (updatedItem.category || '').toLowerCase();
       const updatedInventoryItem = {
         id: updatedItem.id,
-        item_type: itemType,
         name: updatedItem.name,
-        type: updatedItem.type,
-        gemstone: updatedItem.gemstone,
-        carat: updatedItem.carat,
-        metal: updatedItem.metal,
-        attributes: {
-          description: updatedItem.type,
-          carat: updatedItem.carat,
-          purity: updatedItem.type === 'Gold Bar' ? updatedItem.metal : undefined,
-          clarity: updatedItem.type === 'Gemstone' ? undefined : undefined,
-          cut: updatedItem.type === 'Gemstone' ? undefined : undefined,
-        },
+        category: category || 'jewelry',
+        subcategory: updatedItem.type,
         price: updatedItem.price,
-        inStock: updatedItem.inStock,
         stock: updatedItem.inStock,
-        image: updatedItem.image || updatedItem.image_1 || "",
-        image_1: updatedItem.image_1 || updatedItem.image || "",
-        image_2: updatedItem.image_2 || "",
-        image_3: updatedItem.image_3 || "",
-        image_4: updatedItem.image_4 || "",
-        isArtificial: updatedItem.isArtificial || false,
+        weight: updatedItem.carat ? parseFloat(updatedItem.carat.toString()) : null,
+        description: `${updatedItem.type}${updatedItem.gemstone && updatedItem.gemstone !== 'None' ? ` with ${updatedItem.gemstone}` : ''}${updatedItem.metal ? ` - ${updatedItem.metal}` : ''}`,
+        image_url: updatedItem.image_1 || updatedItem.image || null,
         updated_at: new Date().toISOString(),
-        created_at: inventoryItems[itemIndex]?.created_at || new Date().toISOString(),
-        user_id: inventoryItems[itemIndex]?.user_id,
       };
 
+      // Update Supabase directly
+      await upsertToSupabase('inventory', updatedInventoryItem);
+
+      // Also update local IndexedDB
       if (itemIndex >= 0) {
-        inventoryItems[itemIndex] = updatedInventoryItem;
+        inventoryItems[itemIndex] = {
+          ...updatedInventoryItem,
+          item_type: itemType,
+          type: updatedItem.type,
+          gemstone: updatedItem.gemstone,
+          carat: updatedItem.carat,
+          metal: updatedItem.metal,
+          inStock: updatedItem.inStock,
+          image: updatedItem.image || updatedItem.image_1 || "",
+          image_1: updatedItem.image_1 || updatedItem.image || "",
+          image_2: updatedItem.image_2 || "",
+          image_3: updatedItem.image_3 || "",
+          image_4: updatedItem.image_4 || "",
+          isArtificial: updatedItem.isArtificial || false,
+          created_at: inventoryItems[itemIndex]?.created_at || new Date().toISOString(),
+        };
       } else {
-        inventoryItems.push(updatedInventoryItem);
+        inventoryItems.push({
+          ...updatedInventoryItem,
+          item_type: itemType,
+          type: updatedItem.type,
+          gemstone: updatedItem.gemstone,
+          carat: updatedItem.carat,
+          metal: updatedItem.metal,
+          inStock: updatedItem.inStock,
+          image: updatedItem.image || updatedItem.image_1 || "",
+          image_1: updatedItem.image_1 || updatedItem.image || "",
+          image_2: updatedItem.image_2 || "",
+          image_3: updatedItem.image_3 || "",
+          image_4: updatedItem.image_4 || "",
+          isArtificial: updatedItem.isArtificial || false,
+          created_at: new Date().toISOString(),
+        });
       }
 
       await setUserData('inventory_items', inventoryItems);
-
-      // Queue for Supabase sync
-      enqueueChange('inventory_items', 'upsert', updatedInventoryItem);
 
       // Update UI state
       setItems(prev => prev.map(item =>
@@ -463,53 +480,53 @@ const Index = () => {
     });
   };
 
-  const handleAddCraftsman = (newCraftsman: Omit<Craftsman, 'id'>) => {
+  const handleAddCraftsman = async (newCraftsman: Omit<Craftsman, 'id'>) => {
     const craftsman: Craftsman = {
       ...newCraftsman,
       id: Date.now().toString()
     };
     setCraftsmen([...craftsmen, craftsman]);
-    // Queue for sync to Supabase - use local structure, sync will transform
-    enqueueChange('craftsmen', 'upsert', {
+    
+    // Save directly to Supabase
+    await upsertToSupabase('craftsmen', {
       id: craftsman.id,
       name: craftsman.name,
-      specialty: craftsman.specialty,
-      experience: craftsman.experience, // Keep as-is (can be string or number), sync will parse
-      phone: craftsman.phone || '', // Local uses 'contact', sync will map to 'phone'
+      specialty: craftsman.specialty || '',
+      experience_years: typeof craftsman.experience === 'number' ? craftsman.experience : (typeof craftsman.experience === 'string' ? parseInt(craftsman.experience) || 0 : 0),
+      phone: craftsman.phone || '',
       email: craftsman.email || '',
       address: craftsman.address || '',
-      status: craftsman.status || 'available', // Sync will map to Supabase status values
-      rating: craftsman.rating || 0.0,
+      status: craftsman.status || 'available',
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     });
   };
 
-  const handleUpdateCraftsman = (id: string, updates: Partial<Craftsman>) => {
+  const handleUpdateCraftsman = async (id: string, updates: Partial<Craftsman>) => {
     const updatedCraftsmen = craftsmen.map(c => c.id === id ? { ...c, ...updates } : c);
     setCraftsmen(updatedCraftsmen);
-    // Queue for sync to Supabase - use local structure, sync will transform
+    
     const updatedCraftsman = updatedCraftsmen.find(c => c.id === id);
     if (updatedCraftsman) {
-      enqueueChange('craftsmen', 'upsert', {
+      // Save directly to Supabase
+      await upsertToSupabase('craftsmen', {
         id: updatedCraftsman.id,
         name: updatedCraftsman.name,
-        specialty: updatedCraftsman.specialty,
-        experience: updatedCraftsman.experience, // Keep as-is, sync will parse
-        phone: updatedCraftsman.phone || '', // Local uses 'contact'
+        specialty: updatedCraftsman.specialty || '',
+        experience_years: typeof updatedCraftsman.experience === 'number' ? updatedCraftsman.experience : (typeof updatedCraftsman.experience === 'string' ? parseInt(updatedCraftsman.experience) || 0 : 0),
+        phone: updatedCraftsman.phone || '',
         email: updatedCraftsman.email || '',
         address: updatedCraftsman.address || '',
-        status: updatedCraftsman.status || 'available', // Sync will map to Supabase status
-        rating: updatedCraftsman.rating || 0.0,
+        status: updatedCraftsman.status || 'available',
         updated_at: new Date().toISOString(),
       });
     }
   };
 
-  const handleDeleteCraftsman = (id: string) => {
+  const handleDeleteCraftsman = async (id: string) => {
     setCraftsmen(craftsmen.filter(c => c.id !== id));
-    // Queue for sync to Supabase
-    enqueueChange('craftsmen', 'delete', { id });
+    // Delete directly from Supabase
+    await deleteFromSupabase('craftsmen', id);
   };
 
   return (

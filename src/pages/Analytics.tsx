@@ -380,18 +380,7 @@ const Analytics = () => {
     loadAnalyticsData();
   }, [loadAnalyticsData]);
 
-  // Listen for sync completion events to reload data in background
-  useEffect(() => {
-    const handleDataSynced = () => {
-      loadAnalyticsData();
-    };
-
-    window.addEventListener('data-synced', handleDataSynced);
-    
-    return () => {
-      window.removeEventListener('data-synced', handleDataSynced);
-    };
-  }, [loadAnalyticsData]);
+  // Removed data-synced listener - no longer using sync queue
 
   return (
     <div className="min-h-screen bg-gradient-elegant">

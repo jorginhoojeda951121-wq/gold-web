@@ -44,7 +44,7 @@ export function VendorDetailsDialog({ open, onOpenChange, vendor, onSuccess }: V
   const handleUpdate = async () => {
     try {
       setLoading(true);
-      const { enqueueChange } = await import('@/lib/sync');
+      const { upsertDirect } = await import('@/lib/supabaseDirect');
       const { getUserData, setUserData, getCurrentUserId } = await import('@/lib/userStorage');
       const userId = await getCurrentUserId();
       
@@ -69,8 +69,8 @@ export function VendorDetailsDialog({ open, onOpenChange, vendor, onSuccess }: V
         await setUserData('vendors', vendors);
       }
 
-      // Queue for sync to Supabase
-      await enqueueChange('vendors', 'upsert', {
+      // Update directly in Supabase
+      await upsertDirect('vendors', {
         id: vendor.id,
         user_id: userId,
         ...updatedVendor,

@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ComboboxInput } from "@/components/ui/combobox";
 import { useToast } from "@/hooks/use-toast";
-import { enqueueChange } from "@/lib/sync";
+import { upsertDirect, deleteDirect } from "@/lib/supabaseDirect";
 import { getUserData, setUserData } from "@/lib/userStorage";
 import { MultiImageUpload } from "@/components/MultiImageUpload";
 import { StoneItemCard, StoneItem } from "@/components/StoneItemCard";
@@ -98,11 +98,7 @@ const PreciousStones = () => {
       loadStoneItems();
     };
 
-    window.addEventListener('data-synced', handleDataSynced);
-    
-    return () => {
-      window.removeEventListener('data-synced', handleDataSynced);
-    };
+    // Removed data-synced listener - no longer using sync queue
   }, [loadStoneItems]);
 
   const filteredItems = stones.filter(item =>
@@ -172,8 +168,8 @@ const PreciousStones = () => {
       inventoryItems.push(newInventoryItem);
       await setUserData('inventory_items', inventoryItems);
       
-      // Queue for sync
-      enqueueChange('inventory_items', 'upsert', newInventoryItem);
+      // Insert directly into Supabase
+      await upsertDirect('inventory_items', newInventoryItem);
       
       // Update UI state
       setStones(prev => [...prev, newItem]);
@@ -281,8 +277,8 @@ const PreciousStones = () => {
       }
       await setUserData('inventory_items', inventoryItems);
       
-      // Queue for sync
-      enqueueChange('inventory_items', 'upsert', inventoryUpdate);
+      // Update directly in Supabase
+      await upsertDirect('inventory_items', inventoryUpdate);
       
       // Update UI state
       setStones(prev => prev.map(item => item.id === selectedItem.id ? updatedItem : item));
@@ -323,8 +319,8 @@ const PreciousStones = () => {
         const inventoryItems = (await getUserData<any[]>('inventory_items')) || [];
         await setUserData('inventory_items', inventoryItems.filter((item: any) => item.id !== id));
         
-        // Queue for sync
-        enqueueChange('inventory_items', 'delete', { id });
+        // Delete directly from Supabase
+        await deleteDirect('inventory_items', id);
         
         // Update UI state
         setStones(prev => prev.filter(item => item.id !== id));

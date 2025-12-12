@@ -99,11 +99,11 @@ export function SupplierInvoicesTab({ vendors, onUpdate }: SupplierInvoicesTabPr
 
     try {
       const { setUserData } = await import('@/lib/userStorage');
-      const { enqueueChange } = await import('@/lib/sync');
+      const { upsertToSupabase } = await import('@/lib/supabaseDirect');
       const updated = [...invoices, newInvoice];
       setInvoices(updated);
       await setUserData('supplier_invoices', updated);
-      await enqueueChange('supplier_invoices', 'upsert', newInvoice);
+      await upsertToSupabase('supplier_invoices', newInvoice);
       toast({ title: 'Invoice created' });
       setForm({
         vendor_id: '',

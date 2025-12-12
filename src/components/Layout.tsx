@@ -6,21 +6,16 @@ import { Outlet } from "react-router-dom";
 import { useLocation } from "react-router-dom";
 import { getSupabase } from "@/lib/supabase";
 import { useToast } from "@/hooks/use-toast";
-import { syncAll } from "@/lib/sync";
+// Sync removed - all operations go directly to Supabase
 import { useBusinessName } from "@/hooks/useBusinessName";
 
 export const Layout = () => {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
-  const [timeUntilNextSync, setTimeUntilNextSync] = useState(30 * 60); // 30 minutes in seconds
-  const [isSyncing, setIsSyncing] = useState(false);
-  const [lastSyncTime, setLastSyncTime] = useState<Date | null>(null);
   const location = useLocation();
   const isAuthRoute = location.pathname === "/auth";
   const supabase = getSupabase();
   const { toast } = useToast();
-  const syncIntervalRef = useRef<number | null>(null);
-  const countdownIntervalRef = useRef<number | null>(null);
   const businessName = useBusinessName();
 
   // Cache user ID immediately on mount to ensure data loading works
@@ -41,122 +36,10 @@ export const Layout = () => {
     })();
   }, [isAuthRoute, supabase]);
 
-  // Auto-sync on page load and every 30 minutes
-  useEffect(() => {
-    let cancelled = false;
-    const SYNC_INTERVAL = 30 * 60 * 1000; // 30 minutes in milliseconds
+  // Sync removed - all operations go directly to Supabase
+  // No background sync needed
 
-    const runSync = async (skipRecentCheck = false) => {
-      // Check if we should skip sync
-      if (isAuthRoute) return;
-      if (cancelled) return;
-      
-      // Skip if synced recently (within last 5 minutes) unless forced
-      if (!skipRecentCheck && lastSyncTime) {
-        const timeSinceLastSync = Date.now() - lastSyncTime.getTime();
-        const fiveMinutes = 5 * 60 * 1000;
-        if (timeSinceLastSync < fiveMinutes) {
-          return;
-        }
-      }
-      
-      try {
-        // Verify user is authenticated
-        const { data } = await supabase.auth.getSession();
-        if (!data.session) {
-          return;
-        }
-        
-        setIsSyncing(true);
-        setTimeUntilNextSync(30 * 60);
-        
-        // Show sync notification
-        toast({
-          title: "Syncing...",
-          description: "Synchronizing data with server",
-        });
-
-        const startTime = Date.now();
-        await syncAll();
-        const duration = Math.round((Date.now() - startTime) / 1000);
-
-        if (!cancelled) {
-          setLastSyncTime(new Date());
-          setIsSyncing(false);
-          setTimeUntilNextSync(30 * 60);
-          
-          // Show success notification
-          toast({
-            title: "✓ Sync Complete",
-            description: `Data synced in ${duration}s`,
-          });
-          
-          // Trigger custom event that pages can listen to for reloading data
-          window.dispatchEvent(new CustomEvent('data-synced'));
-        }
-      } catch (e: any) {
-        if (!cancelled) {
-          setIsSyncing(false);
-          setTimeUntilNextSync(30 * 60);
-          const msg = e?.message || 'Unknown error';
-          console.error('Sync error:', e);
-          
-          // Show error notification
-          toast({
-            title: "Sync Failed",
-            description: msg,
-            variant: "destructive",
-          });
-        }
-      }
-    };
-
-    // Run sync after a longer delay to let the page load first and display local data
-    // This prevents blocking the UI on initial load
-    const initialSyncTimer = setTimeout(() => {
-      runSync();
-    }, 5000); // 5 seconds delay - enough time for page to load and display local data
-
-    // Set up periodic sync every 30 minutes (force sync on interval)
-    syncIntervalRef.current = window.setInterval(() => runSync(true), SYNC_INTERVAL);
-
-    return () => {
-      cancelled = true;
-      clearTimeout(initialSyncTimer);
-      if (syncIntervalRef.current) {
-        window.clearInterval(syncIntervalRef.current);
-      }
-    };
-  }, [isAuthRoute, supabase, toast]);
-
-  // Countdown timer update every second
-  useEffect(() => {
-    if (isAuthRoute) return;
-
-    const updateCountdown = () => {
-      setTimeUntilNextSync((prev) => {
-        if (prev <= 1) {
-          return 30 * 60; // Reset to 30 minutes when it reaches 0
-        }
-        return prev - 1;
-      });
-    };
-
-    countdownIntervalRef.current = window.setInterval(updateCountdown, 1000);
-
-    return () => {
-      if (countdownIntervalRef.current) {
-        window.clearInterval(countdownIntervalRef.current);
-      }
-    };
-  }, [isAuthRoute]);
-
-  // Format time remaining (MM:SS)
-  const formatTimeRemaining = (seconds: number): string => {
-    const minutes = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-  };
+  // Sync countdown removed - no sync needed
 
   const toggleSidebar = () => {
     setSidebarCollapsed(!sidebarCollapsed);
@@ -258,30 +141,6 @@ export const Layout = () => {
             
             {/* Right side actions */}
             <div className="flex items-center gap-3">
-              {/* Sync Countdown Timer */}
-              {!isAuthRoute && (
-                <div className={`hidden sm:flex items-center gap-2 px-3 py-2 rounded-lg border ${
-                  isSyncing 
-                    ? 'bg-blue-50 border-blue-200' 
-                    : timeUntilNextSync <= 300 
-                      ? 'bg-yellow-50 border-yellow-200'
-                      : 'bg-green-50 border-green-200'
-                }`}>
-                  {isSyncing ? (
-                    <>
-                      <RefreshCw className="h-4 w-4 text-blue-600 animate-spin" />
-                      <span className="text-sm font-medium text-blue-700">Syncing...</span>
-                    </>
-                  ) : (
-                    <>
-                      <Clock className="h-4 w-4 text-green-600" />
-                      <span className="text-sm font-medium text-green-700">
-                        Next sync: {formatTimeRemaining(timeUntilNextSync)}
-                      </span>
-                    </>
-                  )}
-                </div>
-              )}
               <div className="hidden sm:flex items-center gap-2 px-3 py-2 bg-green-50 rounded-lg border border-green-200">
                 <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
                 <span className="text-sm font-medium text-green-700">Live</span>

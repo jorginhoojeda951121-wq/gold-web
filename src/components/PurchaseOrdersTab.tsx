@@ -99,11 +99,11 @@ export function PurchaseOrdersTab({ vendors, onUpdate }: PurchaseOrdersTabProps)
 
     try {
       const { setUserData } = await import('@/lib/userStorage');
-      const { enqueueChange } = await import('@/lib/sync');
+      const { upsertToSupabase } = await import('@/lib/supabaseDirect');
       const updated = [...orders, newOrder];
       setOrders(updated);
       await setUserData('purchase_orders', updated);
-      await enqueueChange('purchase_orders', 'upsert', newOrder);
+      await upsertToSupabase('purchase_orders', newOrder);
       toast({ title: 'Purchase order created' });
       setForm({
         vendor_id: '',

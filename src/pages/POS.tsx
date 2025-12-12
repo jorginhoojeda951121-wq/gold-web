@@ -37,7 +37,7 @@ import { getUserData, setUserData } from "@/lib/userStorage";
 import { generateReceiptPDF, ReceiptData } from "@/lib/pdfGenerator";
 import ItemDetailsDialog from "@/components/ItemDetailsDialog";
 // Removed idbGet, idbSet - now using getUserData, setUserData from userStorage
-import { enqueueChange } from "@/lib/sync";
+import { upsertToSupabase, deleteFromSupabase } from "@/lib/supabaseDirect";
 import { BarcodeInput } from "@/components/BarcodeScanner";
 
 interface CartItem {
@@ -241,7 +241,8 @@ const POS = () => {
       const inventoryData = await getUserData<any[]>("inventory_items") || [];
       const updatedInventory = [...inventoryData];
 
-      updatedItems.forEach(item => {
+      // Process items sequentially to avoid race conditions
+      for (const item of updatedItems) {
         const now = new Date().toISOString();
         
         // Determine item type for inventory_items
@@ -249,40 +250,47 @@ const POS = () => {
                        : item.type === 'Gemstone' ? 'stone'
                        : 'jewelry';
 
-        // Update inventory_items table (CRITICAL for sync)
+        // Find inventory item
         const inventoryIndex = updatedInventory.findIndex((inv: any) => inv.id === item.id);
         const inventoryItem = inventoryIndex >= 0 ? updatedInventory[inventoryIndex] : {};
-        
+
+        // Prepare data for Supabase inventory table (no attributes field)
         const inventoryUpdate = {
           id: item.id,
-          item_type: itemType,
           name: item.name || inventoryItem.name || '',
-          type: item.type || inventoryItem.type || '',
+          category: itemType,
+          subcategory: item.type || inventoryItem.type || '',
           price: item.price || inventoryItem.price || 0,
-          inStock: item.inStock, // CRITICAL: Update stock quantity
-          image: item.image || inventoryItem.image || '',
-          attributes: {
-            ...inventoryItem.attributes,
-            description: item.type || inventoryItem.attributes?.description || '',
-            carat: item.carat || inventoryItem.attributes?.carat || 0,
-            purity: item.type === 'Gold Bar' ? item.metal : inventoryItem.attributes?.purity,
-            weight: inventoryItem.attributes?.weight,
-            clarity: inventoryItem.attributes?.clarity,
-            cut: inventoryItem.attributes?.cut,
-          },
-          isArtificial: item.isArtificial || inventoryItem.isArtificial || false,
-          updated_at: now, // Timestamp for conflict resolution
+          stock: item.inStock, // CRITICAL: Update stock quantity
+          image_url: item.image || inventoryItem.image || inventoryItem.image_url || '',
+          description: `${item.type || ''}${item.metal ? ` - ${item.metal}` : ''}`,
+          updated_at: now,
         };
 
-        if (inventoryIndex >= 0) {
-          updatedInventory[inventoryIndex] = inventoryUpdate;
-        } else {
-          updatedInventory.push(inventoryUpdate);
-        }
+        // Update Supabase directly
+        await upsertToSupabase('inventory', inventoryUpdate);
 
-        // Enqueue change for sync (CRITICAL: This ensures server gets updated stock)
-        enqueueChange('inventory_items', 'upsert', inventoryUpdate);
-      });
+        // Also update local IndexedDB for fast access
+        if (inventoryIndex >= 0) {
+          updatedInventory[inventoryIndex] = {
+            ...inventoryUpdate,
+            item_type: itemType,
+            type: item.type || inventoryItem.type || '',
+            inStock: item.inStock,
+            image: item.image || inventoryItem.image || '',
+            isArtificial: item.isArtificial || inventoryItem.isArtificial || false,
+          };
+        } else {
+          updatedInventory.push({
+            ...inventoryUpdate,
+            item_type: itemType,
+            type: item.type || inventoryItem.type || '',
+            inStock: item.inStock,
+            image: item.image || inventoryItem.image || '',
+            isArtificial: item.isArtificial || false,
+          });
+        }
+      }
 
       // Save back to IndexedDB (Single Source of Truth)
       await setUserData("inventory_items", updatedInventory);
@@ -318,8 +326,8 @@ const POS = () => {
     try {
       await setRecentInvoices(prev => prev.filter(inv => inv.id !== invoiceToDelete.id));
       
-      // Also enqueue deletion for sync (use pos_recentInvoices, not pos_invoices)
-      enqueueChange('pos_recentInvoices', 'delete', { id: invoiceToDelete.id });
+      // Delete from Supabase directly (sales table)
+      await deleteFromSupabase('sales', invoiceToDelete.id);
       
       toast({
         title: "Invoice Deleted",
@@ -347,8 +355,8 @@ const POS = () => {
       // Set item to add and pre-fill details from item
       setItemToAdd(item);
       setItemDetails({
-        weight: fullItem?.attributes?.weight || fullItem?.weight || "",
-        purity: item.metal || fullItem?.attributes?.purity || fullItem?.purity || "",
+        weight: fullItem?.weight || "",
+        purity: item.metal || fullItem?.purity || "",
         customRate: "",
         taxRate: (item.taxRate ?? 3).toString(),
         details: ""

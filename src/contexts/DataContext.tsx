@@ -1,14 +1,6 @@
-/**
- * Data Context - Centralized data management for the entire application
- * Fetches all data from Supabase and provides it through context
- */
-
 import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
 import { fetchAll } from '@/lib/supabaseDirect';
 import { getSupabase } from '@/lib/supabase';
-import { getCurrentUserId } from '@/lib/userStorage';
-
-// Data types
 export interface InventoryItem {
   id: string;
   name: string;
@@ -193,43 +185,35 @@ export interface CartItem {
   [key: string]: any;
 }
 
-// Context state interface
 interface DataContextType {
-  // Inventory data
   inventoryItems: InventoryItem[];
   goldItems: InventoryItem[];
   jewelryItems: InventoryItem[];
   stoneItems: InventoryItem[];
   artificialItems: InventoryItem[];
   
-  // Business data
   vendors: Vendor[];
   reservations: Reservation[];
   customers: Customer[];
   customerTransactions: CustomerTransaction[];
   craftsmen: Craftsman[];
   
-  // Staff data
   staff: Employee[];
   attendance: AttendanceRecord[];
   salaryRules: SalaryRule[];
   salarySlips: SalarySlip[];
   
-  // Settings
   businessSettings: BusinessSettings;
   paymentSettings: PaymentSettings;
   notificationSettings: NotificationSettings;
   goldRateSettings: GoldRateSettings;
   
-  // POS data
   posCart: CartItem[];
   posCustomerName: string;
   posRecentInvoices: Invoice[];
   
-  // Subscription
   subscriptionStatus: SubscriptionStatus | null;
   
-  // Loading states
   loading: Record<string, boolean> & {
     inventory: boolean;
     vendors: boolean;
@@ -240,7 +224,6 @@ interface DataContextType {
     settings: boolean;
   };
   
-  // Update functions
   updateInventoryItems: (items: InventoryItem[]) => void;
   updateVendors: (vendors: Vendor[]) => void;
   updateReservations: (reservations: Reservation[]) => void;
@@ -260,7 +243,6 @@ interface DataContextType {
   updatePosRecentInvoices: (invoices: Invoice[]) => void;
   updateSubscriptionStatus: (status: SubscriptionStatus | null) => void;
   
-  // Refresh functions
   refreshInventory: () => Promise<void>;
   refreshVendors: () => Promise<void>;
   refreshReservations: () => Promise<void>;
@@ -273,45 +255,37 @@ interface DataContextType {
 
 const DataContext = createContext<DataContextType | undefined>(undefined);
 
-// Promise cache to prevent duplicate concurrent fetches
 const fetchingPromises: Record<string, Promise<any>> = {};
 
 export const DataProvider = ({ children }: { children: ReactNode }) => {
-  // Inventory data
   const [inventoryItems, setInventoryItems] = useState<InventoryItem[]>([]);
   const [goldItems, setGoldItems] = useState<InventoryItem[]>([]);
   const [jewelryItems, setJewelryItems] = useState<InventoryItem[]>([]);
   const [stoneItems, setStoneItems] = useState<InventoryItem[]>([]);
   const [artificialItems, setArtificialItems] = useState<InventoryItem[]>([]);
   
-  // Business data
   const [vendors, setVendors] = useState<Vendor[]>([]);
   const [reservations, setReservations] = useState<Reservation[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [customerTransactions, setCustomerTransactions] = useState<CustomerTransaction[]>([]);
   const [craftsmen, setCraftsmen] = useState<Craftsman[]>([]);
   
-  // Staff data
   const [staff, setStaff] = useState<Employee[]>([]);
   const [attendance, setAttendance] = useState<AttendanceRecord[]>([]);
   const [salaryRules, setSalaryRules] = useState<SalaryRule[]>([]);
   const [salarySlips, setSalarySlips] = useState<SalarySlip[]>([]);
   
-  // Settings
   const [businessSettings, setBusinessSettings] = useState<BusinessSettings>({});
   const [paymentSettings, setPaymentSettings] = useState<PaymentSettings>({});
   const [notificationSettings, setNotificationSettings] = useState<NotificationSettings>({});
   const [goldRateSettings, setGoldRateSettings] = useState<GoldRateSettings>({});
   
-  // POS data
   const [posCart, setPosCart] = useState<CartItem[]>([]);
   const [posCustomerName, setPosCustomerName] = useState<string>('');
   const [posRecentInvoices, setPosRecentInvoices] = useState<Invoice[]>([]);
   
-  // Subscription
   const [subscriptionStatus, setSubscriptionStatus] = useState<SubscriptionStatus | null>(null);
   
-  // Loading states
   const [loading, setLoading] = useState<DataContextType['loading']>({
     inventory: false,
     vendors: false,
@@ -322,7 +296,6 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     settings: false,
   });
 
-  // Helper function to parse JSON fields in vendor data
   const parseVendorData = useCallback((vendors: Vendor[]): Vendor[] => {
     return vendors.map((vendor: any) => {
       const parsedVendor = { ...vendor };
@@ -337,7 +310,6 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     });
   }, []);
 
-  // Helper function to parse JSON fields in reservation data
   const parseReservationData = useCallback((reservations: Reservation[]): Reservation[] => {
     return reservations.map((reservation: any) => {
       let categoryPrefs = reservation.category_preferences;
@@ -370,7 +342,6 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     });
   }, []);
 
-  // Helper function to fetch data with loading state
   const fetchData = useCallback(async <T,>(
     key: string,
     setData: (data: T) => void,
@@ -378,7 +349,6 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     transform?: (data: any) => T
   ): Promise<void> => {
     try {
-      // Check if fetch is already in progress
       if (fetchingPromises[key]) {
         const data = await fetchingPromises[key];
         setData(transform ? transform(data) : (data as T));
@@ -401,12 +371,10 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     }
   }, []);
 
-  // Listen for auth state changes to clear data on logout
   useEffect(() => {
     const supabase = getSupabase();
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       if (!session) {
-        // Clear all data on logout
         setInventoryItems([]);
         setGoldItems([]);
         setJewelryItems([]);
@@ -437,19 +405,16 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     };
   }, []);
 
-  // Load all data on mount - SETTINGS FIRST (very important!)
   useEffect(() => {
     const loadAllData = async () => {
       const supabase = getSupabase();
       const { data: { session } } = await supabase.auth.getSession();
       
       if (!session) {
-        // Retry after a delay if session not ready
         setTimeout(loadAllData, 500);
         return;
       }
 
-      // STEP 1: Load settings FIRST (critical - other operations may depend on settings)
       console.log('📋 Loading settings data first...');
       await Promise.all([
         fetchData('businessSettings', setBusinessSettings, (loading) => 
@@ -460,12 +425,10 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
       ]);
       console.log('✅ Settings loaded');
 
-      // STEP 2: Load all other data in parallel (after settings are loaded)
       console.log('📦 Loading other data...');
       await Promise.all([
         fetchData('inventory_items', (data: InventoryItem[]) => {
           setInventoryItems(data);
-          // Filter by category
           setGoldItems(data.filter(item => 
             item.category === 'gold' || item.item_type === 'gold'
           ));
@@ -499,7 +462,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         
         fetchData('attendance', setAttendance, () => {}),
         fetchData('salary_rules', setSalaryRules, () => {}),
-        fetchData('salary_rules', setSalarySlips, () => {}), // Note: might need separate key
+        fetchData('salary_rules', setSalarySlips, () => {}),
         
         fetchData('pos_recentInvoices', setPosRecentInvoices, () => {}),
         fetchData('user_subscriptions', setSubscriptionStatus, () => {}),
@@ -510,7 +473,6 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     loadAllData();
   }, [fetchData, parseVendorData, parseReservationData]);
 
-  // Refresh functions for settings (important - refresh settings first)
   const refreshSettings = useCallback(async () => {
     console.log('🔄 Refreshing settings...');
     await Promise.all([
@@ -523,7 +485,6 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     console.log('✅ Settings refreshed');
   }, [fetchData]);
 
-  // Refresh functions
   const refreshInventory = useCallback(async () => {
     await fetchData('inventory_items', (data: InventoryItem[]) => {
       setInventoryItems(data);
@@ -568,9 +529,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
   }, [fetchData]);
 
   const refreshAll = useCallback(async () => {
-    // Always refresh settings first
     await refreshSettings();
-    // Then refresh all other data
     await Promise.all([
       refreshInventory(),
       refreshVendors(),
@@ -582,7 +541,6 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
   }, [refreshSettings, refreshInventory, refreshVendors, refreshReservations, refreshCustomers, refreshCraftsmen, refreshStaff]);
 
   const value: DataContextType = {
-    // Data
     inventoryItems,
     goldItems,
     jewelryItems,
@@ -606,10 +564,8 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     posRecentInvoices,
     subscriptionStatus,
     
-    // Loading
     loading,
     
-    // Update functions
     updateInventoryItems: setInventoryItems,
     updateVendors: setVendors,
     updateReservations: setReservations,
@@ -629,7 +585,6 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     updatePosRecentInvoices: setPosRecentInvoices,
     updateSubscriptionStatus: setSubscriptionStatus,
     
-    // Refresh functions
     refreshSettings,
     refreshInventory,
     refreshVendors,

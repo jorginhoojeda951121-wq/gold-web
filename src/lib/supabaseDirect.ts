@@ -1,16 +1,7 @@
-/**
- * Direct Supabase operations - NO SYNC, NO QUEUE
- * All operations go directly to Supabase database
- * OPTIMIZED: Clears cache on updates for instant UI updates
- */
-
 import { getSupabase } from './supabase';
 import { getCurrentUserId } from './userStorage';
 import { clearUserStorageCache } from '@/hooks/useUserStorage';
 
-/**
- * Insert or update a record directly in Supabase
- */
 export async function upsertToSupabase(
   table: string,
   data: any
@@ -37,7 +28,6 @@ export async function upsertToSupabase(
 
   const actualTable = tableMap[table] || table;
 
-  // Special handling for settings table (wide row) and payment_settings (wide row)
   if (actualTable === 'settings') {
     return upsertSettings(data, userId);
   }
@@ -45,17 +35,14 @@ export async function upsertToSupabase(
     return upsertPaymentSettings(data, userId);
   }
 
-  // Ensure user_id is set
   const record = {
     ...data,
     user_id: userId,
     updated_at: new Date().toISOString(),
   };
 
-  // Remove fields that don't exist in database
   const cleanedRecord = cleanRecordForTable(actualTable, record);
 
-  // Handle tables without id field
   if (!cleanedRecord.id && actualTable !== 'settings') {
     cleanedRecord.id = data.id || `${actualTable}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
   }
@@ -72,7 +59,7 @@ export async function upsertToSupabase(
   // Clear any in-progress fetch promises for related keys
   // This ensures fresh data is fetched on next read
   const keyMap: { [table: string]: string[] } = {
-    'inventory': ['gold_items', 'jewelry_items', 'stone_items', 'stones_items', 'artificial_items', 'inventory_items'],
+    'inventory': ['gold_items', 'jewelry_items', 'stone_items', 'stones_items', 'artificial_items', 'artificial_stones_items', 'inventory_items'],
     'staff': ['staff'],
     'customers': ['customers'],
     'craftsmen': ['craftsmen'],
@@ -86,15 +73,9 @@ export async function upsertToSupabase(
   keysToClear.forEach(key => clearUserStorageCache(key));
 }
 
-/**
- * Special handler for settings table (wide row per user_id)
- * Matches new schema: columns like business_address, business_phone, etc.,
- * with primary key on user_id.
- */
 async function upsertSettings(data: any, userId: string): Promise<void> {
   const supabase = getSupabase();
 
-  // Columns that exist in the new settings table (all lowercase in Postgres)
   const allowedColumns = new Set([
     'business_address',
     'business_businessname',
@@ -108,7 +89,6 @@ async function upsertSettings(data: any, userId: string): Promise<void> {
 
   const toColumnName = (key: string) => key.toLowerCase();
 
-  // Build a single-row payload keyed by user_id
   const record: Record<string, any> = {
     user_id: userId,
     updated_at: new Date().toISOString(),
@@ -117,7 +97,6 @@ async function upsertSettings(data: any, userId: string): Promise<void> {
   const addEntry = (key: string, value: any) => {
     const column = toColumnName(key);
     if (!allowedColumns.has(column)) return;
-    // Store non-string values as JSON text to avoid losing booleans/numbers
     record[column] = typeof value === 'string' ? value : JSON.stringify(value);
   };
 
@@ -127,7 +106,6 @@ async function upsertSettings(data: any, userId: string): Promise<void> {
     Object.entries(data).forEach(([key, value]) => addEntry(key, value));
   }
 
-  // If nothing matched the schema, do nothing to avoid errors
   const hasUpdatableFields = Object.keys(record).some(
     (key) => key !== 'user_id' && key !== 'updated_at'
   );
@@ -144,14 +122,10 @@ async function upsertSettings(data: any, userId: string): Promise<void> {
     throw error;
   }
 
-  // Clear any in-progress fetch promises for settings keys
   clearUserStorageCache('businessSettings');
   clearUserStorageCache('notificationSettings');
 }
 
-/**
- * Handler for payment_settings table (wide row per user_id)
- */
 async function upsertPaymentSettings(data: any, userId: string): Promise<void> {
   const supabase = getSupabase();
 
@@ -207,13 +181,9 @@ async function upsertPaymentSettings(data: any, userId: string): Promise<void> {
     throw error;
   }
 
-  // Clear any in-progress fetch promises for payment settings
   clearUserStorageCache('paymentSettings');
 }
 
-/**
- * Delete a record directly from Supabase
- */
 export async function deleteFromSupabase(
   table: string,
   id: string
@@ -225,13 +195,13 @@ export async function deleteFromSupabase(
     throw new Error('User must be authenticated');
   }
 
-  // Map old table names to actual Supabase table names
   const tableMap: { [key: string]: string } = {
     'gold_items': 'inventory',
     'jewelry_items': 'inventory',
     'stone_items': 'inventory',
     'stones_items': 'inventory',
     'artificial_items': 'inventory',
+    'artificial_stones_items': 'inventory',
     'inventory_items': 'inventory',
     'businessSettings': 'settings',
     'gold_rate_settings': 'gold_rates',
@@ -243,7 +213,7 @@ export async function deleteFromSupabase(
     .from(actualTable)
     .delete()
     .eq('id', id)
-    .eq('user_id', userId); // Ensure user isolation
+    .eq('user_id', userId);
 
   if (error) {
     console.error(`Error deleting from ${actualTable}:`, error);
@@ -253,7 +223,7 @@ export async function deleteFromSupabase(
   // Clear any in-progress fetch promises for related keys
   // This ensures fresh data is fetched on next read
   const keyMap: { [table: string]: string[] } = {
-    'inventory': ['gold_items', 'jewelry_items', 'stone_items', 'stones_items', 'artificial_items', 'inventory_items'],
+    'inventory': ['gold_items', 'jewelry_items', 'stone_items', 'stones_items', 'artificial_items', 'artificial_stones_items', 'inventory_items'],
     'staff': ['staff'],
     'customers': ['customers'],
     'craftsmen': ['craftsmen'],
@@ -267,17 +237,12 @@ export async function deleteFromSupabase(
   keysToClear.forEach(key => clearUserStorageCache(key));
 }
 
-/**
- * Clean record to match actual database schema
- */
 function cleanRecordForTable(table: string, record: any): any {
   const cleaned = { ...record };
 
-  // Remove attributes field - doesn't exist in inventory table
   if (table === 'inventory' || table === 'inventory_items') {
     delete cleaned.attributes;
 
-    // Remove stone-specific fields that don't exist in inventory table
     delete cleaned.clarity;
     delete cleaned.color;
     delete cleaned.size;
@@ -292,21 +257,17 @@ function cleanRecordForTable(table: string, record: any): any {
     delete cleaned.making_charges;
     delete cleaned.is_artificial;
 
-    // Map inventory_items fields to inventory table FIRST (before setting defaults)
     if (cleaned.item_type) {
-      // Normalize category values to match database constraint
-      // Allowed: 'gold', 'silver', 'platinum', 'stones', 'jewelry', 'artificial', 'equipment', 'other'
       let normalizedCategory = cleaned.item_type.toLowerCase();
       if (normalizedCategory === 'stone') {
-        normalizedCategory = 'stones'; // Database uses plural 'stones'
+        normalizedCategory = 'stones';
       } else if (normalizedCategory === 'precious') {
-        normalizedCategory = 'stones'; // Precious stones → stones
+        normalizedCategory = 'stones';
       }
       cleaned.category = normalizedCategory;
       delete cleaned.item_type;
     }
 
-    // Also normalize category if it's set directly
     if (cleaned.category) {
       const normalized = cleaned.category.toLowerCase();
       if (normalized === 'stone') {
@@ -316,16 +277,12 @@ function cleanRecordForTable(table: string, record: any): any {
       }
     }
 
-    // Map 'type' field to 'subcategory' (inventory table requires subcategory)
     if (cleaned.type) {
       cleaned.subcategory = cleaned.type;
       delete cleaned.type;
     }
 
-    // Ensure subcategory has a value (required by database)
-    // This check happens AFTER mapping item_type to category
     if (!cleaned.subcategory) {
-      // Provide default based on category
       if (cleaned.category === 'gold') {
         cleaned.subcategory = 'Gold Bar';
       } else if (cleaned.category === 'stones' || cleaned.category === 'stone') {
@@ -340,59 +297,39 @@ function cleanRecordForTable(table: string, record: any): any {
       cleaned.stock = cleaned.inStock;
       delete cleaned.inStock;
     }
-    // Map image fields - inventory table uses image_1, image_2, image_3, image_4
-    // If we have 'image' field, map it to image_1 if image_1 doesn't exist
     if (cleaned.image && !cleaned.image_1) {
       cleaned.image_1 = cleaned.image;
     }
-    // Remove old 'image_url' field if it exists (migration renamed it to image_1)
     delete cleaned.image_url;
-    // Keep image_1, image_2, image_3, image_4 as they are supported by inventory table
-    // Remove 'image' field after mapping to image_1
     if (cleaned.image_1) {
       delete cleaned.image;
     }
   }
 
-  // Remove assigned_materials from craftsmen
   if (table === 'craftsmen') {
     delete cleaned.assigned_materials;
     delete cleaned.assignedMaterials;
   }
 
-  // Clean sales table - remove fields that don't exist in schema
   if (table === 'sales') {
-    // Remove old/invalid fields that don't exist in actual schema
-    delete cleaned.invoice_number; // Not in schema
-    delete cleaned.sale_date; // Use created_at instead
-    delete cleaned.subtotal; // Not in schema
-    delete cleaned.amount_paid; // Not in schema
-    delete cleaned.balance_due; // Not in schema
+    delete cleaned.invoice_number;
+    delete cleaned.sale_date;
+    delete cleaned.subtotal;
+    delete cleaned.amount_paid;
+    delete cleaned.balance_due;
   }
 
-  // Map businessSettings to settings
   if (table === 'settings' || table === 'businessSettings') {
-    // Settings table uses key-value pairs - handled in upsertSettings
     return cleaned;
   }
 
   return cleaned;
 }
 
-/**
- * Get records from Supabase
- * 
- * NOTE: Uses SELECT * for compatibility with complex data structures.
- * Most components need all fields (id, name, price, stock, images, category, etc.).
- * 
- * For future optimization: If you know exactly which columns you need, you can use:
- * .select('id, name, price, stock') instead of .select('*')
- * This would reduce data transfer size for large tables.
- */
 export async function getFromSupabase<T>(
   table: string,
   filters?: { [key: string]: any },
-  columns?: string // Optional: specify columns to fetch (e.g., 'id, name, price')
+  columns?: string
 ): Promise<T[]> {
   console.log("getFromSupabase table : ", table);
 
@@ -405,7 +342,7 @@ export async function getFromSupabase<T>(
 
   let query = supabase
     .from(table)
-    .select(columns || '*') // Use specified columns or all
+    .select(columns || '*')
     .eq('user_id', userId);
 
   if (filters) {
@@ -417,6 +354,10 @@ export async function getFromSupabase<T>(
   const { data, error } = await query;
 
   if (error) {
+    if (error.code === 'PGRST205' || error.code === 'PGRST301') {
+      console.warn(`Table '${table}' not found in schema. Returning empty array.`);
+      return [] as T[];
+    }
     console.error(`Error fetching from ${table}:`, error);
     throw error;
   }
@@ -424,55 +365,43 @@ export async function getFromSupabase<T>(
   return (data || []) as T[];
 }
 
-/**
- * Get all records from Supabase (for useUserStorage compatibility)
- */
 export async function fetchAll<T>(tableName: string): Promise<T> {
-  // Local-only storage keys (not database tables) - return empty values
   if (tableName === 'pos_cart' || tableName === 'pos_customerName') {
     return (tableName === 'pos_cart' ? [] : '') as T;
   }
 
-  // Special handling for recent invoices - fetch from sales table, limit to 5 most recent
   if (tableName === 'pos_recentInvoices') {
     return fetchRecentInvoices<T>() as Promise<T>;
   }
 
-  // Map old table names to actual Supabase table names
   const tableMap: { [key: string]: string } = {
     'gold_items': 'inventory',
     'jewelry_items': 'inventory',
     'stone_items': 'inventory',
     'stones_items': 'inventory',
     'artificial_items': 'inventory',
+    'artificial_stones_items': 'inventory',
     'inventory_items': 'inventory',
     'businessSettings': 'settings',
     'paymentSettings': 'payment_settings',
     'notificationSettings': 'settings',
     'gold_rate_settings': 'gold_rates',
-    'customer_transactions': 'payment_transactions', // Map to correct table name
+    'customer_transactions': 'payment_transactions',
   };
 
   const actualTable = tableMap[tableName] || tableName;
 
-  // Special handling for settings table
   if (actualTable === 'settings') {
     return fetchSettings<T>(tableName) as Promise<T>;
   }
-  // Special handling for payment settings
   if (actualTable === 'payment_settings') {
     return fetchPaymentSettings<T>() as Promise<T>;
   }
   console.log("fetchAll actualTable : ", actualTable);
-  // For inventory table, return all items (filtering happens in components)
   const data = await getFromSupabase<any>(actualTable);
   return (Array.isArray(data) ? data : []) as T;
 }
 
-/**
- * Fetch recent invoices from sales table (5 most recent)
- * Transforms sales table data to match Invoice interface
- */
 async function fetchRecentInvoices<T>(): Promise<T> {
   const supabase = getSupabase();
   const userId = await getCurrentUserId();
@@ -493,10 +422,9 @@ async function fetchRecentInvoices<T>(): Promise<T> {
     throw error;
   }
 
-  // Transform sales table data to match Invoice interface
   const invoices = (data || []).map((sale: any) => ({
     id: sale.id,
-    items: [], // Items are in sale_items table, not fetched here for performance
+    items: [],
     subtotal: (sale.total_amount || 0) - (sale.tax_amount || 0),
     tax: sale.tax_amount || 0,
     total: sale.total_amount || 0,
@@ -508,9 +436,6 @@ async function fetchRecentInvoices<T>(): Promise<T> {
   return invoices as T;
 }
 
-/**
- * Fetch settings and map from wide row to object format
- */
 async function fetchSettings<T>(tableName: string): Promise<T> {
   const supabase = getSupabase();
   const userId = await getCurrentUserId();
@@ -527,7 +452,7 @@ async function fetchSettings<T>(tableName: string): Promise<T> {
     .limit(1)
     .maybeSingle();
 
-  if (error && error.code !== 'PGRST116') { // 116: no rows found for single()
+  if (error && error.code !== 'PGRST116') {
     console.error('Error fetching settings:', error);
     throw error;
   }
@@ -536,7 +461,6 @@ async function fetchSettings<T>(tableName: string): Promise<T> {
     return {} as T;
   }
 
-  // Determine prefix based on tableName
   let prefix = '';
   if (tableName === 'businessSettings') {
     prefix = 'business_';
@@ -549,7 +473,6 @@ async function fetchSettings<T>(tableName: string): Promise<T> {
   Object.entries(data).forEach(([key, value]) => {
     if (!prefix || key.startsWith(prefix)) {
       const cleanKey = prefix ? key.replace(prefix, '') : key;
-      // map snake/lowercase keys back to camelCase expected by UI
       const keyMap: Record<string, string> = {
         businessname: 'businessName',
         gstnumber: 'gstNumber',
@@ -560,7 +483,6 @@ async function fetchSettings<T>(tableName: string): Promise<T> {
         timezone: 'timezone',
       };
       const mappedKey = keyMap[cleanKey] || cleanKey;
-      // Try to parse JSON text
       let parsed = value;
       if (typeof value === 'string') {
         try {
@@ -576,9 +498,6 @@ async function fetchSettings<T>(tableName: string): Promise<T> {
   return result as T;
 }
 
-/**
- * Fetch payment settings (wide row)
- */
 async function fetchPaymentSettings<T>(): Promise<T> {
   const supabase = getSupabase();
   const userId = await getCurrentUserId();
@@ -617,7 +536,6 @@ async function fetchPaymentSettings<T>(): Promise<T> {
         parsed = value;
       }
     }
-    // map snake_case columns back to camelCase used in UI
     switch (key) {
       case 'upi_id':
         result.upiId = parsed;
@@ -642,17 +560,6 @@ async function fetchPaymentSettings<T>(): Promise<T> {
   return result as T;
 }
 
-/**
- * Alias for backward compatibility
- */
 export const upsertDirect = upsertToSupabase;
-
-/**
- * Alias for backward compatibility
- */
 export const deleteDirect = deleteFromSupabase;
-
-/**
- * Alias for backward compatibility (insert is same as upsert)
- */
 export const insertDirect = upsertToSupabase;

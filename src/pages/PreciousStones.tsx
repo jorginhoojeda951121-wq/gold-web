@@ -1,5 +1,5 @@
-import { useState, useRef, useEffect, useCallback } from "react";
-import { Search, Grid, List, ArrowLeft, Plus, Edit, Trash2, Upload, X, ShoppingCart, AlertTriangle, Gem } from "lucide-react";
+import { useState, useEffect, useCallback } from "react";
+import { AlertTriangle, Search, Grid, List, ArrowLeft, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Link, useNavigate } from "react-router-dom";
@@ -7,7 +7,6 @@ import { useOfflineStorage } from "@/hooks/useOfflineStorage";
 import { useUserStorage } from "@/hooks/useUserStorage";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ComboboxInput } from "@/components/ui/combobox";
 import { useToast } from "@/hooks/use-toast";
 import { upsertDirect, deleteDirect } from "@/lib/supabaseDirect";
@@ -21,8 +20,6 @@ const PreciousStones = () => {
   const navigate = useNavigate();
   const { data: searchQuery, updateData: setSearchQuery } = useOfflineStorage<string>("stones_search", "");
   const { data: viewMode, updateData: setViewMode } = useOfflineStorage<'grid' | 'list'>("stones_viewMode", 'grid');
-  // Use stones_items key - data will be auto-populated by seedWebData
-  // CRITICAL: Use useUserStorage for user-scoped data isolation
   const { data: stones, updateData: setStones } = useUserStorage<StoneItem[]>("stones_items", []);
   const { data: posCart, updateData: setPosCart } = useOfflineStorage<any[]>("pos_cart", []);
 
@@ -42,21 +39,14 @@ const PreciousStones = () => {
   });
   const [images, setImages] = useState<(string | null)[]>([null, null, null, null]);
 
-  // Dropdown options
   const clarityOptions = ['IF', 'VVS1', 'VVS2', 'VS1', 'VS2', 'SI1', 'SI2', 'I1', 'I2', 'I3'];
   const cutOptions = ['Excellent', 'Very Good', 'Good', 'Fair', 'Poor', 'Round Brilliant', 'Princess', 'Cushion', 'Emerald', 'Oval', 'Pear', 'Marquise'];
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const editFileInputRef = useRef<HTMLInputElement>(null);
-
-  // Load stones from unified inventory_items table (Single Source of Truth)
   const loadStoneItems = useCallback(async () => {
     try {
       const inventoryData = await getUserData<any[]>('inventory_items') || [];
 
-      // Filter only stone items
       const stoneItems = inventoryData
         .filter((item: any) => {
-          // Check item_type first, then category, then type field
           const itemType = item.item_type || 
             (item.category === 'stones' ? 'stone' :
              item.category === 'stone' ? 'stone' :
@@ -86,19 +76,8 @@ const PreciousStones = () => {
     }
   }, [setStones]);
 
-  // Load stones on mount
   useEffect(() => {
     loadStoneItems();
-  }, [loadStoneItems]);
-
-  // Listen for sync completion events to reload data after sync
-  useEffect(() => {
-    const handleDataSynced = () => {
-      // Reload items after sync to show newly synced data
-      loadStoneItems();
-    };
-
-    // Removed data-synced listener - no longer using sync queue
   }, [loadStoneItems]);
 
   const filteredItems = stones.filter(item =>
@@ -116,7 +95,6 @@ const PreciousStones = () => {
         return;
       }
 
-      // Get current user ID
       const { getCurrentUserId } = await import('@/lib/userStorage');
       const userId = await getCurrentUserId();
       
@@ -142,10 +120,8 @@ const PreciousStones = () => {
         image_2: images[1] || undefined,
         image_3: images[2] || undefined,
         image_4: images[3] || undefined,
-        user_id: userId, // CRITICAL: Include user_id for data isolation
+        user_id: userId,
       };
-
-      // Save to unified inventory_items table (Single Source of Truth)
       const inventoryItems = (await getUserData<any[]>('inventory_items')) || [];
       const newInventoryItem = {
         id: newItem.id,
@@ -167,14 +143,8 @@ const PreciousStones = () => {
       };
       inventoryItems.push(newInventoryItem);
       await setUserData('inventory_items', inventoryItems);
-      
-      // Insert directly into Supabase
       await upsertDirect('inventory_items', newInventoryItem);
-      
-      // Update UI state
       setStones(prev => [...prev, newItem]);
-      
-      // Reload stones to show the new item
       await loadStoneItems();
       
       setFormData({ name: "", carat: "", clarity: "", cut: "", price: "", stock: "" });
@@ -207,17 +177,15 @@ const PreciousStones = () => {
       clarity: item.clarity,
       cut: item.cut,
       price: item.price.toString(),
-      stock: item.stock.toString(),
-      image: item.image
+      stock: item.stock.toString()
     });
-    // Load existing images into the images state
     setImages([
       item.image_1 || item.image || null,
       item.image_2 || null,
       item.image_3 || null,
       item.image_4 || null,
     ]);
-    setShowDetailsDialog(false); // Close details if open
+    setShowDetailsDialog(false);
     setShowEditDialog(true);
   };
 
@@ -240,14 +208,12 @@ const PreciousStones = () => {
         cut: formData.cut,
         price: parseFloat(formData.price) || 0,
         stock: parseInt(formData.stock) || 0,
-        image: images[0] || selectedItem.image || "", // Use images array
+        image: images[0] || selectedItem.image || "",
         image_1: images[0] || selectedItem.image_1,
         image_2: images[1] || selectedItem.image_2,
         image_3: images[2] || selectedItem.image_3,
         image_4: images[3] || selectedItem.image_4,
       };
-
-      // Update unified inventory_items table (Single Source of Truth)
       const inventoryItems = (await getUserData<any[]>('inventory_items')) || [];
       const invIndex = inventoryItems.findIndex((item: any) => item.id === selectedItem.id);
       
@@ -276,14 +242,8 @@ const PreciousStones = () => {
         inventoryItems.push(inventoryUpdate);
       }
       await setUserData('inventory_items', inventoryItems);
-      
-      // Update directly in Supabase
       await upsertDirect('inventory_items', inventoryUpdate);
-      
-      // Update UI state
       setStones(prev => prev.map(item => item.id === selectedItem.id ? updatedItem : item));
-      
-      // Reload stones to show the updated item
       await loadStoneItems();
       
       setFormData({ name: "", carat: "", clarity: "", cut: "", price: "", stock: "" });
@@ -314,18 +274,10 @@ const PreciousStones = () => {
       try {
         const id = itemToDelete.id;
         const item = stones.find(i => i.id === id);
-        
-        // Remove from unified inventory_items table (Single Source of Truth)
         const inventoryItems = (await getUserData<any[]>('inventory_items')) || [];
         await setUserData('inventory_items', inventoryItems.filter((item: any) => item.id !== id));
-        
-        // Delete directly from Supabase
         await deleteDirect('inventory_items', id);
-        
-        // Update UI state
         setStones(prev => prev.filter(item => item.id !== id));
-        
-        // Reload to ensure consistency
         await loadStoneItems();
         
         toast({
@@ -347,7 +299,6 @@ const PreciousStones = () => {
   };
 
   const handleOrderNow = (item: StoneItem) => {
-    // Convert StoneItem to cart item format
     const cartItem = {
       id: item.id,
       name: item.name,
@@ -356,18 +307,15 @@ const PreciousStones = () => {
       type: 'stone'
     };
 
-    // Check if item already exists in cart
     const existingItem = posCart.find(cartItem => cartItem.id === item.id);
     
     if (existingItem) {
-      // Update quantity if item exists
       setPosCart(prev => prev.map(cartItem =>
         cartItem.id === item.id
           ? { ...cartItem, quantity: cartItem.quantity + 1 }
           : cartItem
       ));
     } else {
-      // Add new item to cart
       setPosCart(prev => [...prev, cartItem]);
     }
 
@@ -376,7 +324,6 @@ const PreciousStones = () => {
       description: `${item.name} has been added to your cart.`
     });
 
-    // Navigate to POS page
     navigate('/pos');
   };
 
@@ -384,7 +331,6 @@ const PreciousStones = () => {
   return (
     <div className="min-h-screen bg-gray-50">
       <main className="container mx-auto px-6 py-8">
-        {/* Header */}
         <div className="bg-white rounded-lg shadow-lg p-6 mb-8 border border-gray-200">
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center justify-between w-full">
@@ -408,7 +354,6 @@ const PreciousStones = () => {
             </Link>
           </div>
 
-          {/* Search and View Controls */}
           <div className="flex items-center justify-between">
             <div className="relative flex-1 max-w-md">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
@@ -438,7 +383,6 @@ const PreciousStones = () => {
           </div>
         </div>
 
-        {/* Precious Stones */}
         <div className={`grid gap-4 ${viewMode === 'grid' ? 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4' : 'grid-cols-1'}`}>
           {filteredItems.map(item => (
             <StoneItemCard
@@ -460,7 +404,6 @@ const PreciousStones = () => {
         )}
       </main>
 
-      {/* Add Item Dialog */}
       <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
         <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>
@@ -547,7 +490,6 @@ const PreciousStones = () => {
         </DialogContent>
       </Dialog>
 
-      {/* Edit Item Dialog */}
       <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
         <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>
@@ -634,7 +576,6 @@ const PreciousStones = () => {
         </DialogContent>
       </Dialog>
 
-      {/* View Details Dialog */}
       <StoneItemDetailsDialog
         item={selectedItem}
         open={showDetailsDialog}
@@ -647,7 +588,6 @@ const PreciousStones = () => {
         }}
       />
 
-      {/* Delete Confirmation Dialog */}
       <Dialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
@@ -683,4 +623,5 @@ const PreciousStones = () => {
 };
 
 export default PreciousStones;
+
 

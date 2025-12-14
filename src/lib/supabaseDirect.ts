@@ -123,7 +123,7 @@ async function upsertSettings(data: any, userId: string): Promise<void> {
   }
 
   clearUserStorageCache('businessSettings');
-  clearUserStorageCache('notificationSettings');
+    clearUserStorageCache('notificationSettings');
 }
 
 async function upsertPaymentSettings(data: any, userId: string): Promise<void> {
@@ -171,6 +171,8 @@ async function upsertPaymentSettings(data: any, userId: string): Promise<void> {
   if (!hasUpdatableFields) {
     return;
   }
+  console.log("test record", record);
+  
 
   const { error } = await supabase
     .from('payment_settings')
@@ -397,7 +399,6 @@ export async function fetchAll<T>(tableName: string): Promise<T> {
   if (actualTable === 'payment_settings') {
     return fetchPaymentSettings<T>() as Promise<T>;
   }
-  console.log("fetchAll actualTable : ", actualTable);
   const data = await getFromSupabase<any>(actualTable);
   return (Array.isArray(data) ? data : []) as T;
 }

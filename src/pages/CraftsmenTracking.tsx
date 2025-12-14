@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Search, Plus, Hammer, ArrowLeft, Package, Database, TableIcon, Users, Building2, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,6 +13,7 @@ import { CraftsmanPaymentDialog } from "@/components/CraftsmanPaymentDialog";
 import { useToast } from "@/hooks/use-toast";
 import { useOfflineStorage } from "@/hooks/useOfflineStorage";
 import { useUserStorage } from "@/hooks/useUserStorage";
+import { upsertToSupabase, fetchAll } from "@/lib/supabaseDirect";
 
 const CraftsmenTracking = () => {
   const { toast } = useToast();
@@ -108,7 +109,103 @@ const CraftsmenTracking = () => {
     }
   ]);
 
-  // Ensure all materials have the completed field - with comprehensive null checks
+  useEffect(() => {
+    if (loaded && Array.isArray(craftsmen)) {
+      const needsUpdate = craftsmen.some(c => !Array.isArray(c.assignedMaterials));
+      if (needsUpdate) {
+        const normalized = craftsmen.map(craftsman => ({
+          ...craftsman,
+          assignedMaterials: Array.isArray(craftsman.assignedMaterials) 
+            ? craftsman.assignedMaterials 
+            : []
+        }));
+        setCraftsmen(normalized);
+      }
+    }
+  }, [loaded, craftsmen, setCraftsmen]);
+
+  const [materialsLoaded, setMaterialsLoaded] = useState(false);
+
+  useEffect(() => {
+    const loadMaterialsAssigned = async () => {
+      if (!loaded || materialsLoaded || !Array.isArray(craftsmen)) return;
+
+      try {
+        const materialsAssigned = await fetchAll<any[]>('materials_assigned');
+        
+        if (Array.isArray(materialsAssigned) && materialsAssigned.length > 0) {
+          const materialsByCraftsman = materialsAssigned.reduce((acc, material) => {
+            const craftsmanId = material.craftsman_id;
+            if (!acc[craftsmanId]) {
+              acc[craftsmanId] = [];
+            }
+            
+            const rawMaterial: RawMaterial = {
+              id: material.id,
+              type: material.item_description || '',
+              quantity: parseFloat(String(material.quantity || 0)),
+              unit: material.gold_weight ? 'grams' : 'pieces',
+              assignedDate: material.assigned_date 
+                ? (material.assigned_date.includes('T') 
+                    ? material.assigned_date.split('T')[0] 
+                    : material.assigned_date)
+                : new Date().toISOString().split('T')[0],
+              projectId: material.target_item_id,
+              completed: material.status === 'completed',
+              completedDate: material.completion_date || undefined,
+              completionNotes: material.notes || undefined,
+              agreedAmount: material.agreed_amount ? parseFloat(String(material.agreed_amount)) : undefined,
+              amountPaid: material.amount_paid ? parseFloat(String(material.amount_paid)) : undefined,
+              paymentStatus: material.payment_status as 'unpaid' | 'partial' | 'paid' | undefined,
+              inventoryItemId: material.material_id,
+              inventoryItemType: material.material_type,
+              estimatedDelivery: material.due_date || material.expected_completion_date 
+                ? (material.due_date || material.expected_completion_date?.split('T')[0])
+                : undefined,
+              status: material.status === 'completed' ? 'completed' : 
+                     material.status === 'in_progress' ? 'in-progress' : 'pending',
+            };
+
+            acc[craftsmanId].push(rawMaterial);
+            return acc;
+          }, {} as Record<string, RawMaterial[]>);
+
+          setCraftsmen(prev => {
+            if (!Array.isArray(prev)) return prev;
+            
+            return prev.map(craftsman => {
+              const materials = materialsByCraftsman[craftsman.id] || [];
+              const existingMaterials = Array.isArray(craftsman.assignedMaterials) 
+                ? craftsman.assignedMaterials 
+                : [];
+              
+              const materialMap = new Map(existingMaterials.map(m => [m.id, m]));
+              materials.forEach(m => {
+                if (!materialMap.has(m.id)) {
+                  materialMap.set(m.id, m);
+                }
+              });
+
+              return {
+                ...craftsman,
+                assignedMaterials: Array.from(materialMap.values())
+              };
+            });
+          });
+
+          setMaterialsLoaded(true);
+        } else {
+          setMaterialsLoaded(true);
+        }
+      } catch (error) {
+        console.error('Error loading materials_assigned:', error);
+        setMaterialsLoaded(true);
+      }
+    };
+
+    loadMaterialsAssigned();
+  }, [loaded, materialsLoaded, craftsmen, setCraftsmen]);
+
   const safeCraftsmen = Array.isArray(craftsmen) ? craftsmen : [];
   const craftsmenWithCompletedField = safeCraftsmen.map(craftsman => ({
     ...craftsman,
@@ -125,16 +222,57 @@ const CraftsmenTracking = () => {
     craftsman.specialty.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const handleAddCraftsman = (newCraftsman: Omit<Craftsman, 'id'>) => {
-    const craftsman: Craftsman = {
-      ...newCraftsman,
-      id: Date.now().toString()
-    };
-    setCraftsmen(prev => [...prev, craftsman]);
-    toast({
-      title: "Craftsman Added",
-      description: `${craftsman.name} has been added to your team.`
-    });
+  const handleAddCraftsman = async (newCraftsman: Omit<Craftsman, 'id'>) => {
+    try {
+      const craftsman: Craftsman = {
+        ...newCraftsman,
+        id: Date.now().toString()
+      };
+      
+      const experienceYears = typeof newCraftsman.experience === 'string' 
+        ? parseInt(newCraftsman.experience.replace(/\D/g, '')) || 0
+        : (typeof newCraftsman.experience === 'number' ? newCraftsman.experience : 0);
+
+      const craftsmanData: any = {
+        id: craftsman.id,
+        name: craftsman.name,
+        phone: craftsman.contact || '',
+        email: '',
+        address: '',
+        specialty: craftsman.specialty || '',
+        experience_years: experienceYears,
+        status: craftsman.status || 'available',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
+
+      if (craftsman.type) {
+        craftsmanData.type = craftsman.type;
+      }
+
+      if (craftsman.type === 'firm') {
+        if (craftsman.firmName) craftsmanData.firm_name = craftsman.firmName;
+        if (craftsman.firmContact) craftsmanData.firm_contact = craftsman.firmContact;
+        if (craftsman.firmAddress) craftsmanData.firm_address = craftsman.firmAddress;
+        if (craftsman.firmGSTNumber) craftsmanData.firm_gst_number = craftsman.firmGSTNumber;
+        if (craftsman.contactPerson) craftsmanData.contact_person = craftsman.contactPerson;
+      }
+
+      await upsertToSupabase('craftsmen', craftsmanData);
+      
+      setCraftsmen(prev => [...prev, craftsman]);
+      toast({
+        title: "Craftsman Added",
+        description: `${craftsman.name} has been added to your team.`
+      });
+    } catch (error) {
+      console.error('Error adding craftsman:', error);
+      toast({
+        title: "Error",
+        description: "Failed to add craftsman. Please try again.",
+        variant: "destructive"
+      });
+    }
   };
 
   const handleAssignMaterial = async (material: Omit<RawMaterial, 'id'>) => {
@@ -148,13 +286,16 @@ const CraftsmenTracking = () => {
 
     const updatedCraftsmen = craftsmen.map(craftsman => {
       if (craftsman.id === selectedCraftsman.id) {
-        // Update payment tracking if agreed amount is set
         const updatedDue = (craftsman.totalAmountDue || 0) + (material.agreedAmount || 0);
         const updatedPending = (craftsman.pendingAmount || 0) + (material.agreedAmount || 0);
         
+        const currentMaterials = Array.isArray(craftsman.assignedMaterials) 
+          ? craftsman.assignedMaterials 
+          : [];
+        
         return { 
           ...craftsman, 
-          assignedMaterials: [...craftsman.assignedMaterials, newMaterial],
+          assignedMaterials: [...currentMaterials, newMaterial],
           totalAmountDue: updatedDue,
           pendingAmount: updatedPending
         };
@@ -164,36 +305,77 @@ const CraftsmenTracking = () => {
 
     await setCraftsmen(updatedCraftsmen);
 
-    // Queue for Supabase sync
     try {
       const { getCurrentUserId } = await import('@/lib/userStorage');
       const userId = await getCurrentUserId();
-      if (userId) {
-        const updatedCraftsman = updatedCraftsmen.find(c => c.id === selectedCraftsman.id);
-        if (updatedCraftsman) {
-          const { upsertDirect } = await import('@/lib/supabaseDirect');
-          await upsertDirect('craftsmen', {
-            id: updatedCraftsman.id,
-            name: updatedCraftsman.name,
-            specialty: updatedCraftsman.specialty || '',
-            experience: updatedCraftsman.experience || 0,
-            phone: updatedCraftsman.phone || updatedCraftsman.contact || '',
-            contact: updatedCraftsman.contact || '',
-            email: updatedCraftsman.email || '',
-            address: updatedCraftsman.address || '',
-            status: updatedCraftsman.status || 'available',
-            rating: updatedCraftsman.rating || 0.0,
-            assignedMaterials: updatedCraftsman.assignedMaterials || [],
-            totalAmountDue: updatedCraftsman.totalAmountDue || 0,
-            totalAmountPaid: updatedCraftsman.totalAmountPaid || 0,
-            pendingAmount: updatedCraftsman.pendingAmount || 0,
-            paymentHistory: updatedCraftsman.paymentHistory || [],
-            updated_at: new Date().toISOString(),
-          });
+      if (userId && selectedCraftsman) {
+        const now = new Date().toISOString();
+        const assignedDate = newMaterial.assignedDate 
+          ? new Date(newMaterial.assignedDate).toISOString()
+          : now;
+        
+        const materialData: any = {
+          id: newMaterial.id,
+          user_id: userId,
+          craftsman_id: selectedCraftsman.id,
+          craftsman_name: selectedCraftsman.name,
+          material_type: newMaterial.inventoryItemType || 'raw_material',
+          material_id: newMaterial.inventoryItemId || newMaterial.id,
+          quantity: parseFloat(String(newMaterial.quantity || 0)),
+          item_description: newMaterial.type || '',
+          item_type: newMaterial.inventoryItemType || 'custom',
+          assigned_date: assignedDate,
+          status: newMaterial.completed ? 'completed' : 'assigned',
+          created_at: now,
+          updated_at: now,
+        };
+
+        if (newMaterial.projectId) {
+          materialData.target_item_id = newMaterial.projectId;
         }
+
+        if (newMaterial.quantity) {
+          if (newMaterial.unit === 'grams' || newMaterial.unit === 'g') {
+            materialData.gold_weight = parseFloat(String(newMaterial.quantity));
+            materialData.gold_purity = '22K';
+          } else {
+            materialData.other_materials = `${newMaterial.quantity} ${newMaterial.unit || ''} ${newMaterial.type || ''}`;
+          }
+        }
+
+        if (newMaterial.estimatedDelivery) {
+          materialData.due_date = newMaterial.estimatedDelivery;
+          materialData.expected_completion_date = new Date(newMaterial.estimatedDelivery).toISOString();
+        }
+
+        if (newMaterial.agreedAmount) {
+          materialData.agreed_amount = parseFloat(String(newMaterial.agreedAmount));
+        }
+
+        if (newMaterial.amountPaid) {
+          materialData.amount_paid = parseFloat(String(newMaterial.amountPaid));
+        }
+
+        if (newMaterial.paymentStatus) {
+          materialData.payment_status = newMaterial.paymentStatus;
+        }
+
+        if (newMaterial.completedDate) {
+          materialData.completion_date = newMaterial.completedDate;
+        }
+
+        if (newMaterial.completionNotes) {
+          materialData.notes = newMaterial.completionNotes;
+        }
+
+        if (newMaterial.inventoryItemId) {
+          materialData.is_new_item = false;
+        }
+
+        await upsertToSupabase('materials_assigned', materialData);
       }
     } catch (syncError) {
-      console.warn('Failed to queue sync, but material assigned locally:', syncError);
+      console.warn('Failed to save material assignment to Supabase:', syncError);
     }
 
     toast({
@@ -219,47 +401,43 @@ const CraftsmenTracking = () => {
   };
 
   const handleCompleteTask = async (materialId: string) => {
-    const updatedCraftsmen = craftsmen.map(craftsman => ({
-      ...craftsman,
-      assignedMaterials: craftsman.assignedMaterials.map(material => 
-        material.id === materialId
-          ? { ...material, completed: true, completedDate: new Date().toISOString().split('T')[0] }
-          : material
-      )
-    }));
+    const updatedCraftsmen = craftsmen.map(craftsman => {
+      const materials = Array.isArray(craftsman.assignedMaterials) 
+        ? craftsman.assignedMaterials 
+        : [];
+      
+      return {
+        ...craftsman,
+        assignedMaterials: materials.map(material => 
+          material.id === materialId
+            ? { ...material, completed: true, completedDate: new Date().toISOString().split('T')[0] }
+            : material
+        )
+      };
+    });
 
     await setCraftsmen(updatedCraftsmen);
 
-    // Queue for Supabase sync
     try {
       const { getCurrentUserId } = await import('@/lib/userStorage');
       const userId = await getCurrentUserId();
       if (userId) {
-        const { upsertDirect } = await import('@/lib/supabaseDirect');
-        // Update all craftsmen directly in Supabase
-        for (const craftsman of updatedCraftsmen) {
-          await upsertDirect('craftsmen', {
-            id: craftsman.id,
-            name: craftsman.name,
-            specialty: craftsman.specialty || '',
-            experience: craftsman.experience || 0,
-            phone: craftsman.phone || craftsman.contact || '',
-            contact: craftsman.contact || '',
-            email: craftsman.email || '',
-            address: craftsman.address || '',
-            status: craftsman.status || 'available',
-            rating: craftsman.rating || 0.0,
-            assignedMaterials: craftsman.assignedMaterials || [],
-            totalAmountDue: craftsman.totalAmountDue || 0,
-            totalAmountPaid: craftsman.totalAmountPaid || 0,
-            pendingAmount: craftsman.pendingAmount || 0,
-            paymentHistory: craftsman.paymentHistory || [],
+        const completedMaterial = updatedCraftsmen
+          .flatMap(c => Array.isArray(c.assignedMaterials) ? c.assignedMaterials : [])
+          .find(m => m.id === materialId);
+        
+        if (completedMaterial) {
+          const completionDate = completedMaterial.completedDate || new Date().toISOString().split('T')[0];
+          await upsertToSupabase('materials_assigned', {
+            id: completedMaterial.id,
+            status: 'completed',
+            completion_date: completionDate,
             updated_at: new Date().toISOString(),
           });
         }
       }
     } catch (syncError) {
-      console.warn('Failed to queue sync, but task completed locally:', syncError);
+      console.warn('Failed to update material assignment in Supabase:', syncError);
     }
 
     toast({
@@ -269,52 +447,49 @@ const CraftsmenTracking = () => {
   };
 
   const handleCompleteProject = async (materialId: string, notes: string) => {
-    const updatedCraftsmen = craftsmen.map(craftsman => ({
-      ...craftsman,
-      assignedMaterials: craftsman.assignedMaterials.map(material => 
-        material.id === materialId
-          ? { 
-              ...material, 
-              completed: true, 
-              completedDate: new Date().toISOString().split('T')[0],
-              completionNotes: notes
-            }
-          : material
-      )
-    }));
+    const updatedCraftsmen = craftsmen.map(craftsman => {
+      const materials = Array.isArray(craftsman.assignedMaterials) 
+        ? craftsman.assignedMaterials 
+        : [];
+      
+      return {
+        ...craftsman,
+        assignedMaterials: materials.map(material => 
+          material.id === materialId
+            ? { 
+                ...material, 
+                completed: true, 
+                completedDate: new Date().toISOString().split('T')[0],
+                completionNotes: notes
+              }
+            : material
+        )
+      };
+    });
 
     await setCraftsmen(updatedCraftsmen);
 
-    // Queue for Supabase sync
     try {
       const { getCurrentUserId } = await import('@/lib/userStorage');
       const userId = await getCurrentUserId();
       if (userId) {
-        const { upsertDirect } = await import('@/lib/supabaseDirect');
-        // Update all craftsmen directly in Supabase
-        for (const craftsman of updatedCraftsmen) {
-          await upsertDirect('craftsmen', {
-            id: craftsman.id,
-            name: craftsman.name,
-            specialty: craftsman.specialty || '',
-            experience: craftsman.experience || 0,
-            phone: craftsman.phone || craftsman.contact || '',
-            contact: craftsman.contact || '',
-            email: craftsman.email || '',
-            address: craftsman.address || '',
-            status: craftsman.status || 'available',
-            rating: craftsman.rating || 0.0,
-            assignedMaterials: craftsman.assignedMaterials || [],
-            totalAmountDue: craftsman.totalAmountDue || 0,
-            totalAmountPaid: craftsman.totalAmountPaid || 0,
-            pendingAmount: craftsman.pendingAmount || 0,
-            paymentHistory: craftsman.paymentHistory || [],
+        const completedMaterial = updatedCraftsmen
+          .flatMap(c => Array.isArray(c.assignedMaterials) ? c.assignedMaterials : [])
+          .find(m => m.id === materialId);
+        
+        if (completedMaterial) {
+          const completionDate = completedMaterial.completedDate || new Date().toISOString().split('T')[0];
+          await upsertToSupabase('materials_assigned', {
+            id: completedMaterial.id,
+            status: 'completed',
+            completion_date: completionDate,
+            notes: notes || completedMaterial.completionNotes || '',
             updated_at: new Date().toISOString(),
           });
         }
       }
     } catch (syncError) {
-      console.warn('Failed to queue sync, but project completed locally:', syncError);
+      console.warn('Failed to update material assignment in Supabase:', syncError);
     }
 
     toast({
@@ -332,76 +507,70 @@ const CraftsmenTracking = () => {
       craftsmanId: selectedCraftsman.id
     };
 
-    setCraftsmen(prev => prev.map(craftsman => {
-      if (craftsman.id === selectedCraftsman.id) {
-        const updatedPaid = (craftsman.totalAmountPaid || 0) + payment.amount;
-        const updatedPending = (craftsman.pendingAmount || 0) - payment.amount;
-        const paymentHistory = [...(craftsman.paymentHistory || []), newPayment];
+    setCraftsmen(prev => {
+      const updated = prev.map(craftsman => {
+        if (craftsman.id === selectedCraftsman.id) {
+          const updatedPaid = (craftsman.totalAmountPaid || 0) + payment.amount;
+          const updatedPending = (craftsman.pendingAmount || 0) - payment.amount;
+          const paymentHistory = [...(craftsman.paymentHistory || []), newPayment];
 
-        // Update material payment status if linked to a project
-        let updatedMaterials = craftsman.assignedMaterials;
-        if (payment.projectId) {
-          updatedMaterials = craftsman.assignedMaterials.map(material => {
-            if (material.projectId === payment.projectId && material.agreedAmount) {
-              const newAmountPaid = (material.amountPaid || 0) + payment.amount;
-              const paymentStatus: 'unpaid' | 'partial' | 'paid' = 
-                newAmountPaid >= material.agreedAmount ? 'paid' :
-                newAmountPaid > 0 ? 'partial' : 'unpaid';
-              
-              return {
-                ...material,
-                amountPaid: newAmountPaid,
-                paymentStatus
-              };
-            }
-            return material;
-          });
-        }
+          let updatedMaterials = Array.isArray(craftsman.assignedMaterials) 
+            ? craftsman.assignedMaterials 
+            : [];
+          if (payment.projectId) {
+            updatedMaterials = updatedMaterials.map(material => {
+              if (material.projectId === payment.projectId && material.agreedAmount) {
+                const newAmountPaid = (material.amountPaid || 0) + payment.amount;
+                const paymentStatus: 'unpaid' | 'partial' | 'paid' = 
+                  newAmountPaid >= material.agreedAmount ? 'paid' :
+                  newAmountPaid > 0 ? 'partial' : 'unpaid';
+                
+                const updatedMaterial = {
+                  ...material,
+                  amountPaid: newAmountPaid,
+                  paymentStatus
+                };
 
-        return {
-          ...craftsman,
-          totalAmountPaid: updatedPaid,
-          pendingAmount: Math.max(0, updatedPending),
-          paymentHistory,
-          assignedMaterials: updatedMaterials
-        };
-      }
-      return craftsman;
-    }));
+                (async () => {
+                  try {
+                    const { getCurrentUserId } = await import('@/lib/userStorage');
+                    const userId = await getCurrentUserId();
+                    if (userId) {
+                      await upsertToSupabase('materials_assigned', {
+                        id: material.id,
+                        amount_paid: newAmountPaid,
+                        payment_status: paymentStatus,
+                        updated_at: new Date().toISOString(),
+                      });
+                    }
+                  } catch (syncError) {
+                    console.warn('Failed to update payment in materials_assigned:', syncError);
+                  }
+                })();
 
-    // Update selected craftsman
-    setSelectedCraftsman(prev => {
-      if (!prev) return null;
-      const updatedPaid = (prev.totalAmountPaid || 0) + payment.amount;
-      const updatedPending = (prev.pendingAmount || 0) - payment.amount;
-      const paymentHistory = [...(prev.paymentHistory || []), newPayment];
-
-      let updatedMaterials = prev.assignedMaterials;
-      if (payment.projectId) {
-        updatedMaterials = prev.assignedMaterials.map(material => {
-          if (material.projectId === payment.projectId && material.agreedAmount) {
-            const newAmountPaid = (material.amountPaid || 0) + payment.amount;
-            const paymentStatus: 'unpaid' | 'partial' | 'paid' = 
-              newAmountPaid >= material.agreedAmount ? 'paid' :
-              newAmountPaid > 0 ? 'partial' : 'unpaid';
-            
-            return {
-              ...material,
-              amountPaid: newAmountPaid,
-              paymentStatus
-            };
+                return updatedMaterial;
+              }
+              return material;
+            });
           }
-          return material;
-        });
+
+          return {
+            ...craftsman,
+            totalAmountPaid: updatedPaid,
+            pendingAmount: Math.max(0, updatedPending),
+            paymentHistory,
+            assignedMaterials: updatedMaterials
+          };
+        }
+        return craftsman;
+      });
+
+      const updatedCraftsman = updated.find(c => c.id === selectedCraftsman.id);
+      if (updatedCraftsman) {
+        setSelectedCraftsman(updatedCraftsman);
       }
 
-      return {
-        ...prev,
-        totalAmountPaid: updatedPaid,
-        pendingAmount: Math.max(0, updatedPending),
-        paymentHistory,
-        assignedMaterials: updatedMaterials
-      };
+      return updated;
     });
 
     toast({

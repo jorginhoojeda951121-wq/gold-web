@@ -9,6 +9,7 @@ import { InventoryShare, InventoryItem } from "@/components/InventoryShare";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Craftsman } from "@/components/CraftsmenManagement";
+import { Craftsman as AddCraftsmanDialogCraftsman } from "@/components/AddCraftsmanDialog";
 import { TransactionDialog } from "@/components/TransactionDialog";
 import { BusinessSettings } from "@/components/BusinessSettings";
 import { AIAnalyticsDashboard } from "@/components/AIAnalyticsDashboard";
@@ -480,26 +481,72 @@ const Index = () => {
     });
   };
 
-  const handleAddCraftsman = async (newCraftsman: Omit<Craftsman, 'id'>) => {
-    const craftsman: Craftsman = {
-      ...newCraftsman,
-      id: Date.now().toString()
-    };
-    setCraftsmen([...craftsmen, craftsman]);
-    
-    // Save directly to Supabase
-    await upsertToSupabase('craftsmen', {
-      id: craftsman.id,
-      name: craftsman.name,
-      specialty: craftsman.specialty || '',
-      experience_years: typeof craftsman.experience === 'number' ? craftsman.experience : (typeof craftsman.experience === 'string' ? parseInt(craftsman.experience) || 0 : 0),
-      phone: craftsman.phone || '',
-      email: craftsman.email || '',
-      address: craftsman.address || '',
-      status: craftsman.status || 'available',
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    });
+  const handleAddCraftsman = async (newCraftsman: Omit<AddCraftsmanDialogCraftsman, 'id'>) => {
+    try {
+      const experienceYears = typeof newCraftsman.experience === 'string' 
+        ? parseInt(newCraftsman.experience.replace(/\D/g, '')) || 0
+        : (typeof newCraftsman.experience === 'number' ? newCraftsman.experience : 0);
+
+      const craftsmanId = Date.now().toString();
+      const craftsmanData: any = {
+        id: craftsmanId,
+        name: newCraftsman.name,
+        phone: (newCraftsman as any).contact || '',
+        email: '',
+        address: '',
+        specialty: newCraftsman.specialty || '',
+        experience_years: experienceYears,
+        status: newCraftsman.status || 'available',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
+
+      const dialogCraftsman = newCraftsman as AddCraftsmanDialogCraftsman;
+      if (dialogCraftsman.type) {
+        craftsmanData.type = dialogCraftsman.type;
+      }
+
+      if (dialogCraftsman.type === 'firm') {
+        if (dialogCraftsman.firmName) craftsmanData.firm_name = dialogCraftsman.firmName;
+        if (dialogCraftsman.firmContact) craftsmanData.firm_contact = dialogCraftsman.firmContact;
+        if (dialogCraftsman.firmAddress) craftsmanData.firm_address = dialogCraftsman.firmAddress;
+        if (dialogCraftsman.firmGSTNumber) craftsmanData.firm_gst_number = dialogCraftsman.firmGSTNumber;
+        if (dialogCraftsman.contactPerson) craftsmanData.contact_person = dialogCraftsman.contactPerson;
+      }
+
+      await upsertToSupabase('craftsmen', craftsmanData);
+      
+      const craftsman: Craftsman = {
+        id: craftsmanId,
+        name: newCraftsman.name,
+        specialty: newCraftsman.specialty,
+        experience: experienceYears,
+        phone: (newCraftsman as any).contact || '',
+        email: '',
+        address: '',
+        status: newCraftsman.status === 'active' || newCraftsman.status === 'busy' || newCraftsman.status === 'available' 
+          ? newCraftsman.status 
+          : 'available',
+        materialsAssigned: 0,
+        joinDate: new Date().toISOString().split('T')[0],
+        rating: 0,
+        completedProjects: 0,
+      };
+      
+      setCraftsmen([...craftsmen, craftsman]);
+      
+      toast({
+        title: "Craftsman Added",
+        description: `${craftsman.name} has been added to your team.`
+      });
+    } catch (error) {
+      console.error('Error adding craftsman:', error);
+      toast({
+        title: "Error",
+        description: "Failed to add craftsman. Please try again.",
+        variant: "destructive"
+      });
+    }
   };
 
   const handleUpdateCraftsman = async (id: string, updates: Partial<Craftsman>) => {

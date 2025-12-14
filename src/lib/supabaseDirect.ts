@@ -34,7 +34,7 @@ export async function upsertToSupabase(
     'paymentSettings': 'payment_settings',
     'gold_rate_settings': 'gold_rates',
   };
-  
+
   const actualTable = tableMap[table] || table;
 
   // Special handling for settings table (wide row) and payment_settings (wide row)
@@ -69,8 +69,8 @@ export async function upsertToSupabase(
     throw error;
   }
 
-  // OPTIMIZATION: Clear cache for related keys to force refresh
-  // Map table back to possible keys that use it
+  // Clear any in-progress fetch promises for related keys
+  // This ensures fresh data is fetched on next read
   const keyMap: { [table: string]: string[] } = {
     'inventory': ['gold_items', 'jewelry_items', 'stone_items', 'stones_items', 'artificial_items', 'inventory_items'],
     'staff': ['staff'],
@@ -79,8 +79,9 @@ export async function upsertToSupabase(
     'settings': ['businessSettings', 'notificationSettings'],
     'payment_settings': ['paymentSettings'],
     'gold_rates': ['gold_rate_settings'],
+    'reservations': ['reservations'],
   };
-  
+
   const keysToClear = keyMap[actualTable] || [table];
   keysToClear.forEach(key => clearUserStorageCache(key));
 }
@@ -143,7 +144,7 @@ async function upsertSettings(data: any, userId: string): Promise<void> {
     throw error;
   }
 
-  // OPTIMIZATION: Clear cache for settings keys
+  // Clear any in-progress fetch promises for settings keys
   clearUserStorageCache('businessSettings');
   clearUserStorageCache('notificationSettings');
 }
@@ -206,7 +207,7 @@ async function upsertPaymentSettings(data: any, userId: string): Promise<void> {
     throw error;
   }
 
-  // OPTIMIZATION: Clear cache for payment settings
+  // Clear any in-progress fetch promises for payment settings
   clearUserStorageCache('paymentSettings');
 }
 
@@ -235,7 +236,7 @@ export async function deleteFromSupabase(
     'businessSettings': 'settings',
     'gold_rate_settings': 'gold_rates',
   };
-  
+
   const actualTable = tableMap[table] || table;
 
   const { error } = await supabase
@@ -249,7 +250,8 @@ export async function deleteFromSupabase(
     throw error;
   }
 
-  // OPTIMIZATION: Clear cache for related keys to force refresh
+  // Clear any in-progress fetch promises for related keys
+  // This ensures fresh data is fetched on next read
   const keyMap: { [table: string]: string[] } = {
     'inventory': ['gold_items', 'jewelry_items', 'stone_items', 'stones_items', 'artificial_items', 'inventory_items'],
     'staff': ['staff'],
@@ -258,8 +260,9 @@ export async function deleteFromSupabase(
     'settings': ['businessSettings', 'notificationSettings'],
     'payment_settings': ['paymentSettings'],
     'gold_rates': ['gold_rate_settings'],
+    'reservations': ['reservations'],
   };
-  
+
   const keysToClear = keyMap[actualTable] || [table];
   keysToClear.forEach(key => clearUserStorageCache(key));
 }
@@ -273,7 +276,7 @@ function cleanRecordForTable(table: string, record: any): any {
   // Remove attributes field - doesn't exist in inventory table
   if (table === 'inventory' || table === 'inventory_items') {
     delete cleaned.attributes;
-    
+
     // Remove stone-specific fields that don't exist in inventory table
     delete cleaned.clarity;
     delete cleaned.color;
@@ -288,7 +291,7 @@ function cleanRecordForTable(table: string, record: any): any {
     delete cleaned.net_weight;
     delete cleaned.making_charges;
     delete cleaned.is_artificial;
-    
+
     // Map inventory_items fields to inventory table FIRST (before setting defaults)
     if (cleaned.item_type) {
       // Normalize category values to match database constraint
@@ -302,7 +305,7 @@ function cleanRecordForTable(table: string, record: any): any {
       cleaned.category = normalizedCategory;
       delete cleaned.item_type;
     }
-    
+
     // Also normalize category if it's set directly
     if (cleaned.category) {
       const normalized = cleaned.category.toLowerCase();
@@ -312,13 +315,13 @@ function cleanRecordForTable(table: string, record: any): any {
         cleaned.category = 'stones';
       }
     }
-    
+
     // Map 'type' field to 'subcategory' (inventory table requires subcategory)
     if (cleaned.type) {
       cleaned.subcategory = cleaned.type;
       delete cleaned.type;
     }
-    
+
     // Ensure subcategory has a value (required by database)
     // This check happens AFTER mapping item_type to category
     if (!cleaned.subcategory) {
@@ -357,6 +360,16 @@ function cleanRecordForTable(table: string, record: any): any {
     delete cleaned.assignedMaterials;
   }
 
+  // Clean sales table - remove fields that don't exist in schema
+  if (table === 'sales') {
+    // Remove old/invalid fields that don't exist in actual schema
+    delete cleaned.invoice_number; // Not in schema
+    delete cleaned.sale_date; // Use created_at instead
+    delete cleaned.subtotal; // Not in schema
+    delete cleaned.amount_paid; // Not in schema
+    delete cleaned.balance_due; // Not in schema
+  }
+
   // Map businessSettings to settings
   if (table === 'settings' || table === 'businessSettings') {
     // Settings table uses key-value pairs - handled in upsertSettings
@@ -369,18 +382,20 @@ function cleanRecordForTable(table: string, record: any): any {
 /**
  * Get records from Supabase
  * 
- * PERFORMANCE NOTE: Uses SELECT * for compatibility with complex data structures.
+ * NOTE: Uses SELECT * for compatibility with complex data structures.
  * Most components need all fields (id, name, price, stock, images, category, etc.).
- * The in-memory cache in useUserStorage provides the biggest performance win (600ms → 0ms).
  * 
  * For future optimization: If you know exactly which columns you need, you can use:
  * .select('id, name, price, stock') instead of .select('*')
+ * This would reduce data transfer size for large tables.
  */
 export async function getFromSupabase<T>(
   table: string,
   filters?: { [key: string]: any },
   columns?: string // Optional: specify columns to fetch (e.g., 'id, name, price')
 ): Promise<T[]> {
+  console.log("getFromSupabase table : ", table);
+
   const supabase = getSupabase();
   const userId = await getCurrentUserId();
 
@@ -413,6 +428,16 @@ export async function getFromSupabase<T>(
  * Get all records from Supabase (for useUserStorage compatibility)
  */
 export async function fetchAll<T>(tableName: string): Promise<T> {
+  // Local-only storage keys (not database tables) - return empty values
+  if (tableName === 'pos_cart' || tableName === 'pos_customerName') {
+    return (tableName === 'pos_cart' ? [] : '') as T;
+  }
+
+  // Special handling for recent invoices - fetch from sales table, limit to 5 most recent
+  if (tableName === 'pos_recentInvoices') {
+    return fetchRecentInvoices<T>() as Promise<T>;
+  }
+
   // Map old table names to actual Supabase table names
   const tableMap: { [key: string]: string } = {
     'gold_items': 'inventory',
@@ -425,10 +450,11 @@ export async function fetchAll<T>(tableName: string): Promise<T> {
     'paymentSettings': 'payment_settings',
     'notificationSettings': 'settings',
     'gold_rate_settings': 'gold_rates',
+    'customer_transactions': 'payment_transactions', // Map to correct table name
   };
-  
+
   const actualTable = tableMap[tableName] || tableName;
-  
+
   // Special handling for settings table
   if (actualTable === 'settings') {
     return fetchSettings<T>(tableName) as Promise<T>;
@@ -437,10 +463,49 @@ export async function fetchAll<T>(tableName: string): Promise<T> {
   if (actualTable === 'payment_settings') {
     return fetchPaymentSettings<T>() as Promise<T>;
   }
-  
+  console.log("fetchAll actualTable : ", actualTable);
   // For inventory table, return all items (filtering happens in components)
   const data = await getFromSupabase<any>(actualTable);
   return (Array.isArray(data) ? data : []) as T;
+}
+
+/**
+ * Fetch recent invoices from sales table (5 most recent)
+ * Transforms sales table data to match Invoice interface
+ */
+async function fetchRecentInvoices<T>(): Promise<T> {
+  const supabase = getSupabase();
+  const userId = await getCurrentUserId();
+
+  if (!userId) {
+    throw new Error('User must be authenticated');
+  }
+
+  const { data, error } = await supabase
+    .from('sales')
+    .select('*')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false })
+    .limit(5);
+
+  if (error) {
+    console.error('Error fetching recent invoices:', error);
+    throw error;
+  }
+
+  // Transform sales table data to match Invoice interface
+  const invoices = (data || []).map((sale: any) => ({
+    id: sale.id,
+    items: [], // Items are in sale_items table, not fetched here for performance
+    subtotal: (sale.total_amount || 0) - (sale.tax_amount || 0),
+    tax: sale.tax_amount || 0,
+    total: sale.total_amount || 0,
+    date: sale.created_at || new Date().toISOString(),
+    customerName: sale.customer_name || null,
+    paymentMethod: sale.payment_method || 'Cash',
+  }));
+
+  return invoices as T;
 }
 
 /**

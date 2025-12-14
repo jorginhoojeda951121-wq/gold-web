@@ -57,7 +57,7 @@ export default function Reservations() {
   // CRITICAL: Use IndexedDB first for instant loading (no loading screen!)
   const { data: reservationsRaw, updateData: setReservations, loaded } = useUserStorage<Reservation[]>('reservations', []);
 
-  // Parse JSON fields when loading from IndexedDB - useMemo to prevent infinite loops
+  // Parse JSON fields and compute derived fields - useMemo to prevent infinite loops
   const reservations = useMemo(() => {
     return reservationsRaw.map((reservation: any) => {
       // Parse category_preferences and color_preferences if they're JSON strings
@@ -84,11 +84,13 @@ export default function Reservations() {
         ...reservation,
         category_preferences: categoryPrefs,
         color_preferences: colorPrefs,
+        is_overdue: reservation.status !== 'cancelled' &&
+          reservation.status !== 'returned' &&
+          new Date(reservation.event_date) < new Date()
       };
     });
   }, [reservationsRaw]);
 
-  const [filteredReservations, setFilteredReservations] = useState<Reservation[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState('all');
   const [showAddDialog, setShowAddDialog] = useState(false);
@@ -96,145 +98,49 @@ export default function Reservations() {
   const [showDetailsDialog, setShowDetailsDialog] = useState(false);
   const [backgroundSyncing, setBackgroundSyncing] = useState(false);
 
-  // Load fresh data from Supabase in background (no loading screen!)
-  useEffect(() => {
-    if (!loaded) return; // Wait for IndexedDB to load first
+  // -- Filtered Reservations as derived state --
+  const filteredReservations = useMemo(() => {
+    let filtered = [...reservations];
 
-    const syncFromSupabase = async () => {
-      try {
-        setBackgroundSyncing(true);
-        const supabase = getSupabase();
+    // Search filter
+    if (searchQuery) {
+      filtered = filtered.filter(res =>
+        res.customer_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        res.customer_phone.includes(searchQuery) ||
+        res.id.toLowerCase().includes(searchQuery.toLowerCase())
+      );
+    }
 
-        // Check if user is authenticated
-        const { data: { session } } = await supabase.auth.getSession();
-        if (!session) return;
+    // Status / Tab filter
+    if (activeTab === 'upcoming') {
+      const today = new Date();
+      const next30 = new Date();
+      next30.setDate(today.getDate() + 30);
 
-        // Query reservations from Supabase
-        const { data, error } = await supabase
-          .from('reservations')
-          .select('*')
-          .order('event_date', { ascending: true });
+      filtered = filtered.filter(res => {
+        const eventDate = new Date(res.event_date);
+        return (
+          eventDate >= today &&
+          eventDate <= next30 &&
+          res.status !== 'cancelled' &&
+          res.status !== 'returned'
+        );
+      });
+    } else if (activeTab === 'overdue') {
+      filtered = filtered.filter(res => res.is_overdue);
+    } else if (activeTab === 'completed') {
+      filtered = filtered.filter(res =>
+        res.status === 'returned' || res.status === 'cancelled'
+      );
+    } else if (activeTab !== 'all') {
+      filtered = filtered.filter(res => res.status === activeTab);
+    }
 
-        if (error) {
-          // Silent fail for table not found errors
-          if (error.code === 'PGRST301' || error.message.includes('JWT') || error.message.includes('schema cache')) {
-            return;
-          }
-          throw error;
-        }
+    return filtered;
+  }, [reservations, searchQuery, activeTab]);
 
-        // Transform and update local storage
-        // Parse JSON fields and transform data
-        const transformedData = (data || []).map((reservation: any) => {
-          // Parse category_preferences and color_preferences if they're JSON strings
-          let categoryPrefs = reservation.category_preferences;
-          let colorPrefs = reservation.color_preferences;
-
-          if (categoryPrefs && typeof categoryPrefs === 'string') {
-            try {
-              categoryPrefs = JSON.parse(categoryPrefs);
-            } catch {
-              categoryPrefs = categoryPrefs.split(',').map((c: string) => c.trim()).filter(Boolean);
-            }
-          }
-
-          if (colorPrefs && typeof colorPrefs === 'string') {
-            try {
-              colorPrefs = JSON.parse(colorPrefs);
-            } catch {
-              colorPrefs = colorPrefs.split(',').map((c: string) => c.trim()).filter(Boolean);
-            }
-          }
-
-          return {
-            ...reservation,
-            category_preferences: categoryPrefs,
-            color_preferences: colorPrefs,
-            is_overdue: reservation.status !== 'cancelled' &&
-              reservation.status !== 'returned' &&
-              new Date(reservation.event_date) < new Date()
-          };
-        });
-
-        await setReservations(transformedData as any);
-      } catch (error: any) {
-        console.error('Background sync error for reservations:', error);
-      } finally {
-        setBackgroundSyncing(false);
-      }
-    };
-
-    syncFromSupabase();
-  }, [loaded, setReservations]);
-
-  // Listen for sync completion events to reload data after sync
-  useEffect(() => {
-    const handleDataSynced = () => {
-      // Reload reservations after sync to show newly synced data
-      const syncFromSupabase = async () => {
-        try {
-          const supabase = getSupabase();
-          const { data: { session } } = await supabase.auth.getSession();
-          if (!session) return;
-
-          const { data, error } = await supabase
-            .from('reservations')
-            .select('*')
-            .order('event_date', { ascending: true });
-
-          if (error) {
-            if (error.code === 'PGRST301' || error.message.includes('JWT') || error.message.includes('schema cache')) {
-              return;
-            }
-            throw error;
-          }
-
-          // Parse JSON fields and transform data
-          const transformedData = (data || []).map((reservation: any) => {
-            // Parse category_preferences and color_preferences if they're JSON strings
-            let categoryPrefs = reservation.category_preferences;
-            let colorPrefs = reservation.color_preferences;
-
-            if (categoryPrefs && typeof categoryPrefs === 'string') {
-              try {
-                categoryPrefs = JSON.parse(categoryPrefs);
-              } catch {
-                categoryPrefs = categoryPrefs.split(',').map((c: string) => c.trim()).filter(Boolean);
-              }
-            }
-
-            if (colorPrefs && typeof colorPrefs === 'string') {
-              try {
-                colorPrefs = JSON.parse(colorPrefs);
-              } catch {
-                colorPrefs = colorPrefs.split(',').map((c: string) => c.trim()).filter(Boolean);
-              }
-            }
-
-            return {
-              ...reservation,
-              category_preferences: categoryPrefs,
-              color_preferences: colorPrefs,
-              is_overdue: reservation.status !== 'cancelled' &&
-                reservation.status !== 'returned' &&
-                new Date(reservation.event_date) < new Date()
-            };
-          });
-
-          await setReservations(transformedData as any);
-        } catch (error: any) {
-          console.error('Background sync error for reservations:', error);
-        }
-      };
-      syncFromSupabase();
-    };
-
-    // Removed data-synced listener - no longer using sync queue
-  }, [setReservations]);
-
-  useEffect(() => {
-    filterReservations();
-  }, [searchQuery, activeTab, reservations]);
+  // Data is automatically fetched from Supabase on mount via useUserStorage
+  // No background sync needed - data is always fresh
 
   const refreshReservations = async () => {
     // Manual refresh - show toast
@@ -284,38 +190,6 @@ export default function Reservations() {
     } finally {
       setBackgroundSyncing(false);
     }
-  };
-
-  const filterReservations = () => {
-    let filtered = [...reservations];
-
-    // Filter by search query
-    if (searchQuery) {
-      filtered = filtered.filter(res =>
-        res.customer_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        res.customer_phone.includes(searchQuery) ||
-        res.id.toLowerCase().includes(searchQuery.toLowerCase())
-      );
-    }
-
-    // Filter by tab/status
-    if (activeTab === 'upcoming') {
-      filtered = filtered.filter(res => {
-        const eventDate = new Date(res.event_date);
-        const today = new Date();
-        const next30Days = new Date();
-        next30Days.setDate(today.getDate() + 30);
-        return eventDate >= today && eventDate <= next30Days && res.status !== 'cancelled' && res.status !== 'returned';
-      });
-    } else if (activeTab === 'overdue') {
-      filtered = filtered.filter(res => res.is_overdue);
-    } else if (activeTab === 'completed') {
-      filtered = filtered.filter(res => res.status === 'returned' || res.status === 'cancelled');
-    } else if (activeTab !== 'all') {
-      filtered = filtered.filter(res => res.status === activeTab);
-    }
-
-    setFilteredReservations(filtered);
   };
 
   const handleDelete = async (id: string) => {

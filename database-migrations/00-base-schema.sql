@@ -381,32 +381,23 @@ COMMENT ON TABLE public.materials_assigned IS 'Track materials and work assignme
 
 CREATE TABLE IF NOT EXISTS public.sales (
     id TEXT PRIMARY KEY,
-    user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+    user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
     
     -- Customer information
     customer_id TEXT REFERENCES public.customers(id) ON DELETE SET NULL,
-    customer_name TEXT NOT NULL,
+    customer_name TEXT,
     customer_phone TEXT,
-    
-    -- Sale details
-    sale_date TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    invoice_number TEXT UNIQUE NOT NULL,
+    customer_email TEXT,
     
     -- Financial details
-    subtotal NUMERIC(12,2) NOT NULL DEFAULT 0,
+    total_amount NUMERIC(12,2),
     tax_amount NUMERIC(12,2) DEFAULT 0,
     discount_amount NUMERIC(12,2) DEFAULT 0,
-    total_amount NUMERIC(12,2) NOT NULL DEFAULT 0,
     
     -- Payment details
-    payment_method TEXT NOT NULL CHECK (payment_method IN ('Cash', 'UPI', 'Card', 'Bank Transfer', 'Credit', 'Cheque')),
-    payment_status TEXT DEFAULT 'paid' CHECK (payment_status IN ('paid', 'partial', 'pending', 'credit')),
-    amount_paid NUMERIC(12,2) DEFAULT 0,
-    balance_due NUMERIC(12,2) DEFAULT 0,
-    
-    -- UPI details (if applicable)
-    upi_id TEXT,
-    transaction_reference TEXT,
+    payment_method TEXT,
+    payment_status TEXT DEFAULT 'pending',
+    transaction_id TEXT,
     
     -- Notes
     notes TEXT,
@@ -416,10 +407,10 @@ CREATE TABLE IF NOT EXISTS public.sales (
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
-CREATE INDEX IF NOT EXISTS idx_sales_user_id ON public.sales(user_id);
+CREATE INDEX IF NOT EXISTS idx_sales_user_id ON public.sales(user_id) WHERE user_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_sales_customer_id ON public.sales(customer_id) WHERE customer_id IS NOT NULL;
-CREATE INDEX IF NOT EXISTS idx_sales_date ON public.sales(sale_date DESC);
-CREATE INDEX IF NOT EXISTS idx_sales_invoice_number ON public.sales(invoice_number);
+CREATE INDEX IF NOT EXISTS idx_sales_created_at ON public.sales(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_sales_payment_status ON public.sales(payment_status) WHERE payment_status IS NOT NULL;
 
 COMMENT ON TABLE public.sales IS 'Sales transactions and invoices';
 

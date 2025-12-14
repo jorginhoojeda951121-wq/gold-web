@@ -35,6 +35,35 @@ import {
 } from "lucide-react";
 import { format } from "date-fns";
 
+function ensureDate(obj: any, key: string) {
+  if (!obj || !obj[key]) return;
+  if (typeof obj[key] === "string" || typeof obj[key] === "number") {
+    try {
+      obj[key] = new Date(obj[key]);
+    } catch {
+      obj[key] = null;
+    }
+  }
+}
+
+// Patch for SubscriptionStatus type date fields and normalize numbers
+function normalizeSubscriptionStatus(status: any): SubscriptionStatus | null {
+  if (!status) return status;
+  [
+    "expiryDate",
+    "subscriptionStartDate",
+    "gracePeriodEndDate",
+    "lastPaymentDate",
+    "startDate"
+  ].forEach(key => ensureDate(status, key));
+  // Normalize renewalAmount and similar numeric fields
+  status.renewalAmount = Number(status.renewalAmount ?? 0);
+  status.daysRemaining = Number(status.daysRemaining ?? 0);
+  status.hoursRemaining = Number(status.hoursRemaining ?? 0);
+  status.percentageRemaining = Number(status.percentageRemaining ?? 0);
+  return status;
+}
+
 export const Subscription = () => {
   const supabase = getSupabase();
   const navigate = useNavigate();
@@ -43,7 +72,7 @@ export const Subscription = () => {
 
   // CRITICAL: Use IndexedDB first for instant loading (no loading screen!)
   const { data: subscriptionStatus, updateData: setSubscriptionStatus, loaded } =
-    useUserStorage<SubscriptionStatus | null>('subscription_status', null);
+    useUserStorage<SubscriptionStatus | null>('user_subscriptions', null);
 
   const [processing, setProcessing] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
@@ -59,9 +88,16 @@ export const Subscription = () => {
   useEffect(() => {
     if (!subscriptionStatus?.expiryDate) return;
 
+    // Defensive: ensure Date
+    const expiry = typeof subscriptionStatus.expiryDate === "string"
+      ? new Date(subscriptionStatus.expiryDate)
+      : subscriptionStatus.expiryDate instanceof Date
+        ? subscriptionStatus.expiryDate
+        : null;
+    if (!expiry) return;
+
     const updateTime = () => {
       const now = new Date();
-      const expiry = subscriptionStatus.expiryDate!;
       const diff = expiry.getTime() - now.getTime();
 
       if (diff > 0) {
@@ -249,12 +285,14 @@ export const Subscription = () => {
             return;
           }
           setUserId(session.user.id);
-          const status = await getSubscriptionStatus(session.user.id);
+          let status = await getSubscriptionStatus(session.user.id);
+          status = normalizeSubscriptionStatus(status);
           await setSubscriptionStatus(status);
         } else {
           // Use cached user ID for instant loading
           setUserId(cachedUserId);
-          const status = await getSubscriptionStatus(cachedUserId);
+          let status = await getSubscriptionStatus(cachedUserId);
+          status = normalizeSubscriptionStatus(status);
           await setSubscriptionStatus(status);
 
           // Verify session in background (no loading screen)
@@ -311,7 +349,8 @@ export const Subscription = () => {
       );
 
       // Refresh subscription status
-      const newStatus = await getSubscriptionStatus(userId);
+      let newStatus = await getSubscriptionStatus(userId);
+      newStatus = normalizeSubscriptionStatus(newStatus);
       await setSubscriptionStatus(newStatus);
 
       toast({
@@ -371,7 +410,21 @@ export const Subscription = () => {
       setLoadingHistory(true);
       try {
         const history = await getPaymentHistory(userId);
-        setPaymentHistory(history);
+        // Defensive: convert payment_date and created_at to Dates for all transactions
+        setPaymentHistory(
+          (history || []).map((txn: any) => {
+            ["payment_date", "created_at"].forEach((k) => {
+              if (txn[k] && typeof txn[k] === "string") {
+                try {
+                  txn[k] = new Date(txn[k]);
+                } catch {
+                  txn[k] = null;
+                }
+              }
+            });
+            return txn;
+          })
+        );
       } catch (error) {
         console.error('Error loading payment history:', error);
       } finally {
@@ -519,7 +572,8 @@ export const Subscription = () => {
       await recordSubscriptionPayment(userId, subscriptionStatus.renewalAmount);
 
       // Refresh subscription status and save to IndexedDB
-      const newStatus = await getSubscriptionStatus(userId);
+      let newStatus = await getSubscriptionStatus(userId);
+      newStatus = normalizeSubscriptionStatus(newStatus);
       await setSubscriptionStatus(newStatus);
 
       toast({
@@ -633,8 +687,30 @@ export const Subscription = () => {
                       className="h-3"
                     />
                     <div className="flex items-center justify-between text-xs text-muted-foreground">
-                      <span>Started: {subscriptionStatus.subscriptionStartDate ? format(subscriptionStatus.subscriptionStartDate, "PPP") : "N/A"}</span>
-                      <span>Expires: {subscriptionStatus.expiryDate ? format(subscriptionStatus.expiryDate, "PPP") : "N/A"}</span>
+                      <span>
+                        Started: {subscriptionStatus.subscriptionStartDate
+                          ? (() => {
+                              const d = subscriptionStatus.subscriptionStartDate;
+                              return d instanceof Date
+                                ? format(d, "PPP")
+                                : typeof d === "string"
+                                ? format(new Date(d), "PPP")
+                                : "N/A";
+                            })()
+                          : "N/A"}
+                      </span>
+                      <span>
+                        Expires: {subscriptionStatus.expiryDate
+                          ? (() => {
+                              const d = subscriptionStatus.expiryDate;
+                              return d instanceof Date
+                                ? format(d, "PPP")
+                                : typeof d === "string"
+                                ? format(new Date(d), "PPP")
+                                : "N/A";
+                            })()
+                          : "N/A"}
+                      </span>
                     </div>
                   </div>
                 )}
@@ -688,7 +764,14 @@ export const Subscription = () => {
                   <p className="text-sm text-muted-foreground mb-1">Account Created</p>
                   <p className="font-semibold text-lg">
                     {subscriptionStatus.subscriptionStartDate
-                      ? format(subscriptionStatus.subscriptionStartDate, "PPP 'at' p")
+                      ? (() => {
+                          const d = subscriptionStatus.subscriptionStartDate;
+                          return d instanceof Date
+                            ? format(d, "PPP 'at' p")
+                            : typeof d === "string"
+                            ? format(new Date(d), "PPP 'at' p")
+                            : "N/A";
+                        })()
                       : "N/A"}
                   </p>
                 </div>
@@ -696,7 +779,14 @@ export const Subscription = () => {
                   <p className="text-sm text-muted-foreground mb-1">Expiry Date</p>
                   <p className="font-semibold text-lg">
                     {subscriptionStatus.expiryDate
-                      ? format(subscriptionStatus.expiryDate, "PPP 'at' p")
+                      ? (() => {
+                          const d = subscriptionStatus.expiryDate;
+                          return d instanceof Date
+                            ? format(d, "PPP 'at' p")
+                            : typeof d === "string"
+                            ? format(new Date(d), "PPP 'at' p")
+                            : "N/A";
+                        })()
                       : "N/A"}
                   </p>
                 </div>
@@ -712,7 +802,7 @@ export const Subscription = () => {
                   <p className="text-sm text-muted-foreground mb-1">Renewal Amount</p>
                   <p className="font-semibold text-lg flex items-center gap-1">
                     <IndianRupee className="h-5 w-5" />
-                    {(subscriptionStatus?.renewalAmount ?? 0).toLocaleString()}
+                    {Number(subscriptionStatus?.renewalAmount ?? 0).toLocaleString()}
                   </p>
                 </div>
               </div>
@@ -744,7 +834,14 @@ export const Subscription = () => {
                     Your subscription has expired. Please renew to continue using the service.
                     {subscriptionStatus.gracePeriodEndDate && (
                       <span className="block mt-2">
-                        Grace period ended on: {format(subscriptionStatus.gracePeriodEndDate, "PPP")}
+                        Grace period ended on: {(() => {
+                          const d = subscriptionStatus.gracePeriodEndDate;
+                          return d instanceof Date
+                            ? format(d, "PPP")
+                            : typeof d === "string"
+                            ? format(new Date(d), "PPP")
+                            : "N/A";
+                        })()}
                       </span>
                     )}
                   </AlertDescription>
@@ -760,7 +857,14 @@ export const Subscription = () => {
                     Please renew before the grace period ends to avoid service interruption.
                     {subscriptionStatus.gracePeriodEndDate && (
                       <span className="block mt-2">
-                        Grace period ends on: {format(subscriptionStatus.gracePeriodEndDate, "PPP")}
+                        Grace period ends on: {(() => {
+                          const d = subscriptionStatus.gracePeriodEndDate;
+                          return d instanceof Date
+                            ? format(d, "PPP")
+                            : typeof d === "string"
+                            ? format(new Date(d), "PPP")
+                            : "N/A";
+                        })()}
                       </span>
                     )}
                   </AlertDescription>
@@ -798,7 +902,7 @@ export const Subscription = () => {
                 <p className="text-sm text-muted-foreground mb-2">Annual renewal amount:</p>
                 <p className="text-4xl font-bold flex items-center gap-2">
                   <IndianRupee className="h-8 w-8" />
-                  {subscriptionStatus.renewalAmount.toLocaleString()}
+                  {Number(subscriptionStatus?.renewalAmount ?? 0).toLocaleString()}
                 </p>
                 <p className="text-xs text-muted-foreground mt-2">Valid for 12 months from payment date</p>
               </div>
@@ -919,7 +1023,7 @@ export const Subscription = () => {
                   <p className="text-sm text-muted-foreground mb-2">Test payment amount:</p>
                   <p className="text-2xl font-bold flex items-center gap-2 text-blue-700">
                     <IndianRupee className="h-6 w-6" />
-                    {subscriptionStatus.renewalAmount.toLocaleString()}
+                    {Number(subscriptionStatus?.renewalAmount ?? 0).toLocaleString()}
                   </p>
                 </div>
                 <Button
@@ -964,7 +1068,7 @@ export const Subscription = () => {
                 <Label className="text-sm text-muted-foreground mb-2 block">Annual renewal fee</Label>
                 <p className="text-3xl font-bold flex items-center gap-2">
                   <IndianRupee className="h-8 w-8" />
-                  {subscriptionStatus?.renewalAmount.toFixed(2)}
+                  {Number(subscriptionStatus?.renewalAmount ?? 0).toFixed(2)}
                 </p>
               </div>
 
@@ -1010,12 +1114,21 @@ export const Subscription = () => {
                 <div className="space-y-2">
                   <div className="flex justify-between text-sm">
                     <span className="text-muted-foreground">Renewal Amount:</span>
-                    <span className="font-semibold">₹{subscriptionStatus?.renewalAmount.toFixed(2)}</span>
+                    <span className="font-semibold">
+                      ₹{Number(subscriptionStatus?.renewalAmount ?? 0).toFixed(2)}
+                    </span>
                   </div>
                   <div className="flex justify-between text-sm">
                     <span className="text-muted-foreground">New End Date:</span>
                     <span className="font-semibold">
-                      {getNewEndDate() ? format(getNewEndDate()!, 'dd/MM/yyyy') : 'N/A'}
+                      {getNewEndDate()
+                        ? format(
+                            getNewEndDate() instanceof Date
+                              ? getNewEndDate()!
+                              : new Date(getNewEndDate()!),
+                            'dd/MM/yyyy'
+                          )
+                        : 'N/A'}
                     </span>
                   </div>
                 </div>
@@ -1129,10 +1242,29 @@ export const Subscription = () => {
                                 <p>Method: {transaction.payment_method}</p>
                               )}
                               {transaction.payment_date && (
-                                <p>Date: {format(new Date(transaction.payment_date), 'PPP p')}</p>
+                                <p>
+                                  Date: {(() => {
+                                    // Support string or Date
+                                    const d = transaction.payment_date;
+                                    return d instanceof Date
+                                      ? format(d, 'PPP p')
+                                      : typeof d === "string"
+                                      ? format(new Date(d), 'PPP p')
+                                      : "-";
+                                  })()}
+                                </p>
                               )}
                               {transaction.created_at && !transaction.payment_date && (
-                                <p>Created: {format(new Date(transaction.created_at), 'PPP p')}</p>
+                                <p>
+                                  Created: {(() => {
+                                    const d = transaction.created_at;
+                                    return d instanceof Date
+                                      ? format(d, 'PPP p')
+                                      : typeof d === "string"
+                                      ? format(new Date(d), 'PPP p')
+                                      : "-";
+                                  })()}
+                                </p>
                               )}
                             </div>
                           </div>

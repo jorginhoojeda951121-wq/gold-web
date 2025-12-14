@@ -47,10 +47,10 @@ const vendorTypeConfig = {
 
 export default function Vendors() {
   const { toast } = useToast();
-  
+
   // CRITICAL: Use IndexedDB first for instant loading (no loading screen!)
   const { data: vendorsRaw, updateData: setVendors, loaded } = useUserStorage<Vendor[]>('vendors', []);
-  
+
   // Parse JSON fields when loading from IndexedDB - useMemo to prevent infinite loops
   const vendors = useMemo(() => {
     return vendorsRaw.map((vendor: any) => {
@@ -67,8 +67,7 @@ export default function Vendors() {
       return parsedVendor;
     });
   }, [vendorsRaw]);
-  
-  const [filteredVendors, setFilteredVendors] = useState<Vendor[]>([]);
+
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState('vendors');
   const [statusFilter, setStatusFilter] = useState('all');
@@ -77,103 +76,36 @@ export default function Vendors() {
   const [showDetailsDialog, setShowDetailsDialog] = useState(false);
   const [backgroundSyncing, setBackgroundSyncing] = useState(false);
 
-  // Load fresh data from Supabase in background (no loading screen!)
-  useEffect(() => {
-    if (!loaded) return; // Wait for IndexedDB to load first
-    
-    const syncFromSupabase = async () => {
-      try {
-        setBackgroundSyncing(true);
-        const supabase = getSupabase();
-        
-        // Check if user is authenticated
-        const { data: { session } } = await supabase.auth.getSession();
-        if (!session) return;
-        
-        // Query vendors from Supabase
-        const { data, error } = await supabase
-          .from('vendors')
-          .select('*')
-          .order('name', { ascending: true });
+  // Data is automatically fetched from Supabase on mount via useUserStorage
+  // No background sync needed - data is always fresh
 
-        if (error) {
-          // Silent fail for table not found errors
-          if (error.code === 'PGRST301' || error.message.includes('JWT') || error.message.includes('schema cache')) {
-            return;
-          }
-          throw error;
-        }
+  // Pure derived filtered vendors
+  const filteredVendors = useMemo(() => {
+    let filtered = [...vendors];
 
-        await setVendors(data || []);
-      } catch (error: any) {
-        console.error('Background sync error for vendors:', error);
-      } finally {
-        setBackgroundSyncing(false);
-      }
-    };
+    if (searchQuery) {
+      const q = searchQuery.toLowerCase();
+      filtered = filtered.filter(v =>
+        v.name.toLowerCase().includes(q) ||
+        v.phone.includes(searchQuery) ||
+        v.email?.toLowerCase().includes(q) ||
+        v.gst_number?.includes(searchQuery)
+      );
+    }
 
-    syncFromSupabase();
-  }, [loaded, setVendors]);
+    if (statusFilter !== 'all') {
+      filtered = filtered.filter(v => v.status === statusFilter);
+    }
 
-  // Listen for sync completion events to reload data after sync
-  useEffect(() => {
-    const handleDataSynced = () => {
-      // Reload vendors after sync to show newly synced data
-      const syncFromSupabase = async () => {
-        try {
-          const supabase = getSupabase();
-          const { data: { session } } = await supabase.auth.getSession();
-          if (!session) return;
-          
-          const { data, error } = await supabase
-            .from('vendors')
-            .select('*')
-            .order('name', { ascending: true });
-
-          if (error) {
-            if (error.code === 'PGRST301' || error.message.includes('JWT') || error.message.includes('schema cache')) {
-              return;
-            }
-            throw error;
-          }
-
-          // Parse specialization fields from JSON strings
-          const parsedData = (data || []).map((vendor: any) => {
-            if (vendor.specialization && typeof vendor.specialization === 'string') {
-              try {
-                vendor.specialization = JSON.parse(vendor.specialization);
-              } catch {
-                // If parsing fails, try comma-separated
-                vendor.specialization = vendor.specialization.split(',').map((s: string) => s.trim()).filter(Boolean);
-              }
-            }
-            return vendor;
-          });
-          await setVendors(parsedData);
-        } catch (error: any) {
-          console.error('Background sync error for vendors:', error);
-        }
-      };
-      syncFromSupabase();
-    };
-
-    window.addEventListener('data-synced', handleDataSynced);
-    
-    return () => {
-      window.removeEventListener('data-synced', handleDataSynced);
-    };
-  }, [setVendors]);
-
-  useEffect(() => {
-    filterVendors();
-  }, [searchQuery, statusFilter, vendors]);
+    return filtered;
+  }, [vendors, searchQuery, statusFilter]);
 
   const refreshVendors = async () => {
     // Manual refresh - show toast
     try {
       setBackgroundSyncing(true);
       const supabase = getSupabase();
-      
+
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) {
         toast({
@@ -183,7 +115,7 @@ export default function Vendors() {
         });
         return;
       }
-      
+
       const { data, error } = await supabase
         .from('vendors')
         .select('*')
@@ -192,7 +124,7 @@ export default function Vendors() {
       if (error) throw error;
 
       await setVendors(data || []);
-      
+
       toast({
         title: 'Refreshed',
         description: 'Vendors updated successfully.',
@@ -211,44 +143,23 @@ export default function Vendors() {
     }
   };
 
-  const filterVendors = () => {
-    let filtered = [...vendors];
-
-    // Filter by search query
-    if (searchQuery) {
-      filtered = filtered.filter(vendor =>
-        vendor.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        vendor.phone.includes(searchQuery) ||
-        vendor.email?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        vendor.gst_number?.includes(searchQuery)
-      );
-    }
-
-    // Filter by status
-    if (statusFilter !== 'all') {
-      filtered = filtered.filter(vendor => vendor.status === statusFilter);
-    }
-
-    setFilteredVendors(filtered);
-  };
-
   const handleDelete = async (id: string) => {
     if (!confirm('Are you sure you want to delete this vendor? This action cannot be undone.')) return;
 
     try {
       const { deleteFromSupabase } = await import('@/lib/supabaseDirect');
       const { getUserData, setUserData } = await import('@/lib/userStorage');
-      
+
       // Update local storage immediately
       const updatedVendors = vendors.filter(v => v.id !== id);
       await setVendors(updatedVendors);
-      
+
       // Also update IndexedDB
       await setUserData('vendors', updatedVendors);
-      
+
       // Delete directly from Supabase
       await deleteFromSupabase('vendors', id);
-      
+
       toast({
         title: 'Success',
         description: 'Vendor deleted successfully.',
@@ -510,7 +421,7 @@ export default function Vendors() {
                                 specializationArray = vendor.specialization;
                               }
                             }
-                            
+
                             return specializationArray.length > 0 ? (
                               <div className="flex items-center gap-2 flex-wrap">
                                 <span className="text-sm text-muted-foreground">Specialization:</span>
@@ -596,4 +507,3 @@ export default function Vendors() {
     </div>
   );
 }
-

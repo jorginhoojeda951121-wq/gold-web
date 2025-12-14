@@ -232,7 +232,7 @@ const Support = () => {
                 <Textarea
                   value={formData.message}
                   onChange={(e) => setFormData({ ...formData, message: e.target.value })}
-                  placeholder="Please provide detailed information about your issue, including:\n• What you were trying to do\n• What happened instead\n• Steps to reproduce (if applicable)\n• Any error messages you saw"
+                  placeholder="Please provide detailed information about your inquiry or issue..."
                   rows={10}
                   required
                   className="bg-background border-2 border-border text-foreground placeholder:text-muted-foreground focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 resize-none text-base transition-all"

@@ -10,12 +10,12 @@ import { Separator } from "@/components/ui/separator";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { 
-  Receipt, 
-  ShoppingCart, 
-  Plus, 
-  Minus, 
-  Trash2, 
+import {
+  Receipt,
+  ShoppingCart,
+  Plus,
+  Minus,
+  Trash2,
   CreditCard,
   DollarSign,
   Printer,
@@ -95,11 +95,11 @@ const POS = () => {
   const { data: cart, updateData: setCart } = useUserStorage<CartItem[]>("pos_cart", []);
   const { data: customerName, updateData: setCustomerName } = useUserStorage<string>("pos_customerName", "");
   const { data: recentInvoices, updateData: setRecentInvoices } = useUserStorage<Invoice[]>("pos_recentInvoices", []);
-  
+
   // Load customers for credit/repayment functionality
   const { data: customers, updateData: setCustomers } = useUserStorage<Customer[]>('customers', []);
   const { data: customerTransactions, updateData: setCustomerTransactions } = useUserStorage<CustomerTransaction[]>('customer_transactions', []);
-  
+
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [showRepaymentDialog, setShowRepaymentDialog] = useState(false);
   const [repaymentData, setRepaymentData] = useState({
@@ -141,7 +141,7 @@ const POS = () => {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
     }).format(value || 0);
-  
+
   // Load inventory directly from IndexedDB (bypass cache issues)
   const [availableItems, setAvailableItems] = useState<JewelryItem[]>([]);
   const [itemsLoaded, setItemsLoaded] = useState(false);
@@ -153,42 +153,42 @@ const POS = () => {
     // Prevent multiple simultaneous loads (unless forced)
     if (isLoadingRef.current && !forceReload) return;
     isLoadingRef.current = true;
-    
+
     try {
       setIsRefreshing(true);
-      
+
       // Load all inventory from unified inventory_items table (Single Source of Truth)
       const inventoryData = await getUserData<any[]>("inventory_items") || [];
 
       const items: JewelryItem[] = inventoryData.map((item: any) => {
         // Determine item type - check item_type first, then category, then type field
-        const itemType = item.item_type || 
+        const itemType = item.item_type ||
           (item.category === 'gold' ? 'gold' :
-           item.category === 'stones' ? 'stone' :
-           item.category === 'stone' ? 'stone' :
-           item.type === 'Gold Bar' ? 'gold' : 
-           item.type === 'Gemstone' ? 'stone' : 'jewelry');
+            item.category === 'stones' ? 'stone' :
+              item.category === 'stone' ? 'stone' :
+                item.type === 'Gold Bar' ? 'gold' :
+                  item.type === 'Gemstone' ? 'stone' : 'jewelry');
 
         // Transform to JewelryItem format
         const stockValue = item.inStock ?? item.stock ?? item.in_stock ?? 10;
-        
+
         return {
           id: item.id,
           name: item.name || 'Unknown Item',
-          type: itemType === 'gold' ? 'Gold Bar' 
-                : itemType === 'stone' ? 'Gemstone'
-                : (item.type || 'Ring'),
-          gemstone: itemType === 'stone' 
+          type: itemType === 'gold' ? 'Gold Bar'
+            : itemType === 'stone' ? 'Gemstone'
+              : (item.type || 'Ring'),
+          gemstone: itemType === 'stone'
             ? (item.name || 'Stone')
             : (item.gemstone || item.attributes?.gemstone || 'None'),
-          carat: itemType === 'stone' 
+          carat: itemType === 'stone'
             ? (parseFloat(item.attributes?.carat || item.carat) || 0)
             : (parseFloat(item.carat) || 0),
           metal: itemType === 'gold'
             ? (item.attributes?.purity || item.purity || item.metal || 'Gold 18K')
             : itemType === 'stone'
-            ? 'Platinum'
-            : (item.metal || 'Gold 18K'),
+              ? 'Platinum'
+              : (item.metal || 'Gold 18K'),
           price: item.price || 0,
           inStock: stockValue,
           isArtificial: item.isArtificial || false,
@@ -228,12 +228,12 @@ const POS = () => {
     };
 
     window.addEventListener('data-synced', handleDataSynced);
-    
+
     return () => {
       window.removeEventListener('data-synced', handleDataSynced);
     };
   }, [loadAllInventory]);
-  
+
   // Update function for POS inventory updates - CRITICAL: Must update inventory_items (Single Source of Truth)
   const updateInventoryStock = useCallback(async (updatedItems: JewelryItem[]) => {
     try {
@@ -244,11 +244,11 @@ const POS = () => {
       // Process items sequentially to avoid race conditions
       for (const item of updatedItems) {
         const now = new Date().toISOString();
-        
+
         // Determine item type for inventory_items
-        const itemType = item.type === 'Gold Bar' ? 'gold' 
-                       : item.type === 'Gemstone' ? 'stone'
-                       : 'jewelry';
+        const itemType = item.type === 'Gold Bar' ? 'gold'
+          : item.type === 'Gemstone' ? 'stone'
+            : 'jewelry';
 
         // Find inventory item
         const inventoryIndex = updatedInventory.findIndex((inv: any) => inv.id === item.id);
@@ -322,19 +322,19 @@ const POS = () => {
   // Handle invoice deletion
   const handleDeleteInvoice = async () => {
     if (!invoiceToDelete) return;
-    
+
     try {
       await setRecentInvoices(prev => prev.filter(inv => inv.id !== invoiceToDelete.id));
-      
+
       // Delete from Supabase directly (sales table)
       await deleteFromSupabase('sales', invoiceToDelete.id);
-      
+
       toast({
         title: "Invoice Deleted",
         description: `Invoice ${invoiceToDelete.id} has been removed from history.`,
         variant: "destructive"
       });
-      
+
       setInvoiceToDelete(null);
     } catch (error) {
       console.error('Error deleting invoice:', error);
@@ -351,7 +351,7 @@ const POS = () => {
     try {
       const inventoryData = await getUserData<any[]>('inventory_items') || [];
       const fullItem = inventoryData.find((inv: any) => inv.id === item.id);
-      
+
       // Set item to add and pre-fill details from item
       setItemToAdd(item);
       setItemDetails({
@@ -466,10 +466,10 @@ const POS = () => {
 
   const handleBarcodeScan = (barcode: string) => {
     const barcodeUpper = barcode.toUpperCase();
-    
+
     // Search in available items by barcode or SKU
     const foundItem = availableItems.find(
-      item => 
+      item =>
         (item.barcode && item.barcode.toUpperCase() === barcodeUpper) ||
         (item.sku && item.sku.toUpperCase() === barcodeUpper) ||
         item.id.toUpperCase() === barcodeUpper
@@ -516,7 +516,7 @@ const POS = () => {
         const taxAmount = itemTotal - basePrice;
         subTotal += basePrice;
         totalTax += taxAmount;
-        
+
         const rateKey = item.taxRate ?? 3;
         const existing = taxBreakdownMap.get(rateKey) || { amount: 0, count: 0 };
         taxBreakdownMap.set(rateKey, { amount: existing.amount + taxAmount, count: existing.count + 1 });
@@ -525,7 +525,7 @@ const POS = () => {
         const taxAmount = itemTotal * itemTaxRate;
         subTotal += itemTotal;
         totalTax += taxAmount;
-        
+
         const rateKey = item.taxRate ?? 3;
         const existing = taxBreakdownMap.get(rateKey) || { amount: 0, count: 0 };
         taxBreakdownMap.set(rateKey, { amount: existing.amount + taxAmount, count: existing.count + 1 });
@@ -548,7 +548,7 @@ const POS = () => {
   const filteredCustomers = useMemo(() => {
     if (!customerSearchQuery) return customers;
     const query = customerSearchQuery.toLowerCase();
-    return customers.filter(c => 
+    return customers.filter(c =>
       c.name.toLowerCase().includes(query) ||
       c.phone.includes(query) ||
       c.email.toLowerCase().includes(query)
@@ -592,12 +592,12 @@ const POS = () => {
     await setCustomerTransactions(prev => [...prev, newTransaction]);
 
     // Update customer balance
-    await setCustomers(prev => prev.map(customer => 
+    await setCustomers(prev => prev.map(customer =>
       customer.id === selectedCustomer.id
         ? {
-            ...customer,
-            currentBalance: (customer.currentBalance || 0) - amount,
-          }
+          ...customer,
+          currentBalance: (customer.currentBalance || 0) - amount,
+        }
         : customer
     ));
 
@@ -637,6 +637,57 @@ const POS = () => {
 
     setRecentInvoices(prev => [invoice, ...prev.slice(0, 4)]);
 
+    // Save invoice to Supabase database
+    try {
+      // Prepare sale record for database (matching actual schema)
+      const saleRecord = {
+        id: invoice.id,
+        customer_id: selectedCustomer?.id || null,
+        customer_name: invoice.customerName || null,
+        customer_phone: selectedCustomer?.phone || null,
+        customer_email: selectedCustomer?.email || null,
+        total_amount: invoice.total,
+        tax_amount: invoice.tax || 0,
+        discount_amount: 0,
+        payment_method: invoice.paymentMethod,
+        payment_status: invoice.paymentMethod === 'Credit' ? 'pending' : 'paid',
+        transaction_id: null, // Can be set if UPI/Card transaction ID is available
+        notes: null, // Can be used for additional notes
+        created_at: invoice.date, // Use invoice date as created_at
+      };
+
+      // Save sale record to database
+      await upsertToSupabase('sales', saleRecord);
+
+      // Save sale items (line items) to database
+      for (let i = 0; i < invoice.items.length; i++) {
+        const item = invoice.items[i];
+        const saleItem = {
+          id: `${invoice.id}_item_${i}_${item.id}`,
+          sale_id: invoice.id,
+          item_id: item.id,
+          item_name: item.name,
+          item_type: item.type || 'jewelry',
+          quantity: item.quantity,
+          unit_price: item.price,
+          total_price: item.price * item.quantity,
+          discount_percentage: 0,
+          discount_amount: 0,
+        };
+        await upsertToSupabase('sale_items', saleItem);
+      }
+
+      console.log('✅ Invoice saved to database:', invoice.id);
+    } catch (error) {
+      console.error('❌ Error saving invoice to database:', error);
+      // Show error toast but don't block the UI flow
+      toast({
+        title: "Warning",
+        description: "Invoice saved locally but failed to sync to database. Please check your connection.",
+        variant: "destructive"
+      });
+    }
+
     // If payment is Credit/Loan and customer is selected, update customer ledger
     if (paymentMethod === 'Credit' && selectedCustomer) {
       try {
@@ -655,14 +706,14 @@ const POS = () => {
         await setCustomerTransactions(prev => [...prev, newTransaction]);
 
         // Update customer balance
-        await setCustomers(prev => prev.map(customer => 
+        await setCustomers(prev => prev.map(customer =>
           customer.id === selectedCustomer.id
             ? {
-                ...customer,
-                currentBalance: (customer.currentBalance || 0) + total,
-                totalPurchases: (customer.totalPurchases || 0) + total,
-                lastPurchaseDate: new Date().toISOString().split('T')[0],
-              }
+              ...customer,
+              currentBalance: (customer.currentBalance || 0) + total,
+              totalPurchases: (customer.totalPurchases || 0) + total,
+              lastPurchaseDate: new Date().toISOString().split('T')[0],
+            }
             : customer
         ));
 
@@ -722,7 +773,7 @@ const POS = () => {
       };
 
       await generateReceiptPDF(receiptData);
-      
+
       toast({
         title: "Payment Processed",
         description: `Invoice ${invoice.id} has been generated and receipt downloaded.`
@@ -742,21 +793,21 @@ const POS = () => {
       toast({ title: "Empty Cart", description: "Please add items to the cart before processing payment.", variant: "destructive" });
       return;
     }
-    
+
     if (!paymentSettings.upiId) {
-      toast({ 
-        title: "UPI ID Not Configured", 
-        description: "Please configure UPI ID in Settings before processing UPI payments.", 
-        variant: "destructive" 
+      toast({
+        title: "UPI ID Not Configured",
+        description: "Please configure UPI ID in Settings before processing UPI payments.",
+        variant: "destructive"
       });
       return;
     }
-    
+
     const pa = paymentSettings.upiId || "";
     const pn = businessSettings.businessName || "";
     const am = total.toFixed(2);
     const tn = `POS payment ${new Date().toLocaleDateString()}`;
-    
+
     // Generate UPI payment string in proper format for QR code scanning
     // Format: UPI://pay?pa=<UPI_ID>&pn=<PayeeName>&am=<Amount>&cu=<Currency>&tn=<TransactionNote>
     const upiPaymentString = `UPI://pay?pa=${encodeURIComponent(pa)}&pn=${encodeURIComponent(pn)}&am=${am}&cu=INR&tn=${encodeURIComponent(tn)}`;
@@ -767,7 +818,7 @@ const POS = () => {
 
   return (
     <div className="min-h-screen bg-gradient-elegant">
-      
+
       <header className="bg-gradient-primary shadow-elegant border-b border-border/50">
         <div className="container mx-auto px-6 py-6">
           <div className="flex items-center justify-between gap-4">
@@ -781,14 +832,14 @@ const POS = () => {
 
       <main className="container mx-auto px-4 sm:px-6 py-8 max-w-full overflow-x-hidden">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 lg:gap-8 w-full">
-          
+
           {/* Product Selection */}
           <div className="lg:col-span-2 space-y-6 w-full overflow-x-hidden">
             <Card className="bg-gradient-to-br from-white via-blue-50/30 to-purple-50/30 shadow-xl border-2 border-blue-100/50 w-full overflow-hidden relative">
               {/* Decorative background elements */}
               <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-br from-blue-200/20 to-purple-200/20 rounded-full blur-3xl -z-0"></div>
               <div className="absolute bottom-0 left-0 w-48 h-48 bg-gradient-to-tr from-purple-200/20 to-pink-200/20 rounded-full blur-3xl -z-0"></div>
-              
+
               <CardHeader className="relative z-10 bg-gradient-to-r from-blue-50/50 via-white to-purple-50/50 border-b-2 border-blue-100/50 pb-4">
                 <CardTitle className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
@@ -850,15 +901,15 @@ const POS = () => {
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 max-h-[900px] overflow-y-auto overflow-x-hidden w-full min-w-0 scrollbar-thin pr-2">
                     {availableItems.map((item, index) => (
-                      <div 
-                        key={item.id} 
+                      <div
+                        key={item.id}
                         className="min-w-0 w-full animate-in fade-in slide-in-from-bottom-4"
                         style={{ animationDelay: `${index * 50}ms` }}
                       >
                         <JewelryCard
                           item={item}
-                          onEdit={() => {}}
-                          onDelete={() => {}}
+                          onEdit={() => { }}
+                          onDelete={() => { }}
                           onView={(it) => { setSelected(it); setShowDetails(true); }}
                           onAddToCart={addToCart}
                           showAddToCart={true}
@@ -895,16 +946,16 @@ const POS = () => {
                           <p className="text-xs text-muted-foreground">{invoice.paymentMethod}</p>
                         </div>
                         <div className="flex gap-2 flex-shrink-0">
-                          <Button 
-                            variant="outline" 
+                          <Button
+                            variant="outline"
                             size="sm"
                             onClick={() => setViewingInvoice(invoice)}
                             title="View Invoice"
                           >
                             <Eye className="h-4 w-4" />
                           </Button>
-                          <Button 
-                            variant="outline" 
+                          <Button
+                            variant="outline"
                             size="sm"
                             onClick={() => {
                               const receiptData: ReceiptData = {
@@ -934,8 +985,8 @@ const POS = () => {
                           >
                             <Printer className="h-4 w-4" />
                           </Button>
-                          <Button 
-                            variant="outline" 
+                          <Button
+                            variant="outline"
                             size="sm"
                             onClick={() => setInvoiceToDelete(invoice)}
                             title="Delete Invoice"
@@ -993,7 +1044,7 @@ const POS = () => {
                     className="pl-10"
                   />
                 </div>
-                
+
                 {showCustomerSearch && customerSearchQuery && (
                   <div className="border rounded-lg max-h-48 overflow-y-auto bg-white shadow-lg z-10">
                     {filteredCustomers.length > 0 ? (
@@ -1067,8 +1118,8 @@ const POS = () => {
                 <CardTitle className="flex items-center justify-between">
                   <span>Cart ({cart.length} items)</span>
                   {cart.length > 0 && (
-                    <Button 
-                      variant="outline" 
+                    <Button
+                      variant="outline"
                       size="sm"
                       onClick={() => setCart([])}
                     >
@@ -1153,7 +1204,7 @@ const POS = () => {
                       <span className="text-muted-foreground">Subtotal:</span>
                       <span className="font-medium">₹{subtotal.toFixed(2)}</span>
                     </div>
-                    
+
                     {/* Tax Breakdown */}
                     {taxBreakdown && taxBreakdown.length > 0 && (
                       <div className="space-y-1 bg-amber-50 p-2 rounded border border-amber-200">
@@ -1171,14 +1222,14 @@ const POS = () => {
                         </div>
                       </div>
                     )}
-                    
+
                     <Separator />
                     <div className="flex justify-between text-lg font-bold">
                       <span>Total:</span>
                       <span>₹{total.toFixed(2)}</span>
                     </div>
                   </div>
-                  
+
                   <div className="space-y-2">
                     <Button
                       className="w-full bg-gradient-gold hover:bg-gold-dark text-primary transition-smooth"
@@ -1292,11 +1343,11 @@ const POS = () => {
             {/* Refund/Change Calculation */}
             {cashPaymentData.amountReceived && parseFloat(cashPaymentData.amountReceived) > 0 && (
               <div className="p-4 rounded-lg border-2" style={{
-                backgroundColor: parseFloat(cashPaymentData.amountReceived) >= total 
-                  ? '#f0fdf4' 
+                backgroundColor: parseFloat(cashPaymentData.amountReceived) >= total
+                  ? '#f0fdf4'
                   : '#fef2f2',
-                borderColor: parseFloat(cashPaymentData.amountReceived) >= total 
-                  ? '#86efac' 
+                borderColor: parseFloat(cashPaymentData.amountReceived) >= total
+                  ? '#86efac'
                   : '#fca5a5'
               }}>
                 {parseFloat(cashPaymentData.amountReceived) >= total ? (
@@ -1459,14 +1510,14 @@ const POS = () => {
                 </p>
               </div>
             )}
-            
+
             <div>
               <Label htmlFor="repayment-amount">Repayment Amount (₹) *</Label>
               <Input
                 id="repayment-amount"
                 type="number"
                 value={repaymentData.amount}
-                onChange={(e) => setRepaymentData(prev => ({...prev, amount: e.target.value}))}
+                onChange={(e) => setRepaymentData(prev => ({ ...prev, amount: e.target.value }))}
                 placeholder="Enter amount"
                 required
               />
@@ -1477,16 +1528,16 @@ const POS = () => {
               <Textarea
                 id="repayment-description"
                 value={repaymentData.description}
-                onChange={(e) => setRepaymentData(prev => ({...prev, description: e.target.value}))}
+                onChange={(e) => setRepaymentData(prev => ({ ...prev, description: e.target.value }))}
                 placeholder="Repayment description (optional)"
               />
             </div>
 
             <div>
               <Label htmlFor="repayment-method">Payment Method</Label>
-              <Select 
+              <Select
                 value={repaymentData.paymentMethod}
-                onValueChange={(value) => setRepaymentData(prev => ({...prev, paymentMethod: value}))}
+                onValueChange={(value) => setRepaymentData(prev => ({ ...prev, paymentMethod: value }))}
               >
                 <SelectTrigger>
                   <SelectValue />
@@ -1591,9 +1642,9 @@ const POS = () => {
                   <p className="font-semibold">{viewingInvoice.paymentMethod}</p>
                 </div>
               </div>
-              
+
               <Separator />
-              
+
               <div>
                 <Label className="text-muted-foreground mb-2 block">Items</Label>
                 <div className="space-y-2">
@@ -1629,9 +1680,9 @@ const POS = () => {
                   ))}
                 </div>
               </div>
-              
+
               <Separator />
-              
+
               <div className="space-y-2">
                 <div className="flex justify-between">
                   <Label className="text-muted-foreground">Subtotal</Label>
@@ -1689,8 +1740,8 @@ const POS = () => {
             <Button variant="outline" onClick={() => setInvoiceToDelete(null)}>
               Cancel
             </Button>
-            <Button 
-              variant="destructive" 
+            <Button
+              variant="destructive"
               onClick={handleDeleteInvoice}
             >
               Delete Invoice
@@ -1712,7 +1763,7 @@ const POS = () => {
                 <p className="text-sm text-gray-600">Type: {itemToAdd.type}</p>
                 <p className="text-sm text-gray-600">Base Price: ₹{itemToAdd.price.toLocaleString('en-IN')}</p>
               </div>
-              
+
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <Label htmlFor="item-weight">Weight (grams)</Label>
@@ -1773,7 +1824,7 @@ const POS = () => {
                 <Button variant="outline" onClick={() => {
                   setShowItemDetailsDialog(false);
                   setItemToAdd(null);
-    setEditingCartId(null);
+                  setEditingCartId(null);
                   setEditingCartId(null);
                   setItemDetails({
                     weight: "",
@@ -1817,7 +1868,7 @@ const POS = () => {
                   }}
                 />
               </div>
-              
+
               {/* UPI ID Display - Prominent like second image */}
               <div className="text-center w-full pt-2">
                 <p className="text-base font-normal text-gray-800">
@@ -1827,10 +1878,10 @@ const POS = () => {
             </div>
           </div>
           <DialogFooter>
-            <Button 
-              onClick={() => { 
-                setShowUpi(false); 
-                processPayment("UPI"); 
+            <Button
+              onClick={() => {
+                setShowUpi(false);
+                processPayment("UPI");
               }}
               className="w-full bg-green-600 hover:bg-green-700"
             >

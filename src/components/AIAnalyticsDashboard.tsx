@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { TrendingUp, BarChart3, PieChart, Users, ShoppingCart, DollarSign, Zap, Calendar } from "lucide-react";
+import { TrendingUp, PieChart, DollarSign, Zap } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";

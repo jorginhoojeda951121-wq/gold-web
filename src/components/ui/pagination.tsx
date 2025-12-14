@@ -1,5 +1,6 @@
 import * as React from "react"
 import { ChevronLeft, ChevronRight, MoreHorizontal } from "lucide-react"
+import { Link, useNavigate } from "react-router-dom"
 
 import { cn } from "@/lib/utils"
 import { ButtonProps, buttonVariants } from "@/components/ui/button"
@@ -36,27 +37,80 @@ PaginationItem.displayName = "PaginationItem"
 
 type PaginationLinkProps = {
   isActive?: boolean
+  href?: string
+  to?: string
+  onClick?: (e: React.MouseEvent) => void
 } & Pick<ButtonProps, "size"> &
-  React.ComponentProps<"a">
+  Omit<React.ComponentProps<"a">, "href" | "onClick">
 
-const PaginationLink = ({
+const PaginationLink = React.forwardRef<
+  HTMLAnchorElement | HTMLButtonElement,
+  PaginationLinkProps
+>(({
   className,
   isActive,
   size = "icon",
+  href,
+  to,
+  onClick,
   ...props
-}: PaginationLinkProps) => (
-  <a
-    aria-current={isActive ? "page" : undefined}
-    className={cn(
-      buttonVariants({
-        variant: isActive ? "outline" : "ghost",
-        size,
-      }),
-      className
-    )}
-    {...props}
-  />
-)
+}, ref) => {
+  const navigate = useNavigate()
+  
+  const handleClick = (e: React.MouseEvent) => {
+    // If custom onClick is provided, call it (don't prevent default, let it handle)
+    if (onClick) {
+      onClick(e)
+      return
+    }
+    
+    // If to or href is provided, use React Router navigation instead of full page reload
+    const target = to || href || (props as any).href
+    if (target) {
+      e.preventDefault()
+      navigate(target)
+    }
+  }
+  
+  // If to or href is provided, use React Router Link
+  const linkTarget = to || href || (props as any).href
+  if (linkTarget) {
+    return (
+      <Link
+        ref={ref as React.Ref<HTMLAnchorElement>}
+        to={linkTarget}
+        aria-current={isActive ? "page" : undefined}
+        className={cn(
+          buttonVariants({
+            variant: isActive ? "outline" : "ghost",
+            size,
+          }),
+          className
+        )}
+        onClick={handleClick}
+        {...(props as any)}
+      />
+    )
+  }
+  
+  // Otherwise, use button with onClick handler
+  return (
+    <button
+      ref={ref as React.Ref<HTMLButtonElement>}
+      type="button"
+      aria-current={isActive ? "page" : undefined}
+      className={cn(
+        buttonVariants({
+          variant: isActive ? "outline" : "ghost",
+          size,
+        }),
+        className
+      )}
+      onClick={handleClick}
+      {...(props as any)}
+    />
+  )
+})
 PaginationLink.displayName = "PaginationLink"
 
 const PaginationPrevious = ({

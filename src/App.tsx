@@ -10,7 +10,6 @@ import Auth from "@/components/Auth";
 import RequireAuth from "@/components/RequireAuth";
 import Index from "./pages/Index";
 import Landing from "./pages/Landing";
-import Staff from "./pages/Staff";
 import Payroll from "./pages/Payroll";
 import POS from "./pages/POS";
 import Analytics from "./pages/Analytics";
@@ -37,6 +36,7 @@ import { restoreUserIdFromSession } from "./lib/userStorage";
 import { migrateToSingleSource, isMigrationComplete } from "./lib/dataMigration";
 import { useEffect } from "react";
 import { ThemeProvider } from "./contexts/ThemeContext";
+import { DataProvider } from "./contexts/DataContext";
 
 const queryClient = new QueryClient();
 
@@ -68,10 +68,11 @@ const App = () => {
   return (
   <QueryClientProvider client={queryClient}>
     <ThemeProvider>
-      <TooltipProvider>
-        <Toaster />
-        <Sonner />
-        <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+      <DataProvider>
+        <TooltipProvider>
+          <Toaster />
+          <Sonner />
+          <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
         <Routes>
           {/* Landing page - no layout wrapper */}
           <Route path="/" element={<Landing />} />
@@ -112,7 +113,8 @@ const App = () => {
           </Route>
         </Routes>
       </BrowserRouter>
-    </TooltipProvider>
+        </TooltipProvider>
+      </DataProvider>
     </ThemeProvider>
   </QueryClientProvider>
   );

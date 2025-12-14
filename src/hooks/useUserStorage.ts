@@ -1,51 +1,39 @@
 /**
  * User-scoped storage hook
- * Reads directly from Supabase (no sync queue)
- * OPTIMIZED: Includes in-memory cache for instant subsequent reads
+ * Reads directly from Supabase (no sync queue, no caching)
+ * Always fetches fresh data from Supabase on mount
  */
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { fetchAll } from '@/lib/supabaseDirect';
-import { getCurrentUserId } from '@/lib/userStorage';
 import { getSupabase } from '@/lib/supabase';
-
-// In-memory cache for instant reads (biggest performance win)
-interface CacheEntry<T> {
-  data: T;
-  timestamp: number;
-  userId: string;
-}
-
-const memoryCache: Record<string, CacheEntry<any>> = {};
-const CACHE_TTL = 5 * 60 * 1000; // 5 minutes cache TTL
 
 // Promise cache to prevent duplicate concurrent fetches (fixes race condition)
 // When multiple components fetch the same key simultaneously, they share one promise
 const fetchingPromises: Record<string, Promise<any>> = {};
 
-// Clear cache for a specific key (called on updates)
+// Clear cache for a specific key (no-op, kept for compatibility)
 export function clearUserStorageCache(key: string): void {
-  delete memoryCache[key];
-  // Also clear any in-progress fetch promise to force fresh fetch
+  // Clear any in-progress fetch promise to force fresh fetch
   delete fetchingPromises[key];
 }
 
-// Clear all cache (called on logout)
+// Clear all cache (no-op, kept for compatibility)
 export function clearAllUserStorageCache(): void {
-  Object.keys(memoryCache).forEach(key => delete memoryCache[key]);
   Object.keys(fetchingPromises).forEach(key => delete fetchingPromises[key]);
 }
 
 export function useUserStorage<T>(key: string, initialValue: T) {
-  // Initialize with cached value if available (instant render)
-  const cachedEntry = memoryCache[key];
-  const [storedValue, setStoredValue] = useState<T | undefined>(
-    cachedEntry?.data ?? undefined
-  );
-  const [loaded, setLoaded] = useState(!!cachedEntry);
+  // Always start with initial value - no cached data
+  const [storedValue, setStoredValue] = useState<T | undefined>(undefined);
+  const [loaded, setLoaded] = useState(false);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
+  
+  // Store initialValue in ref to avoid dependency issues
+  const initialValueRef = useRef(initialValue);
+  initialValueRef.current = initialValue;
 
-  // Load data directly from Supabase
+  // Always fetch data directly from Supabase on mount
   useEffect(() => {
     let isMounted = true;
     let retryCount = 0;
@@ -54,7 +42,7 @@ export function useUserStorage<T>(key: string, initialValue: T) {
 
     const loadData = async (): Promise<void> => {
       try {
-        // OPTIMIZATION: Wait for Supabase session to be ready (removes 200-500ms delay)
+        // Wait for Supabase session to be ready
         const supabase = getSupabase();
         const { data: { session } } = await supabase.auth.getSession();
         
@@ -72,22 +60,7 @@ export function useUserStorage<T>(key: string, initialValue: T) {
           
           // If still no session after max retries, use initial value
           if (isMounted) {
-            setStoredValue(initialValue);
-            setLoaded(true);
-          }
-          return;
-        }
-
-        const userId = session.user.id;
-        
-        // OPTIMIZATION: Check cache first (0ms read instead of 600ms)
-        const cached = memoryCache[key];
-        const now = Date.now();
-        
-        if (cached && cached.userId === userId && (now - cached.timestamp) < CACHE_TTL) {
-          // Cache hit! Use cached data instantly
-          if (isMounted) {
-            setStoredValue(cached.data);
+            setStoredValue(initialValueRef.current);
             setLoaded(true);
           }
           return;
@@ -101,37 +74,29 @@ export function useUserStorage<T>(key: string, initialValue: T) {
             const data = await fetchingPromises[key];
             
             if (isMounted) {
-              // Process and store data (same logic as below)
+              // Process and store data
+              const currentInitialValue = initialValueRef.current;
               let processedData: T;
-              if (Array.isArray(initialValue) && Array.isArray(data)) {
-                processedData = (data.length > 0 ? data : initialValue) as T;
-              } else if (Array.isArray(initialValue)) {
-                processedData = initialValue;
+              if (Array.isArray(currentInitialValue) && Array.isArray(data)) {
+                processedData = (data.length > 0 ? data : currentInitialValue) as T;
+              } else if (Array.isArray(currentInitialValue)) {
+                processedData = currentInitialValue;
               } else {
-                processedData = (data && Object.keys(data).length > 0 ? data : initialValue) as T;
+                processedData = (data && Object.keys(data).length > 0 ? data : currentInitialValue) as T;
               }
               
               setStoredValue(processedData);
               setLoaded(true);
-              
-              // OPTIMIZATION: Update cache when using shared promise
-              // This ensures cache is populated even if the initiating component unmounts
-              memoryCache[key] = {
-                data: processedData,
-                timestamp: now,
-                userId: userId
-              };
             }
             return;
           } catch (error) {
             // If the shared promise failed, fall through to start a new fetch
-            // (but only if this component is still mounted)
             if (!isMounted) return;
             // Continue to fetch below
           }
         }
 
-        // Cache miss or stale - fetch from Supabase
+        // Always fetch fresh data from Supabase
         // Store the promise so other components can share it
         const fetchPromise = fetchAll<T>(key);
         fetchingPromises[key] = fetchPromise;
@@ -146,30 +111,24 @@ export function useUserStorage<T>(key: string, initialValue: T) {
         
         if (isMounted) {
           // Process and store data
+          const currentInitialValue = initialValueRef.current;
           let processedData: T;
-          if (Array.isArray(initialValue) && Array.isArray(data)) {
-            processedData = (data.length > 0 ? data : initialValue) as T;
-          } else if (Array.isArray(initialValue)) {
-            processedData = initialValue;
+          if (Array.isArray(currentInitialValue) && Array.isArray(data)) {
+            processedData = (data.length > 0 ? data : currentInitialValue) as T;
+          } else if (Array.isArray(currentInitialValue)) {
+            processedData = currentInitialValue;
           } else {
-            processedData = (data && Object.keys(data).length > 0 ? data : initialValue) as T;
+            processedData = (data && Object.keys(data).length > 0 ? data : currentInitialValue) as T;
           }
           
           setStoredValue(processedData);
           setLoaded(true);
-          
-          // OPTIMIZATION: Store in cache for future reads
-          memoryCache[key] = {
-            data: processedData,
-            timestamp: now,
-            userId: userId
-          };
         }
       } catch (error) {
         console.error(`Error loading data for key ${key}:`, error);
         // On error, use initial value
         if (isMounted) {
-          setStoredValue(initialValue);
+          setStoredValue(initialValueRef.current);
           setLoaded(true);
         }
       }
@@ -180,24 +139,14 @@ export function useUserStorage<T>(key: string, initialValue: T) {
     return () => {
       isMounted = false;
     };
-  }, [key, refreshTrigger, initialValue]);
+  }, [key, refreshTrigger]);
 
   const setValue = async (value: T | ((val: T) => T)) => {
     // This function is kept for compatibility but doesn't write to storage
     // Components should use direct Supabase operations instead
-    const currentValue = storedValue !== undefined ? storedValue : initialValue;
+    const currentValue = storedValue !== undefined ? storedValue : initialValueRef.current;
     const valueToStore = value instanceof Function ? value(currentValue) : value;
     setStoredValue(valueToStore);
-    
-    // OPTIMIZATION: Update cache when data changes
-    const userId = await getCurrentUserId();
-    if (userId) {
-      memoryCache[key] = {
-        data: valueToStore,
-        timestamp: Date.now(),
-        userId: userId
-      };
-    }
     
     // Dispatch custom event to notify other components using the same key
     window.dispatchEvent(new CustomEvent(`user-storage-updated:${key}`, {
@@ -207,20 +156,10 @@ export function useUserStorage<T>(key: string, initialValue: T) {
 
   // Listen for updates to this key from other components
   useEffect(() => {
-    const handleKeyUpdate = async (event: CustomEvent) => {
+    const handleKeyUpdate = (event: CustomEvent) => {
       if (event.detail && event.detail.value !== undefined) {
         const newValue = event.detail.value as T;
         setStoredValue(newValue);
-        
-        // OPTIMIZATION: Update cache when data changes from other components
-        const userId = await getCurrentUserId();
-        if (userId) {
-          memoryCache[key] = {
-            data: newValue,
-            timestamp: Date.now(),
-            userId: userId
-          };
-        }
       }
     };
 
@@ -231,16 +170,17 @@ export function useUserStorage<T>(key: string, initialValue: T) {
     };
   }, [key]);
 
-  // Expose refresh function (clears cache and refetches)
+  // Expose refresh function (triggers refetch from Supabase)
   const refresh = () => {
-    clearUserStorageCache(key);
+    // Clear any in-progress fetch to force fresh fetch
+    delete fetchingPromises[key];
     setRefreshTrigger(prev => prev + 1);
   };
 
   // Return initialValue as fallback until loaded, then return storedValue
   // This ensures components always have a value, but we don't overwrite stored data
   return { 
-    data: (storedValue !== undefined ? storedValue : initialValue) as T, 
+    data: (storedValue !== undefined ? storedValue : initialValueRef.current) as T, 
     updateData: setValue, 
     loaded, 
     refresh 

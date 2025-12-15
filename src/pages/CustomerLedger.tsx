@@ -268,6 +268,19 @@ export const CustomerLedger = () => {
       return;
     }
 
+    const amount = parseFloat(transactionData.amount);
+    const transactionType = transactionData.type;
+    
+    // Calculate balance before transaction
+    const balanceBefore = selectedCustomer.currentBalance || 0;
+    
+    // Calculate balance after transaction
+    // Purchase: balance increases (customer owes more) - add positive amount
+    // Payment: balance decreases (customer pays) - subtract amount (add negative)
+    const balanceAfter = transactionType === 'payment' 
+      ? balanceBefore - amount  // Payment reduces what customer owes
+      : balanceBefore + amount; // Purchase increases what customer owes
+
     try {
       // Get current user ID
       const { getCurrentUserId, getUserData, setUserData } = await import('@/lib/userStorage');
@@ -281,19 +294,6 @@ export const CustomerLedger = () => {
         });
         return;
       }
-
-      const amount = parseFloat(transactionData.amount);
-      const transactionType = transactionData.type;
-      
-      // Calculate balance before transaction
-      const balanceBefore = selectedCustomer.currentBalance || 0;
-      
-      // Calculate balance after transaction
-      // Purchase: balance increases (customer owes more) - add positive amount
-      // Payment: balance decreases (customer pays) - subtract amount (add negative)
-      const balanceAfter = transactionType === 'payment' 
-        ? balanceBefore - amount  // Payment reduces what customer owes
-        : balanceBefore + amount; // Purchase increases what customer owes
       
       // Store transaction amount: positive for purchases, negative for payments
       const transactionAmount = transactionType === 'payment' ? -amount : amount;

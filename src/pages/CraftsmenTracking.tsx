@@ -10,6 +10,7 @@ import { AddCraftsmanDialog, Craftsman, RawMaterial, PaymentRecord } from "@/com
 import { MaterialAssignDialog } from "@/components/MaterialAssignDialog";
 import { CraftsmanDetailsDialog } from "@/components/CraftsmanDetailsDialog";
 import { CraftsmanPaymentDialog } from "@/components/CraftsmanPaymentDialog";
+import { CompletionPaymentDialog } from "@/components/CompletionPaymentDialog";
 import { useToast } from "@/hooks/use-toast";
 import { useOfflineStorage } from "@/hooks/useOfflineStorage";
 import { useUserStorage } from "@/hooks/useUserStorage";
@@ -22,7 +23,9 @@ const CraftsmenTracking = () => {
   const [showMaterialDialog, setShowMaterialDialog] = useState(false);
   const [showDetailsDialog, setShowDetailsDialog] = useState(false);
   const [showPaymentDialog, setShowPaymentDialog] = useState(false);
+  const [showCompletionPaymentDialog, setShowCompletionPaymentDialog] = useState(false);
   const [selectedCraftsman, setSelectedCraftsman] = useState<Craftsman | null>(null);
+  const [selectedMaterialForCompletion, setSelectedMaterialForCompletion] = useState<RawMaterial | null>(null);
 
   // CRITICAL: Use useUserStorage for user-scoped data isolation
   const { data: craftsmen, updateData: setCraftsmen, loaded } = useUserStorage<Craftsman[]>("craftsmen", [
@@ -398,7 +401,23 @@ const CraftsmenTracking = () => {
     setShowMaterialDialog(true);
   };
 
-  const handleCompleteTask = async (materialId: string) => {
+  const handleCompleteTask = (materialId: string) => {
+    const material = craftsmen
+      .flatMap(c => Array.isArray(c.assignedMaterials) ? c.assignedMaterials : [])
+      .find(m => m.id === materialId);
+    
+    if (material) {
+      setSelectedMaterialForCompletion(material);
+      setShowCompletionPaymentDialog(true);
+    }
+  };
+
+  const handleCompleteTaskWithPayment = async (
+    materialId: string,
+    paymentMethod: 'Cash' | 'UPI' | 'Card' | 'Pay Later',
+    amountPaid?: number,
+    cardNumber?: string
+  ) => {
     const updatedCraftsmen = craftsmen.map(craftsman => {
       const materials = Array.isArray(craftsman.assignedMaterials)
         ? craftsman.assignedMaterials
@@ -406,11 +425,25 @@ const CraftsmenTracking = () => {
 
       return {
         ...craftsman,
-        assignedMaterials: materials.map(material =>
-          material.id === materialId
-            ? { ...material, completed: true, completedDate: new Date().toISOString().split('T')[0] }
-            : material
-        )
+        assignedMaterials: materials.map(material => {
+          if (material.id === materialId) {
+            const newAmountPaid = amountPaid || 0;
+            const agreedAmount = material.agreedAmount || 0;
+            const paymentStatus: 'unpaid' | 'partial' | 'paid' = 
+              paymentMethod === 'Pay Later' ? 'unpaid' :
+              newAmountPaid >= agreedAmount ? 'paid' :
+              newAmountPaid > 0 ? 'partial' : 'unpaid';
+
+            return {
+              ...material,
+              completed: true,
+              completedDate: new Date().toISOString().split('T')[0],
+              amountPaid: newAmountPaid,
+              paymentStatus,
+            };
+          }
+          return material;
+        })
       };
     });
 
@@ -436,6 +469,10 @@ const CraftsmenTracking = () => {
 
         if (completedMaterial && craftsmanForMaterial) {
           const completionDate = completedMaterial.completedDate || new Date().toISOString().split('T')[0];
+          const agreedAmount = completedMaterial.agreedAmount || 0;
+          const amountPaidValue = completedMaterial.amountPaid || 0;
+          const paymentStatus = completedMaterial.paymentStatus || 'unpaid';
+
           await upsertToSupabase('materials_assigned', {
             id: completedMaterial.id,
             craftsman_id: craftsmanForMaterial.id,
@@ -446,6 +483,9 @@ const CraftsmenTracking = () => {
             item_description: completedMaterial.type || '',
             status: 'completed',
             completion_date: completionDate,
+            agreed_amount: agreedAmount > 0 ? agreedAmount : null,
+            amount_paid: amountPaidValue,
+            payment_status: paymentStatus,
             updated_at: new Date().toISOString(),
           });
         }
@@ -462,10 +502,134 @@ const CraftsmenTracking = () => {
       }
     }
 
+    const paymentMessage = paymentMethod === 'Pay Later' 
+      ? 'Task completed. Payment pending.'
+      : `Task completed. Payment received via ${paymentMethod}.`;
+
     toast({
       title: "Task Completed",
-      description: "Material assignment has been marked as completed."
+      description: paymentMessage
     });
+
+    setSelectedMaterialForCompletion(null);
+  };
+
+  const handlePayCompletedTask = (materialId: string) => {
+    const material = craftsmen
+      .flatMap(c => Array.isArray(c.assignedMaterials) ? c.assignedMaterials : [])
+      .find(m => m.id === materialId && m.completed);
+    
+    if (material) {
+      setSelectedMaterialForCompletion(material);
+      setShowCompletionPaymentDialog(true);
+    }
+  };
+
+  const handleUpdatePaymentForCompletedTask = async (
+    materialId: string,
+    paymentMethod: 'Cash' | 'UPI' | 'Card' | 'Pay Later',
+    amountPaid?: number,
+    cardNumber?: string
+  ) => {
+    const updatedCraftsmen = craftsmen.map(craftsman => {
+      const materials = Array.isArray(craftsman.assignedMaterials)
+        ? craftsman.assignedMaterials
+        : [];
+
+      return {
+        ...craftsman,
+        assignedMaterials: materials.map(material => {
+          if (material.id === materialId && material.completed) {
+            const agreedAmount = material.agreedAmount || 0;
+            const currentPaid = material.amountPaid || 0;
+            const remainingBalance = agreedAmount - currentPaid;
+            
+            let newAmountPaid: number;
+            if (paymentMethod === 'Pay Later') {
+              newAmountPaid = currentPaid;
+            } else {
+              const paymentAmount = amountPaid || 0;
+              newAmountPaid = Math.min(currentPaid + paymentAmount, agreedAmount);
+            }
+            
+            const paymentStatus: 'unpaid' | 'partial' | 'paid' = 
+              paymentMethod === 'Pay Later' ? (currentPaid > 0 ? 'partial' : 'unpaid') :
+              newAmountPaid >= agreedAmount ? 'paid' :
+              newAmountPaid > 0 ? 'partial' : 'unpaid';
+
+            return {
+              ...material,
+              amountPaid: newAmountPaid,
+              paymentStatus,
+            };
+          }
+          return material;
+        })
+      };
+    });
+
+    await setCraftsmen(updatedCraftsmen);
+
+    try {
+      const { getCurrentUserId } = await import('@/lib/userStorage');
+      const userId = await getCurrentUserId();
+      if (userId) {
+        let updatedMaterial: RawMaterial | undefined;
+        let craftsmanForMaterial: Craftsman | undefined;
+
+        for (const craftsman of updatedCraftsmen) {
+          const material = Array.isArray(craftsman.assignedMaterials)
+            ? craftsman.assignedMaterials.find(m => m.id === materialId)
+            : undefined;
+          if (material) {
+            updatedMaterial = material;
+            craftsmanForMaterial = craftsman;
+            break;
+          }
+        }
+
+        if (updatedMaterial && craftsmanForMaterial) {
+          const agreedAmount = updatedMaterial.agreedAmount || 0;
+          const amountPaidValue = updatedMaterial.amountPaid || 0;
+          const paymentStatus = updatedMaterial.paymentStatus || 'unpaid';
+
+          await upsertToSupabase('materials_assigned', {
+            id: updatedMaterial.id,
+            craftsman_id: craftsmanForMaterial.id,
+            craftsman_name: craftsmanForMaterial.name,
+            material_type: updatedMaterial.inventoryItemType || 'raw_material',
+            material_id: updatedMaterial.inventoryItemId || updatedMaterial.id,
+            quantity: parseFloat(String(updatedMaterial.quantity || 0)),
+            item_description: updatedMaterial.type || '',
+            agreed_amount: agreedAmount > 0 ? agreedAmount : null,
+            amount_paid: amountPaidValue,
+            payment_status: paymentStatus,
+            updated_at: new Date().toISOString(),
+          });
+        }
+      }
+    } catch (syncError) {
+      console.warn('Failed to update payment in Supabase:', syncError);
+    }
+
+    // Update selected craftsman if it's the one being updated
+    if (selectedCraftsman) {
+      const updatedCraftsman = updatedCraftsmen.find(c => c.id === selectedCraftsman.id);
+      if (updatedCraftsman) {
+        setSelectedCraftsman(updatedCraftsman);
+      }
+    }
+
+    const paymentMessage = paymentMethod === 'Pay Later' 
+      ? 'Payment status updated.'
+      : `Payment of ₹${(amountPaid || 0).toLocaleString()} recorded via ${paymentMethod}.`;
+
+    toast({
+      title: "Payment Updated",
+      description: paymentMessage
+    });
+
+    setSelectedMaterialForCompletion(null);
   };
 
   const handleCompleteProject = async (materialId: string, notes: string) => {
@@ -877,6 +1041,7 @@ const CraftsmenTracking = () => {
           setShowDetailsDialog(false);
           setShowPaymentDialog(true);
         }}
+        onPayCompletedTask={handlePayCompletedTask}
       />
 
       <CraftsmanPaymentDialog
@@ -887,6 +1052,34 @@ const CraftsmenTracking = () => {
         pendingAmount={selectedCraftsman?.pendingAmount || 0}
         onRecordPayment={handleRecordPayment}
       />
+
+      {selectedMaterialForCompletion && (
+        <CompletionPaymentDialog
+          open={showCompletionPaymentDialog}
+          onOpenChange={setShowCompletionPaymentDialog}
+          materialId={selectedMaterialForCompletion.id}
+          materialName={selectedMaterialForCompletion.type || 'Task'}
+          agreedAmount={selectedMaterialForCompletion.agreedAmount || 0}
+          onComplete={(paymentMethod, amountPaid, cardNumber) => {
+            if (selectedMaterialForCompletion.completed) {
+              handleUpdatePaymentForCompletedTask(
+                selectedMaterialForCompletion.id,
+                paymentMethod,
+                amountPaid,
+                cardNumber
+              );
+            } else {
+              handleCompleteTaskWithPayment(
+                selectedMaterialForCompletion.id,
+                paymentMethod,
+                amountPaid,
+                cardNumber
+              );
+            }
+            setShowCompletionPaymentDialog(false);
+          }}
+        />
+      )}
     </div>
   );
 };

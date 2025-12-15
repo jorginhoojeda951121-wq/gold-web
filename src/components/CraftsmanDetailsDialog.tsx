@@ -16,6 +16,7 @@ interface CraftsmanDetailsDialogProps {
   onCompleteTask?: (materialId: string) => void;
   onCompleteProject?: (materialId: string, notes: string) => void;
   onRecordPayment?: () => void;
+  onPayCompletedTask?: (materialId: string) => void;
 }
 
 export const CraftsmanDetailsDialog = ({ 
@@ -25,7 +26,8 @@ export const CraftsmanDetailsDialog = ({
   onAssignMaterial,
   onCompleteTask,
   onCompleteProject,
-  onRecordPayment
+  onRecordPayment,
+  onPayCompletedTask
 }: CraftsmanDetailsDialogProps) => {
   const [showCompletionDialog, setShowCompletionDialog] = useState(false);
   const [selectedProject, setSelectedProject] = useState<{id: string, name: string} | null>(null);
@@ -407,8 +409,27 @@ export const CraftsmanDetailsDialog = ({
                             Project: {material.projectId}
                           </p>
                         )}
+                        {material.agreedAmount && material.agreedAmount > 0 && (
+                          <div className="mt-2 space-y-1">
+                            <p className="text-sm font-medium text-gray-700">
+                              Payment: ₹{(material.amountPaid || 0).toLocaleString()} / ₹{material.agreedAmount.toLocaleString()}
+                            </p>
+                            <Badge 
+                              variant={
+                                material.paymentStatus === 'paid' ? 'default' :
+                                material.paymentStatus === 'partial' ? 'secondary' :
+                                'destructive'
+                              }
+                              className="text-xs"
+                            >
+                              {material.paymentStatus === 'paid' ? 'Paid' :
+                               material.paymentStatus === 'partial' ? 'Partial Payment' :
+                               'Unpaid'}
+                            </Badge>
+                          </div>
+                        )}
                         {material.completedDate && (
-                          <div className="space-y-1">
+                          <div className="space-y-1 mt-2">
                             <p className="text-sm text-green-600">
                               Completed on: {material.completedDate}
                             </p>
@@ -431,6 +452,19 @@ export const CraftsmanDetailsDialog = ({
                           <Calendar className="h-3 w-3" />
                           <span>{material.assignedDate}</span>
                         </div>
+                        {material.agreedAmount && material.agreedAmount > 0 && 
+                         (material.paymentStatus === 'unpaid' || !material.paymentStatus || (material.amountPaid || 0) < material.agreedAmount) && 
+                         onPayCompletedTask && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => onPayCompletedTask(material.id)}
+                            className="text-green-600 border-green-600 hover:bg-green-50 mt-2"
+                          >
+                            <DollarSign className="h-3 w-3 mr-1" />
+                            Pay
+                          </Button>
+                        )}
                       </div>
                     </div>
                   </div>

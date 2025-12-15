@@ -333,7 +333,6 @@ export async function getFromSupabase<T>(
   filters?: { [key: string]: any },
   columns?: string
 ): Promise<T[]> {
-  console.log("getFromSupabase table : ", table);
 
   const supabase = getSupabase();
   const userId = await getCurrentUserId();

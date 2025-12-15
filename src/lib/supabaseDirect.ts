@@ -46,6 +46,7 @@ export async function upsertToSupabase(
   if (!cleanedRecord.id && actualTable !== 'settings') {
     cleanedRecord.id = data.id || `${actualTable}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
   }
+console.log("cleanedRecord", cleanedRecord);
 
   const { error } = await supabase
     .from(actualTable)
@@ -171,7 +172,6 @@ async function upsertPaymentSettings(data: any, userId: string): Promise<void> {
   if (!hasUpdatableFields) {
     return;
   }
-  console.log("test record", record);
   
 
   const { error } = await supabase

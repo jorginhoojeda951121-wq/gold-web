@@ -331,7 +331,7 @@ export const CraftsmanDetailsDialog = ({
                           <span className="text-xs">Assigned: {new Date(material.assignedDate).toLocaleDateString()}</span>
                         </div>
                         <div className="space-y-2">
-                          {onCompleteTask && (
+                          {!material.completed && onCompleteTask && (
                             <Button
                               size="sm"
                               variant="outline"
@@ -342,7 +342,7 @@ export const CraftsmanDetailsDialog = ({
                               Complete
                             </Button>
                           )}
-                          {onCompleteProject && (
+                          {!material.completed && onCompleteProject && (
                             <Button
                               size="sm"
                               variant="outline"
@@ -352,6 +352,12 @@ export const CraftsmanDetailsDialog = ({
                               <FileText className="h-3 w-3 mr-1" />
                               Add Notes
                             </Button>
+                          )}
+                          {material.completed && (
+                            <Badge className="bg-green-100 text-green-800 w-full justify-center">
+                              <Check className="h-3 w-3 mr-1" />
+                              Completed
+                            </Badge>
                           )}
                         </div>
                       </div>

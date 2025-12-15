@@ -115,8 +115,8 @@ const CraftsmenTracking = () => {
       if (needsUpdate) {
         const normalized = craftsmen.map(craftsman => ({
           ...craftsman,
-          assignedMaterials: Array.isArray(craftsman.assignedMaterials) 
-            ? craftsman.assignedMaterials 
+          assignedMaterials: Array.isArray(craftsman.assignedMaterials)
+            ? craftsman.assignedMaterials
             : []
         }));
         setCraftsmen(normalized);
@@ -132,23 +132,23 @@ const CraftsmenTracking = () => {
 
       try {
         const materialsAssigned = await fetchAll<any[]>('materials_assigned');
-        
+
         if (Array.isArray(materialsAssigned) && materialsAssigned.length > 0) {
           const materialsByCraftsman = materialsAssigned.reduce((acc, material) => {
             const craftsmanId = material.craftsman_id;
             if (!acc[craftsmanId]) {
               acc[craftsmanId] = [];
             }
-            
+
             const rawMaterial: RawMaterial = {
               id: material.id,
               type: material.item_description || '',
               quantity: parseFloat(String(material.quantity || 0)),
               unit: material.gold_weight ? 'grams' : 'pieces',
-              assignedDate: material.assigned_date 
-                ? (material.assigned_date.includes('T') 
-                    ? material.assigned_date.split('T')[0] 
-                    : material.assigned_date)
+              assignedDate: material.assigned_date
+                ? (material.assigned_date.includes('T')
+                  ? material.assigned_date.split('T')[0]
+                  : material.assigned_date)
                 : new Date().toISOString().split('T')[0],
               projectId: material.target_item_id,
               completed: material.status === 'completed',
@@ -159,11 +159,11 @@ const CraftsmenTracking = () => {
               paymentStatus: material.payment_status as 'unpaid' | 'partial' | 'paid' | undefined,
               inventoryItemId: material.material_id,
               inventoryItemType: material.material_type,
-              estimatedDelivery: material.due_date || material.expected_completion_date 
+              estimatedDelivery: material.due_date || material.expected_completion_date
                 ? (material.due_date || material.expected_completion_date?.split('T')[0])
                 : undefined,
-              status: material.status === 'completed' ? 'completed' : 
-                     material.status === 'in_progress' ? 'in-progress' : 'pending',
+              status: material.status === 'completed' ? 'completed' :
+                material.status === 'in_progress' ? 'in-progress' : 'pending',
             };
 
             acc[craftsmanId].push(rawMaterial);
@@ -172,13 +172,13 @@ const CraftsmenTracking = () => {
 
           setCraftsmen(prev => {
             if (!Array.isArray(prev)) return prev;
-            
+
             return prev.map(craftsman => {
               const materials = materialsByCraftsman[craftsman.id] || [];
-              const existingMaterials = Array.isArray(craftsman.assignedMaterials) 
-                ? craftsman.assignedMaterials 
+              const existingMaterials = Array.isArray(craftsman.assignedMaterials)
+                ? craftsman.assignedMaterials
                 : [];
-              
+
               const materialMap = new Map(existingMaterials.map(m => [m.id, m]));
               materials.forEach(m => {
                 materialMap.set(m.id, m);
@@ -207,11 +207,11 @@ const CraftsmenTracking = () => {
   const safeCraftsmen = Array.isArray(craftsmen) ? craftsmen : [];
   const craftsmenWithCompletedField = safeCraftsmen.map(craftsman => ({
     ...craftsman,
-    assignedMaterials: Array.isArray(craftsman.assignedMaterials) 
+    assignedMaterials: Array.isArray(craftsman.assignedMaterials)
       ? craftsman.assignedMaterials.map(material => ({
-          ...material,
-          completed: material.completed ?? false
-        }))
+        ...material,
+        completed: material.completed ?? false
+      }))
       : []
   }));
 
@@ -226,8 +226,8 @@ const CraftsmenTracking = () => {
         ...newCraftsman,
         id: Date.now().toString()
       };
-      
-      const experienceYears = typeof newCraftsman.experience === 'string' 
+
+      const experienceYears = typeof newCraftsman.experience === 'string'
         ? parseInt(newCraftsman.experience.replace(/\D/g, '')) || 0
         : (typeof newCraftsman.experience === 'number' ? newCraftsman.experience : 0);
 
@@ -257,7 +257,7 @@ const CraftsmenTracking = () => {
       }
 
       await upsertToSupabase('craftsmen', craftsmanData);
-      
+
       setCraftsmen(prev => [...prev, craftsman]);
       toast({
         title: "Craftsman Added",
@@ -275,7 +275,7 @@ const CraftsmenTracking = () => {
 
   const handleAssignMaterial = async (material: Omit<RawMaterial, 'id'>) => {
     if (!selectedCraftsman) return;
-    
+
     const newMaterial: RawMaterial = {
       ...material,
       id: Date.now().toString(),
@@ -286,13 +286,13 @@ const CraftsmenTracking = () => {
       if (craftsman.id === selectedCraftsman.id) {
         const updatedDue = (craftsman.totalAmountDue || 0) + (material.agreedAmount || 0);
         const updatedPending = (craftsman.pendingAmount || 0) + (material.agreedAmount || 0);
-        
-        const currentMaterials = Array.isArray(craftsman.assignedMaterials) 
-          ? craftsman.assignedMaterials 
+
+        const currentMaterials = Array.isArray(craftsman.assignedMaterials)
+          ? craftsman.assignedMaterials
           : [];
-        
-        return { 
-          ...craftsman, 
+
+        return {
+          ...craftsman,
           assignedMaterials: [...currentMaterials, newMaterial],
           totalAmountDue: updatedDue,
           pendingAmount: updatedPending
@@ -308,10 +308,10 @@ const CraftsmenTracking = () => {
       const userId = await getCurrentUserId();
       if (userId && selectedCraftsman) {
         const now = new Date().toISOString();
-        const assignedDate = newMaterial.assignedDate 
+        const assignedDate = newMaterial.assignedDate
           ? new Date(newMaterial.assignedDate).toISOString()
           : now;
-        
+
         const materialData: any = {
           id: newMaterial.id,
           user_id: userId,
@@ -380,7 +380,7 @@ const CraftsmenTracking = () => {
       title: "Material Assigned",
       description: `${material.type} has been assigned to ${selectedCraftsman.name}.`
     });
-    
+
     // Update selected craftsman for the details dialog
     const updatedCraftsman = updatedCraftsmen.find(c => c.id === selectedCraftsman.id);
     if (updatedCraftsman) {
@@ -400,13 +400,13 @@ const CraftsmenTracking = () => {
 
   const handleCompleteTask = async (materialId: string) => {
     const updatedCraftsmen = craftsmen.map(craftsman => {
-      const materials = Array.isArray(craftsman.assignedMaterials) 
-        ? craftsman.assignedMaterials 
+      const materials = Array.isArray(craftsman.assignedMaterials)
+        ? craftsman.assignedMaterials
         : [];
-      
+
       return {
         ...craftsman,
-        assignedMaterials: materials.map(material => 
+        assignedMaterials: materials.map(material =>
           material.id === materialId
             ? { ...material, completed: true, completedDate: new Date().toISOString().split('T')[0] }
             : material
@@ -420,14 +420,30 @@ const CraftsmenTracking = () => {
       const { getCurrentUserId } = await import('@/lib/userStorage');
       const userId = await getCurrentUserId();
       if (userId) {
-        const completedMaterial = updatedCraftsmen
-          .flatMap(c => Array.isArray(c.assignedMaterials) ? c.assignedMaterials : [])
-          .find(m => m.id === materialId);
-        
-        if (completedMaterial) {
+        let completedMaterial: RawMaterial | undefined;
+        let craftsmanForMaterial: Craftsman | undefined;
+
+        for (const craftsman of updatedCraftsmen) {
+          const material = Array.isArray(craftsman.assignedMaterials)
+            ? craftsman.assignedMaterials.find(m => m.id === materialId)
+            : undefined;
+          if (material) {
+            completedMaterial = material;
+            craftsmanForMaterial = craftsman;
+            break;
+          }
+        }
+
+        if (completedMaterial && craftsmanForMaterial) {
           const completionDate = completedMaterial.completedDate || new Date().toISOString().split('T')[0];
           await upsertToSupabase('materials_assigned', {
             id: completedMaterial.id,
+            craftsman_id: craftsmanForMaterial.id,
+            craftsman_name: craftsmanForMaterial.name,
+            material_type: completedMaterial.inventoryItemType || 'raw_material',
+            material_id: completedMaterial.inventoryItemId || completedMaterial.id,
+            quantity: parseFloat(String(completedMaterial.quantity || 0)),
+            item_description: completedMaterial.type || '',
             status: 'completed',
             completion_date: completionDate,
             updated_at: new Date().toISOString(),
@@ -438,6 +454,14 @@ const CraftsmenTracking = () => {
       console.warn('Failed to update material assignment in Supabase:', syncError);
     }
 
+    // Update selected craftsman if it's the one being updated
+    if (selectedCraftsman) {
+      const updatedCraftsman = updatedCraftsmen.find(c => c.id === selectedCraftsman.id);
+      if (updatedCraftsman) {
+        setSelectedCraftsman(updatedCraftsman);
+      }
+    }
+
     toast({
       title: "Task Completed",
       description: "Material assignment has been marked as completed."
@@ -446,20 +470,20 @@ const CraftsmenTracking = () => {
 
   const handleCompleteProject = async (materialId: string, notes: string) => {
     const updatedCraftsmen = craftsmen.map(craftsman => {
-      const materials = Array.isArray(craftsman.assignedMaterials) 
-        ? craftsman.assignedMaterials 
+      const materials = Array.isArray(craftsman.assignedMaterials)
+        ? craftsman.assignedMaterials
         : [];
-      
+
       return {
         ...craftsman,
-        assignedMaterials: materials.map(material => 
+        assignedMaterials: materials.map(material =>
           material.id === materialId
-            ? { 
-                ...material, 
-                completed: true, 
-                completedDate: new Date().toISOString().split('T')[0],
-                completionNotes: notes
-              }
+            ? {
+              ...material,
+              completed: true,
+              completedDate: new Date().toISOString().split('T')[0],
+              completionNotes: notes
+            }
             : material
         )
       };
@@ -471,14 +495,30 @@ const CraftsmenTracking = () => {
       const { getCurrentUserId } = await import('@/lib/userStorage');
       const userId = await getCurrentUserId();
       if (userId) {
-        const completedMaterial = updatedCraftsmen
-          .flatMap(c => Array.isArray(c.assignedMaterials) ? c.assignedMaterials : [])
-          .find(m => m.id === materialId);
-        
-        if (completedMaterial) {
+        let completedMaterial: RawMaterial | undefined;
+        let craftsmanForMaterial: Craftsman | undefined;
+
+        for (const craftsman of updatedCraftsmen) {
+          const material = Array.isArray(craftsman.assignedMaterials)
+            ? craftsman.assignedMaterials.find(m => m.id === materialId)
+            : undefined;
+          if (material) {
+            completedMaterial = material;
+            craftsmanForMaterial = craftsman;
+            break;
+          }
+        }
+
+        if (completedMaterial && craftsmanForMaterial) {
           const completionDate = completedMaterial.completedDate || new Date().toISOString().split('T')[0];
           await upsertToSupabase('materials_assigned', {
             id: completedMaterial.id,
+            craftsman_id: craftsmanForMaterial.id,
+            craftsman_name: craftsmanForMaterial.name,
+            material_type: completedMaterial.inventoryItemType || 'raw_material',
+            material_id: completedMaterial.inventoryItemId || completedMaterial.id,
+            quantity: parseFloat(String(completedMaterial.quantity || 0)),
+            item_description: completedMaterial.type || '',
             status: 'completed',
             completion_date: completionDate,
             notes: notes || completedMaterial.completionNotes || '',
@@ -512,17 +552,17 @@ const CraftsmenTracking = () => {
           const updatedPending = (craftsman.pendingAmount || 0) - payment.amount;
           const paymentHistory = [...(craftsman.paymentHistory || []), newPayment];
 
-          let updatedMaterials = Array.isArray(craftsman.assignedMaterials) 
-            ? craftsman.assignedMaterials 
+          let updatedMaterials = Array.isArray(craftsman.assignedMaterials)
+            ? craftsman.assignedMaterials
             : [];
           if (payment.projectId) {
             updatedMaterials = updatedMaterials.map(material => {
               if (material.projectId === payment.projectId && material.agreedAmount) {
                 const newAmountPaid = (material.amountPaid || 0) + payment.amount;
-                const paymentStatus: 'unpaid' | 'partial' | 'paid' = 
+                const paymentStatus: 'unpaid' | 'partial' | 'paid' =
                   newAmountPaid >= material.agreedAmount ? 'paid' :
-                  newAmountPaid > 0 ? 'partial' : 'unpaid';
-                
+                    newAmountPaid > 0 ? 'partial' : 'unpaid';
+
                 const updatedMaterial = {
                   ...material,
                   amountPaid: newAmountPaid,
@@ -616,7 +656,7 @@ const CraftsmenTracking = () => {
         {/* Main Action Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-12 max-w-4xl mx-auto">
           {/* Assign Raw Material Card */}
-          <Card 
+          <Card
             className="p-6 bg-gradient-to-br from-green-50 to-green-100 border-2 border-green-200 hover:shadow-lg transition-all duration-300 cursor-pointer hover:scale-105"
             onClick={() => {
               if (safeCraftsmen.length === 0) {
@@ -646,7 +686,7 @@ const CraftsmenTracking = () => {
           </Card>
 
           {/* Craftsmen Assignments Card */}
-          <Card 
+          <Card
             className="p-6 bg-gradient-to-br from-blue-50 to-blue-100 border-2 border-blue-200 hover:shadow-lg transition-all duration-300 cursor-pointer hover:scale-105"
             onClick={() => {
               const tableElement = document.getElementById('assignments-table');
@@ -701,7 +741,7 @@ const CraftsmenTracking = () => {
                 <p className="text-gray-600">Monitor craftsmen and their assigned materials</p>
               </div>
             </div>
-            <Button 
+            <Button
               onClick={() => setShowAddDialog(true)}
               className="bg-green-600 hover:bg-green-700 text-white"
             >
@@ -777,15 +817,15 @@ const CraftsmenTracking = () => {
                     <TableCell className="text-sm">{craftsman.contact}</TableCell>
                     <TableCell>
                       <div className="flex space-x-2">
-                        <Button 
-                          size="sm" 
+                        <Button
+                          size="sm"
                           variant="outline"
                           onClick={() => handleViewDetails(craftsman)}
                         >
                           View
                         </Button>
-                        <Button 
-                          size="sm" 
+                        <Button
+                          size="sm"
                           className="bg-green-600 hover:bg-green-700"
                           onClick={() => handleAssignProject(craftsman)}
                         >

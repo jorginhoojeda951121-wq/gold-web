@@ -91,32 +91,6 @@ export interface Craftsman {
   [key: string]: any;
 }
 
-export interface MaterialAssigned {
-  id: string;
-  craftsman_id: string;
-  craftsman_name: string;
-  material_type: string;
-  material_id: string;
-  quantity: number;
-  item_description: string;
-  item_type?: string;
-  assigned_date?: string;
-  expected_completion_date?: string;
-  due_date?: string;
-  completion_date?: string;
-  status: string;
-  notes?: string;
-  agreed_amount?: number;
-  amount_paid?: number;
-  payment_status?: 'unpaid' | 'partial' | 'paid';
-  gold_weight?: number;
-  gold_purity?: string;
-  other_materials?: string;
-  target_item_id?: string;
-  is_new_item?: boolean;
-  [key: string]: any;
-}
-
 export interface Employee {
   id: string;
   name: string;
@@ -223,7 +197,6 @@ interface DataContextType {
   customers: Customer[];
   customerTransactions: CustomerTransaction[];
   craftsmen: Craftsman[];
-  materialsAssigned: MaterialAssigned[];
   
   staff: Employee[];
   attendance: AttendanceRecord[];
@@ -257,7 +230,6 @@ interface DataContextType {
   updateCustomers: (customers: Customer[]) => void;
   updateCustomerTransactions: (transactions: CustomerTransaction[]) => void;
   updateCraftsmen: (craftsmen: Craftsman[]) => void;
-  updateMaterialsAssigned: (materials: MaterialAssigned[]) => void;
   updateStaff: (staff: Employee[]) => void;
   updateAttendance: (attendance: AttendanceRecord[]) => void;
   updateSalaryRules: (rules: SalaryRule[]) => void;
@@ -297,7 +269,6 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [customerTransactions, setCustomerTransactions] = useState<CustomerTransaction[]>([]);
   const [craftsmen, setCraftsmen] = useState<Craftsman[]>([]);
-  const [materialsAssigned, setMaterialsAssigned] = useState<MaterialAssigned[]>([]);
   
   const [staff, setStaff] = useState<Employee[]>([]);
   const [attendance, setAttendance] = useState<AttendanceRecord[]>([]);
@@ -486,8 +457,6 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         fetchData('craftsmen', setCraftsmen, (loading) => 
           setLoading(prev => ({ ...prev, craftsmen: loading }))),
         
-        fetchData('materials_assigned', setMaterialsAssigned, () => {}),
-        
         fetchData('staff', setStaff, (loading) => 
           setLoading(prev => ({ ...prev, staff: loading }))),
         
@@ -582,7 +551,6 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     customers,
     customerTransactions,
     craftsmen,
-    materialsAssigned,
     staff,
     attendance,
     salaryRules,
@@ -604,7 +572,6 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     updateCustomers: setCustomers,
     updateCustomerTransactions: setCustomerTransactions,
     updateCraftsmen: setCraftsmen,
-    updateMaterialsAssigned: setMaterialsAssigned,
     updateStaff: setStaff,
     updateAttendance: setAttendance,
     updateSalaryRules: setSalaryRules,

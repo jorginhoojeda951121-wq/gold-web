@@ -128,7 +128,7 @@ const CraftsmenTracking = () => {
 
   useEffect(() => {
     const loadMaterialsAssigned = async () => {
-      if (!loaded || materialsLoaded || !Array.isArray(craftsmen)) return;
+      if (!loaded || materialsLoaded || !Array.isArray(craftsmen) || craftsmen.length === 0) return;
 
       try {
         const materialsAssigned = await fetchAll<any[]>('materials_assigned');
@@ -181,9 +181,7 @@ const CraftsmenTracking = () => {
               
               const materialMap = new Map(existingMaterials.map(m => [m.id, m]));
               materials.forEach(m => {
-                if (!materialMap.has(m.id)) {
-                  materialMap.set(m.id, m);
-                }
+                materialMap.set(m.id, m);
               });
 
               return {

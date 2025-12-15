@@ -4,7 +4,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Card } from "@/components/ui/card";
-import { Calendar, Package, Phone, User, Hammer, Check, FileText, DollarSign, CreditCard, AlertCircle, Building2, MapPin, FileCheck, Clock, TrendingUp, AlertTriangle } from "lucide-react";
+import { Calendar, Package, Phone, User, Hammer, Check, FileText, DollarSign, CreditCard, AlertCircle, Building2, MapPin, FileCheck, Clock, TrendingUp, AlertTriangle, CheckCircle } from "lucide-react";
 import { Craftsman, RawMaterial } from "./AddCraftsmanDialog";
 import { ProjectCompletionDialog } from "./ProjectCompletionDialog";
 
@@ -147,25 +147,8 @@ export const CraftsmanDetailsDialog = ({
               <div>
                 <div className="flex items-center space-x-2 mb-1">
                   <h3 className="text-xl font-semibold text-gray-900">{craftsman.name}</h3>
-                  {craftsman.type === 'firm' && (
-                    <Badge variant="outline" className="bg-blue-100 text-blue-800 border-blue-300">
-                      <Building2 className="h-3 w-3 mr-1" />
-                      Firm
-                    </Badge>
-                  )}
-                  {craftsman.type === 'individual' && (
-                    <Badge variant="outline" className="bg-green-100 text-green-800 border-green-300">
-                      <User className="h-3 w-3 mr-1" />
-                      Individual
-                    </Badge>
-                  )}
                 </div>
                 <p className="text-gray-600">{craftsman.specialty}</p>
-                {craftsman.type === 'firm' && craftsman.contactPerson && (
-                  <p className="text-sm text-gray-500 mt-1">
-                    Contact: {craftsman.contactPerson}
-                  </p>
-                )}
               </div>
               <Badge className={getStatusColor(craftsman.status)}>
                 {craftsman.status}
@@ -194,21 +177,21 @@ export const CraftsmanDetailsDialog = ({
                 <>
                   {craftsman.firmContact && (
                     <div className="flex items-center space-x-2">
-                      <Phone className="h-4 w-4 text-blue-500" />
+                      <Phone className="h-4 w-4 text-gray-500" />
                       <span className="text-gray-600">Firm Contact:</span>
                       <span className="font-medium">{craftsman.firmContact}</span>
                     </div>
                   )}
                   {craftsman.firmAddress && (
                     <div className="flex items-center space-x-2 col-span-2">
-                      <MapPin className="h-4 w-4 text-blue-500" />
+                      <MapPin className="h-4 w-4 text-gray-500" />
                       <span className="text-gray-600">Address:</span>
                       <span className="font-medium">{craftsman.firmAddress}</span>
                     </div>
                   )}
                   {craftsman.firmGSTNumber && (
                     <div className="flex items-center space-x-2 col-span-2">
-                      <FileCheck className="h-4 w-4 text-blue-500" />
+                      <FileCheck className="h-4 w-4 text-gray-500" />
                       <span className="text-gray-600">GST Number:</span>
                       <span className="font-medium">{craftsman.firmGSTNumber}</span>
                     </div>
@@ -303,7 +286,7 @@ export const CraftsmanDetailsDialog = ({
           <div>
             <div className="flex items-center justify-between mb-4">
               <h4 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-                <Clock className="h-5 w-5 text-blue-600" />
+                <Clock className="h-5 w-5 text-green-600" />
                 Ongoing Tasks ({ongoingTasks.length})
               </h4>
               <Button 
@@ -318,37 +301,15 @@ export const CraftsmanDetailsDialog = ({
             {ongoingTasks.length > 0 ? (
               <div className="space-y-3">
                 {ongoingTasks.map((material) => {
-                  const deliveryStatus = getDeliveryStatus(material);
-                  const StatusIcon = deliveryStatus?.icon || Clock;
-                  
                   return (
                   <Card 
                     key={material.id} 
-                    className={`p-4 ${deliveryStatus ? deliveryStatus.bgColor : 'bg-white'} ${deliveryStatus ? deliveryStatus.borderColor : 'border-gray-200'} border-2`}
+                    className="p-4 bg-white border-gray-200 border-2"
                   >
                     <div className="flex justify-between items-start">
                       <div className="flex-1">
                         <div className="flex items-center gap-2 mb-2">
                           <h5 className="font-medium text-gray-900">{material.type}</h5>
-                          {material.assignmentType === 'inventory_item' && (
-                            <Badge variant="secondary" className="text-xs">
-                              Inventory Item
-                            </Badge>
-                          )}
-                          {material.assignmentType === 'raw_material' && (
-                            <Badge variant="outline" className="text-xs">
-                              Raw Material
-                            </Badge>
-                          )}
-                          {deliveryStatus && (
-                            <Badge 
-                              variant="outline" 
-                              className={`text-xs ${deliveryStatus.color} ${deliveryStatus.borderColor}`}
-                            >
-                              <StatusIcon className="h-3 w-3 mr-1" />
-                              {deliveryStatus.label}
-                            </Badge>
-                          )}
                         </div>
                         
                         <div className="grid grid-cols-2 gap-2 mb-2">
@@ -363,61 +324,6 @@ export const CraftsmanDetailsDialog = ({
                             </div>
                           )}
                         </div>
-
-                        {/* Delivery Date Tracker */}
-                        {material.estimatedDelivery && (
-                          <div className={`mt-3 p-3 rounded-lg ${deliveryStatus ? deliveryStatus.bgColor : 'bg-gray-50'} border ${deliveryStatus ? deliveryStatus.borderColor : 'border-gray-200'}`}>
-                            <div className="flex items-center justify-between">
-                              <div className="flex items-center gap-2">
-                                <Calendar className={`h-4 w-4 ${deliveryStatus ? deliveryStatus.color : 'text-gray-600'}`} />
-                                <div>
-                                  <p className="text-xs text-gray-500">Estimated Delivery</p>
-                                  <p className={`text-sm font-semibold ${deliveryStatus ? deliveryStatus.color : 'text-gray-900'}`}>
-                                    {new Date(material.estimatedDelivery).toLocaleDateString('en-US', { 
-                                      weekday: 'short', 
-                                      year: 'numeric', 
-                                      month: 'short', 
-                                      day: 'numeric' 
-                                    })}
-                                  </p>
-                                </div>
-                              </div>
-                              {deliveryStatus && (
-                                <div className="text-right">
-                                  <p className={`text-lg font-bold ${deliveryStatus.color}`}>
-                                    {deliveryStatus.days}
-                                  </p>
-                                  <p className={`text-xs ${deliveryStatus.color}`}>
-                                    {deliveryStatus.status === 'overdue' ? 'days overdue' : 'days remaining'}
-                                  </p>
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        )}
-
-                        {material.agreedAmount && (
-                          <div className="mt-2 pt-2 border-t border-gray-200">
-                            <p className="text-xs text-gray-500">Payment Status</p>
-                            <div className="flex items-center justify-between mt-1">
-                              <p className="text-sm font-medium text-gray-700">
-                                ₹{(material.amountPaid || 0).toLocaleString()} / ₹{material.agreedAmount.toLocaleString()}
-                              </p>
-                              <Badge 
-                                variant={
-                                  material.paymentStatus === 'paid' ? 'default' :
-                                  material.paymentStatus === 'partial' ? 'secondary' :
-                                  'destructive'
-                                }
-                                className="text-xs"
-                              >
-                                {material.paymentStatus === 'paid' ? 'Paid' :
-                                 material.paymentStatus === 'partial' ? 'Partial' :
-                                 'Unpaid'}
-                              </Badge>
-                            </div>
-                          </div>
-                        )}
                       </div>
                       <div className="text-right text-sm text-gray-500 ml-4">
                         <div className="flex items-center space-x-1 mb-2">
@@ -466,15 +372,15 @@ export const CraftsmanDetailsDialog = ({
           <Separator />
 
           {/* Completed Tasks */}
-          {completedTasks.length > 0 && (
-            <div>
-              <div className="flex items-center justify-between mb-4">
-                <h4 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-                  <Check className="h-5 w-5 text-green-600" />
-                  Completed Tasks ({completedTasks.length})
-                </h4>
-              </div>
-              
+          <div>
+            <div className="flex items-center justify-between mb-4">
+              <h4 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                <Check className="h-5 w-5 text-green-600" />
+                Completed Tasks ({completedTasks.length})
+              </h4>
+            </div>
+            
+            {completedTasks.length > 0 ? (
               <div className="space-y-3">
                 {completedTasks.map((material) => (
                   <div key={material.id} className="border border-gray-200 p-3 rounded-lg">
@@ -482,33 +388,11 @@ export const CraftsmanDetailsDialog = ({
                       <div className="flex-1">
                         <div className="flex items-center gap-2 mb-2">
                           <h5 className="font-medium text-gray-900">{material.type}</h5>
-                          {material.assignmentType === 'inventory_item' && (
-                            <Badge variant="secondary" className="text-xs">
-                              Inventory Item
-                            </Badge>
-                          )}
-                          {material.assignmentType === 'raw_material' && (
-                            <Badge variant="outline" className="text-xs">
-                              Raw Material
-                            </Badge>
-                          )}
-                          {material.completed && (
-                            <Badge variant="default" className="bg-green-100 text-green-800">
-                              <Check className="h-3 w-3 mr-1" />
-                              Completed
-                            </Badge>
-                          )}
+                          <Badge className="bg-green-100 text-green-800">
+                            <Check className="h-3 w-3 mr-1" />
+                            Completed
+                          </Badge>
                         </div>
-                        {material.inventoryItemType && (
-                          <div className="text-xs text-gray-500 mb-1">
-                            Item Type: {material.inventoryItemType}
-                          </div>
-                        )}
-                        {material.inventoryItemId && (
-                          <div className="text-xs text-gray-500 mb-1">
-                            Item ID: {material.inventoryItemId}
-                          </div>
-                        )}
                         <p className="text-sm text-gray-600">
                           Quantity: {material.quantity} {material.unit}
                         </p>
@@ -517,26 +401,7 @@ export const CraftsmanDetailsDialog = ({
                             Project: {material.projectId}
                           </p>
                         )}
-                        {material.agreedAmount && (
-                          <div className="mt-2 space-y-1">
-                            <p className="text-sm font-medium text-gray-700">
-                              Payment: ₹{(material.amountPaid || 0).toLocaleString()} / ₹{material.agreedAmount.toLocaleString()}
-                            </p>
-                            <Badge 
-                              variant={
-                                material.paymentStatus === 'paid' ? 'default' :
-                                material.paymentStatus === 'partial' ? 'secondary' :
-                                'destructive'
-                              }
-                              className="text-xs"
-                            >
-                              {material.paymentStatus === 'paid' ? 'Paid' :
-                               material.paymentStatus === 'partial' ? 'Partial Payment' :
-                               'Unpaid'}
-                            </Badge>
-                          </div>
-                        )}
-                        {material.completed && material.completedDate && (
+                        {material.completedDate && (
                           <div className="space-y-1">
                             <p className="text-sm text-green-600">
                               Completed on: {material.completedDate}
@@ -565,8 +430,14 @@ export const CraftsmanDetailsDialog = ({
                   </div>
                 ))}
               </div>
-            </div>
-          )}
+            ) : (
+              <div className="text-center py-6 text-gray-500 bg-gray-50 rounded-lg border border-gray-200">
+                <Check className="h-12 w-12 mx-auto mb-2 text-gray-300" />
+                <p>No completed tasks</p>
+                <p className="text-xs mt-1">Completed tasks will appear here</p>
+              </div>
+            )}
+          </div>
 
           <div className="flex justify-end space-x-3 pt-4">
             <Button variant="outline" onClick={() => onOpenChange(false)}>

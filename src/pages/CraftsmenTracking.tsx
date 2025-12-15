@@ -488,6 +488,101 @@ const CraftsmenTracking = () => {
             payment_status: paymentStatus,
             updated_at: new Date().toISOString(),
           });
+
+          // Update inventory based on assignment type
+          if (completedMaterial.assignmentType === 'raw_material') {
+            // Add new item to inventory when raw material task is completed
+            try {
+              const { getUserData, setUserData } = await import('@/lib/userStorage');
+              const inventoryItems = (await getUserData<any[]>('inventory_items')) || [];
+              
+              const category = completedMaterial.inventoryItemType || 'jewelry';
+              const itemName = completedMaterial.type || 'Completed Item';
+              const quantity = completedMaterial.quantity || 0;
+              
+              const newInventoryItem = {
+                id: `inv_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+                name: itemName,
+                category: category,
+                subcategory: completedMaterial.type || '',
+                price: 0,
+                stock: quantity,
+                inStock: quantity,
+                item_type: category,
+                type: completedMaterial.type || '',
+                description: `Completed by ${craftsmanForMaterial.name} on ${completionDate}`,
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString(),
+              };
+
+              inventoryItems.push(newInventoryItem);
+              await setUserData('inventory_items', inventoryItems);
+              
+              await upsertToSupabase('inventory', {
+                id: newInventoryItem.id,
+                name: newInventoryItem.name,
+                category: newInventoryItem.category,
+                subcategory: newInventoryItem.subcategory,
+                price: newInventoryItem.price,
+                stock: newInventoryItem.stock,
+                description: newInventoryItem.description,
+                created_at: newInventoryItem.created_at,
+                updated_at: newInventoryItem.updated_at,
+              });
+
+              toast({
+                title: "Inventory Updated",
+                description: `${itemName} has been added to inventory.`
+              });
+            } catch (invError) {
+              console.warn('Failed to add item to inventory:', invError);
+            }
+          } else if (completedMaterial.assignmentType === 'inventory_item' && completedMaterial.inventoryItemId) {
+            // Increase quantity of existing inventory item
+            try {
+              const { getUserData, setUserData } = await import('@/lib/userStorage');
+              const inventoryItems = (await getUserData<any[]>('inventory_items')) || [];
+              
+              const inventoryItem = inventoryItems.find(item => item.id === completedMaterial.inventoryItemId);
+              if (inventoryItem) {
+                const currentStock = inventoryItem.stock || inventoryItem.inStock || 0;
+                const quantityToAdd = completedMaterial.quantity || 0;
+                const newStock = currentStock + quantityToAdd;
+
+                const updatedItem = {
+                  ...inventoryItem,
+                  stock: newStock,
+                  inStock: newStock,
+                  updated_at: new Date().toISOString(),
+                };
+
+                const itemIndex = inventoryItems.findIndex(item => item.id === inventoryItem.id);
+                if (itemIndex >= 0) {
+                  inventoryItems[itemIndex] = updatedItem;
+                }
+
+                await setUserData('inventory_items', inventoryItems);
+
+                await upsertToSupabase('inventory', {
+                  id: inventoryItem.id,
+                  name: inventoryItem.name || '',
+                  category: inventoryItem.category || inventoryItem.item_type || 'jewelry',
+                  subcategory: inventoryItem.subcategory || inventoryItem.type || '',
+                  price: inventoryItem.price || 0,
+                  stock: newStock,
+                  description: inventoryItem.description || '',
+                  updated_at: new Date().toISOString(),
+                });
+
+                toast({
+                  title: "Inventory Updated",
+                  description: `Quantity of ${inventoryItem.name} increased by ${quantityToAdd}.`
+                });
+              }
+            } catch (invError) {
+              console.warn('Failed to update inventory quantity:', invError);
+            }
+          }
         }
       }
     } catch (syncError) {
@@ -688,6 +783,101 @@ const CraftsmenTracking = () => {
             notes: notes || completedMaterial.completionNotes || '',
             updated_at: new Date().toISOString(),
           });
+
+          // Update inventory based on assignment type
+          if (completedMaterial.assignmentType === 'raw_material') {
+            // Add new item to inventory when raw material task is completed
+            try {
+              const { getUserData, setUserData } = await import('@/lib/userStorage');
+              const inventoryItems = (await getUserData<any[]>('inventory_items')) || [];
+              
+              const category = completedMaterial.inventoryItemType || 'jewelry';
+              const itemName = completedMaterial.type || 'Completed Item';
+              const quantity = completedMaterial.quantity || 0;
+              
+              const newInventoryItem = {
+                id: `inv_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+                name: itemName,
+                category: category,
+                subcategory: completedMaterial.type || '',
+                price: 0,
+                stock: quantity,
+                inStock: quantity,
+                item_type: category,
+                type: completedMaterial.type || '',
+                description: `Completed by ${craftsmanForMaterial.name} on ${completionDate}. Notes: ${notes || ''}`,
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString(),
+              };
+
+              inventoryItems.push(newInventoryItem);
+              await setUserData('inventory_items', inventoryItems);
+              
+              await upsertToSupabase('inventory', {
+                id: newInventoryItem.id,
+                name: newInventoryItem.name,
+                category: newInventoryItem.category,
+                subcategory: newInventoryItem.subcategory,
+                price: newInventoryItem.price,
+                stock: newInventoryItem.stock,
+                description: newInventoryItem.description,
+                created_at: newInventoryItem.created_at,
+                updated_at: newInventoryItem.updated_at,
+              });
+
+              toast({
+                title: "Inventory Updated",
+                description: `${itemName} has been added to inventory.`
+              });
+            } catch (invError) {
+              console.warn('Failed to add item to inventory:', invError);
+            }
+          } else if (completedMaterial.assignmentType === 'inventory_item' && completedMaterial.inventoryItemId) {
+            // Increase quantity of existing inventory item
+            try {
+              const { getUserData, setUserData } = await import('@/lib/userStorage');
+              const inventoryItems = (await getUserData<any[]>('inventory_items')) || [];
+              
+              const inventoryItem = inventoryItems.find(item => item.id === completedMaterial.inventoryItemId);
+              if (inventoryItem) {
+                const currentStock = inventoryItem.stock || inventoryItem.inStock || 0;
+                const quantityToAdd = completedMaterial.quantity || 0;
+                const newStock = currentStock + quantityToAdd;
+
+                const updatedItem = {
+                  ...inventoryItem,
+                  stock: newStock,
+                  inStock: newStock,
+                  updated_at: new Date().toISOString(),
+                };
+
+                const itemIndex = inventoryItems.findIndex(item => item.id === inventoryItem.id);
+                if (itemIndex >= 0) {
+                  inventoryItems[itemIndex] = updatedItem;
+                }
+
+                await setUserData('inventory_items', inventoryItems);
+
+                await upsertToSupabase('inventory', {
+                  id: inventoryItem.id,
+                  name: inventoryItem.name || '',
+                  category: inventoryItem.category || inventoryItem.item_type || 'jewelry',
+                  subcategory: inventoryItem.subcategory || inventoryItem.type || '',
+                  price: inventoryItem.price || 0,
+                  stock: newStock,
+                  description: inventoryItem.description || '',
+                  updated_at: new Date().toISOString(),
+                });
+
+                toast({
+                  title: "Inventory Updated",
+                  description: `Quantity of ${inventoryItem.name} increased by ${quantityToAdd}.`
+                });
+              }
+            } catch (invError) {
+              console.warn('Failed to update inventory quantity:', invError);
+            }
+          }
         }
       }
     } catch (syncError) {

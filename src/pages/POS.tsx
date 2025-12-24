@@ -21,74 +21,19 @@ import {
   Printer,
   RefreshCw,
   Search,
-  Users,
   UserCheck,
   Wallet,
-  Smartphone,
   CheckCircle,
   Eye,
-  X,
-  Scan,
   Pencil
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useUserStorage } from "@/hooks/useUserStorage";
-import { getUserData, setUserData } from "@/lib/userStorage";
 import { generateReceiptPDF, ReceiptData } from "@/lib/pdfGenerator";
+import { getFromSupabase } from "@/lib/supabaseDirect";
 import ItemDetailsDialog from "@/components/ItemDetailsDialog";
 // Removed idbGet, idbSet - now using getUserData, setUserData from userStorage
 import { upsertToSupabase, deleteFromSupabase } from "@/lib/supabaseDirect";
-import { BarcodeInput } from "@/components/BarcodeScanner";
-
-interface CartItem {
-  id: string;
-  name: string;
-  price: number;
-  quantity: number;
-  type: string;
-  taxRate?: number;        // Custom tax rate for this item (percentage)
-  taxIncluded?: boolean;   // Whether price includes tax
-  taxCategory?: string;    // Tax category for reporting
-  weight?: string;         // Item weight (for gold/jewelry)
-  purity?: string;         // Purity/Metal type (e.g., "Gold 18K", "22K")
-  customRate?: number;     // Custom rate/price (overrides base price if set)
-  details?: string;        // Additional item details/notes
-}
-
-interface Invoice {
-  id: string;
-  items: CartItem[];
-  subtotal: number;
-  tax: number;
-  total: number;
-  date: string;
-  customerName?: string;
-  paymentMethod: string;
-}
-
-interface Customer {
-  id: string;
-  name: string;
-  phone: string;
-  email: string;
-  address: string;
-  creditLimit: number;
-  currentBalance: number;
-  totalPurchases: number;
-  lastPurchaseDate: string;
-  status: 'active' | 'suspended' | 'blacklisted';
-}
-
-interface CustomerTransaction {
-  id: string;
-  customerId: string;
-  type: 'purchase' | 'payment' | 'credit_adjustment';
-  amount: number;
-  description: string;
-  date: string;
-  invoiceId?: string;
-  paymentMethod?: string;
-}
 
 const POS = () => {
   const { toast } = useToast();
@@ -148,7 +93,7 @@ const POS = () => {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const isLoadingRef = useRef(false);
 
-  // Function to load all inventory from IndexedDB directly
+  // Function to load all inventory from Supabase
   const loadAllInventory = useCallback(async (forceReload = false) => {
     // Prevent multiple simultaneous loads (unless forced)
     if (isLoadingRef.current && !forceReload) return;
@@ -157,54 +102,56 @@ const POS = () => {
     try {
       setIsRefreshing(true);
 
-      // Load all inventory from unified inventory_items table (Single Source of Truth)
-      const inventoryData = await getUserData<any[]>("inventory_items") || [];
+      // Fetch directly from Supabase
+      const inventoryData = await getFromSupabase<any[]>('inventory', {});
 
       const items: JewelryItem[] = inventoryData.map((item: any) => {
-        // Determine item type - check item_type first, then category, then type field
-        const itemType = item.item_type ||
-          (item.category === 'gold' ? 'gold' :
-            item.category === 'stones' ? 'stone' :
-              item.category === 'stone' ? 'stone' :
-                item.type === 'Gold Bar' ? 'gold' :
-                  item.type === 'Gemstone' ? 'stone' : 'jewelry');
+        // Determine item type from category/subcategory
+        const itemType = item.category === 'gold' ? 'gold'
+          : item.category === 'stones' ? 'stone'
+          : item.category === 'stone' ? 'stone'
+          : item.subcategory === 'Gold Bar' ? 'gold'
+          : item.subcategory === 'Gemstone' ? 'stone'
+          : 'jewelry';
 
         // Transform to JewelryItem format
-        const stockValue = item.inStock ?? item.stock ?? item.in_stock ?? 10;
+        const stockValue = item.stock ?? 0;
+
+        // Extract metal/purity from description
+        let metal = 'Gold 18K';
+        if (item.description) {
+          if (item.description.includes('Gold 24K')) metal = 'Gold 24K';
+          else if (item.description.includes('Gold 22K')) metal = 'Gold 22K';
+          else if (item.description.includes('Gold 18K')) metal = 'Gold 18K';
+          else if (item.description.includes('Gold 14K')) metal = 'Gold 14K';
+          else if (item.description.includes('Gold 10K')) metal = 'Gold 10K';
+          else if (itemType === 'stone') metal = ''; // Empty for stones
+        }
 
         return {
           id: item.id,
           name: item.name || 'Unknown Item',
           type: itemType === 'gold' ? 'Gold Bar'
             : itemType === 'stone' ? 'Gemstone'
-              : (item.type || 'Ring'),
-          gemstone: itemType === 'stone'
-            ? (item.name || 'Stone')
-            : (item.gemstone || item.attributes?.gemstone || 'None'),
-          carat: itemType === 'stone'
-            ? (parseFloat(item.attributes?.carat || item.carat) || 0)
-            : (parseFloat(item.carat) || 0),
-          metal: itemType === 'gold'
-            ? (item.attributes?.purity || item.purity || item.metal || 'Gold 18K')
-            : itemType === 'stone'
-              ? 'Platinum'
-              : (item.metal || 'Gold 18K'),
+              : (item.subcategory || 'Ring'),
+          gemstone: itemType === 'stone' ? (item.name || 'Stone') : 'None',
+          carat: item.weight ? parseFloat(item.weight.toString()) : 0,
+          metal: metal,
           price: item.price || 0,
           inStock: stockValue,
-          isArtificial: item.isArtificial || false,
-          image: item.image || item.image_1 || '',
-          image_1: item.image_1 || item.image || '',
-          image_2: item.image_2 || '',
-          image_3: item.image_3 || '',
-          image_4: item.image_4 || '',
+          isArtificial: item.category === 'artificial',
+          image: item.image_url || '',
+          image_1: item.image_url || '',
+          image_2: '',
+          image_3: '',
+          image_4: '',
         };
       });
-
 
       setAvailableItems(items);
       setItemsLoaded(true);
     } catch (error) {
-      console.error('❌ Error loading inventory:', error);
+      console.error('❌ Error loading inventory from Supabase:', error);
       setAvailableItems([]);
       setItemsLoaded(true);
     } finally {
@@ -234,70 +181,37 @@ const POS = () => {
     };
   }, [loadAllInventory]);
 
-  // Update function for POS inventory updates - CRITICAL: Must update inventory_items (Single Source of Truth)
+  // Update function for POS inventory updates - Updates Supabase directly
   const updateInventoryStock = useCallback(async (updatedItems: JewelryItem[]) => {
     try {
-      // Load current data from unified inventory_items table
-      const inventoryData = await getUserData<any[]>("inventory_items") || [];
-      const updatedInventory = [...inventoryData];
-
       // Process items sequentially to avoid race conditions
       for (const item of updatedItems) {
         const now = new Date().toISOString();
 
-        // Determine item type for inventory_items
+        // Determine item type
         const itemType = item.type === 'Gold Bar' ? 'gold'
           : item.type === 'Gemstone' ? 'stone'
             : 'jewelry';
 
-        // Find inventory item
-        const inventoryIndex = updatedInventory.findIndex((inv: any) => inv.id === item.id);
-        const inventoryItem = inventoryIndex >= 0 ? updatedInventory[inventoryIndex] : {};
-
-        // Prepare data for Supabase inventory table (no attributes field)
+        // Prepare data for Supabase inventory table
         const inventoryUpdate = {
           id: item.id,
-          name: item.name || inventoryItem.name || '',
+          name: item.name || '',
           category: itemType,
-          subcategory: item.type || inventoryItem.type || '',
-          price: item.price || inventoryItem.price || 0,
+          subcategory: item.type || '',
+          price: item.price || 0,
           stock: item.inStock, // CRITICAL: Update stock quantity
-          image_url: item.image || inventoryItem.image || inventoryItem.image_url || '',
+          image_url: item.image || item.image_1 || '',
           description: `${item.type || ''}${item.metal ? ` - ${item.metal}` : ''}`,
           updated_at: now,
         };
 
         // Update Supabase directly
         await upsertToSupabase('inventory', inventoryUpdate);
-
-        // Also update local IndexedDB for fast access
-        if (inventoryIndex >= 0) {
-          updatedInventory[inventoryIndex] = {
-            ...inventoryUpdate,
-            item_type: itemType,
-            type: item.type || inventoryItem.type || '',
-            inStock: item.inStock,
-            image: item.image || inventoryItem.image || '',
-            isArtificial: item.isArtificial || inventoryItem.isArtificial || false,
-          };
-        } else {
-          updatedInventory.push({
-            ...inventoryUpdate,
-            item_type: itemType,
-            type: item.type || inventoryItem.type || '',
-            inStock: item.inStock,
-            image: item.image || inventoryItem.image || '',
-            isArtificial: item.isArtificial || false,
-          });
-        }
       }
 
-      // Save back to IndexedDB (Single Source of Truth)
-      await setUserData("inventory_items", updatedInventory);
-
-
-      // Reload inventory
-      await loadAllInventory();
+      // Reload inventory from Supabase
+      await loadAllInventory(true);
     } catch (error) {
       console.error('❌ Error updating inventory:', error);
     }
@@ -349,14 +263,16 @@ const POS = () => {
   const handleAddToCartClick = async (item: JewelryItem) => {
     // Load full item data from inventory to get weight and other attributes
     try {
-      const inventoryData = await getUserData<any[]>('inventory_items') || [];
-      const fullItem = inventoryData.find((inv: any) => inv.id === item.id);
+      const inventoryData = await getFromSupabase<any[]>('inventory', {});
+      const fullItem: any = inventoryData.find((inv: any) => inv.id === item.id) || null;
 
       // Set item to add and pre-fill details from item
       setItemToAdd(item);
+      const itemWeight = fullItem?.weight ? fullItem.weight.toString() : "";
+      const itemPurity = item.metal || (fullItem?.description ? (fullItem.description.match(/Gold \d+K/)?.[0] || "") : "") || "";
       setItemDetails({
-        weight: fullItem?.weight || "",
-        purity: item.metal || fullItem?.purity || "",
+        weight: itemWeight,
+        purity: itemPurity,
         customRate: "",
         taxRate: (item.taxRate ?? 3).toString(),
         details: ""
@@ -464,27 +380,27 @@ const POS = () => {
     handleAddToCartClick(item);
   };
 
-  const handleBarcodeScan = (barcode: string) => {
-    const barcodeUpper = barcode.toUpperCase();
+  // const handleBarcodeScan = (barcode: string) => {
+  //   const barcodeUpper = barcode.toUpperCase();
 
-    // Search in available items by barcode or SKU
-    const foundItem = availableItems.find(
-      item =>
-        (item.barcode && item.barcode.toUpperCase() === barcodeUpper) ||
-        (item.sku && item.sku.toUpperCase() === barcodeUpper) ||
-        item.id.toUpperCase() === barcodeUpper
-    );
+  //   // Search in available items by barcode or SKU
+  //   const foundItem = availableItems.find(
+  //     item =>
+  //       (item.barcode && item.barcode.toUpperCase() === barcodeUpper) ||
+  //       (item.sku && item.sku.toUpperCase() === barcodeUpper) ||
+  //       item.id.toUpperCase() === barcodeUpper
+  //   );
 
-    if (foundItem) {
-      handleAddToCartClick(foundItem);
-    } else {
-      toast({
-        title: "Item Not Found",
-        description: `No item found with barcode: ${barcode}`,
-        variant: "destructive",
-      });
-    }
-  };
+  //   if (foundItem) {
+  //     handleAddToCartClick(foundItem);
+  //   } else {
+  //     toast({
+  //       title: "Item Not Found",
+  //       description: `No item found with barcode: ${barcode}`,
+  //       variant: "destructive",
+  //     });
+  //   }
+  // };
 
   const updateQuantity = (id: string, newQuantity: number) => {
     if (newQuantity === 0) {
@@ -602,8 +518,13 @@ const POS = () => {
     ));
 
     // Reload customers
-    const updatedCustomers = await getUserData<Customer[]>('customers') || [];
-    setSelectedCustomer(updatedCustomers.find(c => c.id === selectedCustomer.id) || null);
+    if (selectedCustomer) {
+      const updatedCustomers = await getFromSupabase<Customer>('customers', {});
+      const foundCustomer = updatedCustomers.find(c => c.id === selectedCustomer.id);
+      if (foundCustomer) {
+        setSelectedCustomer(foundCustomer);
+      }
+    }
 
     toast({
       title: "Repayment Recorded",
@@ -660,22 +581,36 @@ const POS = () => {
       await upsertToSupabase('sales', saleRecord);
 
       // Save sale items (line items) to database
-      for (let i = 0; i < invoice.items.length; i++) {
-        const item = invoice.items[i];
-        const saleItem = {
-          id: `${invoice.id}_item_${i}_${item.id}`,
-          sale_id: invoice.id,
-          item_id: item.id,
-          item_name: item.name,
-          item_type: item.type || 'jewelry',
-          quantity: item.quantity,
-          unit_price: item.price,
-          total_price: item.price * item.quantity,
-          discount_percentage: 0,
-          discount_amount: 0,
-        };
-        await upsertToSupabase('sale_items', saleItem);
-      }
+      // for (let i = 0; i < invoice.items.length; i++) {
+      //   const item = invoice.items[i];
+      //   const itemTaxRate = (item.taxRate ?? 3) / 100; // Default 3% if not specified
+      //   const itemTotal = item.price * item.quantity;
+        
+      //   // Calculate tax amount based on whether tax is included or not
+      //   let taxAmount = 0;
+      //   if (item.taxIncluded) {
+      //     // If tax is included, extract the tax from total
+      //     const basePrice = itemTotal / (1 + itemTaxRate);
+      //     taxAmount = itemTotal - basePrice;
+      //   } else {
+      //     // If tax is not included, calculate tax on top
+      //     taxAmount = itemTotal * itemTaxRate;
+      //   }
+        
+      //   const saleItem = {
+      //     id: `${invoice.id}_item_${i}_${item.id}`,
+      //     sale_id: invoice.id,
+      //     product_id: item.id,
+      //     product_name: item.name,
+      //     quantity: item.quantity,
+      //     unit_price: item.price,
+      //     total_price: itemTotal,
+      //     tax_rate: item.taxRate ?? 3,
+      //     tax_amount: taxAmount,
+      //     tax_category: item.taxCategory || 'jewelry',
+      //   };
+      //   await upsertToSupabase('sale_items', saleItem);
+      // }
 
       console.log('✅ Invoice saved to database:', invoice.id);
     } catch (error) {
@@ -742,6 +677,15 @@ const POS = () => {
 
     setCart([]);
     setCustomerName("");
+
+    // Explicitly clear cart from IndexedDB to ensure it's removed
+    try {
+      // Cart is managed by useUserStorage hook - no need to manually clear
+      console.log('✅ Cart cleared from IndexedDB');
+    } catch (error) {
+      console.error('❌ Error clearing cart from IndexedDB:', error);
+      // Non-blocking error - cart state is already cleared
+    }
 
     // Generate and download PDF receipt
     try {

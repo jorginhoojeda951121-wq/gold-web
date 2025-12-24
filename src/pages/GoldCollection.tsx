@@ -4,13 +4,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Link, useNavigate } from "react-router-dom";
 import { useOfflineStorage } from "@/hooks/useOfflineStorage";
-import { useUserStorage } from "@/hooks/useUserStorage";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { upsertDirect, deleteDirect } from "@/lib/supabaseDirect";
-import { getUserData } from "@/lib/userStorage";
+import { upsertToSupabase, deleteFromSupabase, getFromSupabase } from "@/lib/supabaseDirect";
 import { MultiImageUpload } from "@/components/MultiImageUpload";
 import { GoldItemCard, GoldItem } from "@/components/GoldItemCard";
 import { GoldItemDetailsDialog } from "@/components/GoldItemDetailsDialog";
@@ -20,9 +18,9 @@ const GoldCollection = () => {
   const navigate = useNavigate();
   const { data: searchQuery, updateData: setSearchQuery } = useOfflineStorage<string>("gold_search", "");
   const { data: viewMode, updateData: setViewMode } = useOfflineStorage<'grid' | 'list'>("gold_viewMode", 'grid');
-  // Use gold_items key - data will be auto-populated by seedWebData
-  // CRITICAL: Use useUserStorage for user-scoped data isolation
-  const { data: goldItems, updateData: setGoldItems } = useUserStorage<GoldItem[]>("gold_items", []);
+  // Use local state instead of useUserStorage since data is transformed and read-only
+  // The transformed data contains UI-specific fields (image, image_1, etc.) that don't exist in Supabase schema
+  const [goldItems, setGoldItems] = useState<GoldItem[]>([]);
   const { data: posCart, updateData: setPosCart } = useOfflineStorage<any[]>("pos_cart", []);
 
   const [showAddDialog, setShowAddDialog] = useState(false);
@@ -36,7 +34,8 @@ const GoldCollection = () => {
     weight: "",
     purity: "Gold 18K",
     price: "",
-    stock: ""
+    stock: "",
+    image: ""
   });
   const [images, setImages] = useState<(string | null)[]>([null, null, null, null]);
 
@@ -45,48 +44,53 @@ const GoldCollection = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const editFileInputRef = useRef<HTMLInputElement>(null);
 
-  // Load gold items from unified inventory_items table (Single Source of Truth)
+  // Load gold items from Supabase
   const loadGoldItems = useCallback(async () => {
     try {
-      const inventoryData = await getUserData<any[]>('inventory_items') || [];
+      const { getFromSupabase } = await import('@/lib/supabaseDirect');
+      const inventoryData = await getFromSupabase<any[]>('inventory', {});
 
       // Filter only gold items
       const goldItems = inventoryData
         .filter((item: any) => {
-          // Check item_type first, then category, then type field
-          const itemType = item.item_type || 
-            (item.category === 'gold' ? 'gold' :
-             item.category === 'stones' ? 'stone' :
-             item.category === 'stone' ? 'stone' :
-             item.type === 'Gold Bar' ? 'gold' : 
-             item.type === 'Gemstone' ? 'stone' : 'jewelry');
-          return itemType === 'gold';
+          // Check category
+          return item.category === 'gold';
         })
         .map((item: any) => {
           // Clean and validate image URL
-          let imageUrl = item.image || item.image_1 || item.image_url || '';
+          let imageUrl = item.image_url || '';
           if (imageUrl && (imageUrl.length < 10 || imageUrl === '[' || imageUrl === '{')) {
             imageUrl = '';
+          }
+
+          // Extract purity from description
+          let purity = 'Gold 18K';
+          if (item.description) {
+            if (item.description.includes('Gold 24K')) purity = 'Gold 24K';
+            else if (item.description.includes('Gold 22K')) purity = 'Gold 22K';
+            else if (item.description.includes('Gold 18K')) purity = 'Gold 18K';
+            else if (item.description.includes('Gold 14K')) purity = 'Gold 14K';
+            else if (item.description.includes('Gold 10K')) purity = 'Gold 10K';
           }
 
           return {
             id: item.id,
             name: item.name || 'Unknown Gold',
-            weight: item.attributes?.weight || item.weight || '',
-            purity: item.attributes?.purity || item.purity || item.metal || 'Gold 18K',
+            weight: item.weight ? item.weight.toString() : '',
+            purity: purity,
             price: item.price || 0,
-            stock: item.inStock ?? item.stock ?? item.in_stock ?? 10,
+            stock: item.stock ?? 0,
             image: imageUrl,
-            image_1: item.image_1 || imageUrl || '',
-            image_2: item.image_2 || '',
-            image_3: item.image_3 || '',
-            image_4: item.image_4 || '',
+            image_1: imageUrl,
+            image_2: '',
+            image_3: '',
+            image_4: '',
           };
         });
 
       setGoldItems(goldItems);
     } catch (error) {
-      console.error('Error loading gold items:', error);
+      console.error('Error loading gold items from Supabase:', error);
     }
   }, [setGoldItems]);
 
@@ -121,9 +125,9 @@ const GoldCollection = () => {
 
     try {
       // Get current user ID
-      const { getCurrentUserId, getUserData, setUserData } = await import('@/lib/userStorage');
+      const { getCurrentUserId } = await import('@/lib/userStorage');
       const userId = await getCurrentUserId();
-      
+
       if (!userId) {
         toast({
           title: "Error",
@@ -148,37 +152,29 @@ const GoldCollection = () => {
         user_id: userId, // CRITICAL: Include user_id for data isolation
       };
 
-      // Save to unified inventory_items table (Single Source of Truth)
-      const inventoryItems = (await getUserData<any[]>('inventory_items')) || [];
+      // Prepare data for Supabase inventory table
       const newInventoryItem = {
         id: newItem.id,
-        user_id: userId,
-        item_type: 'gold',
         name: newItem.name,
-        type: 'Gold Bar',
-        attributes: { weight: newItem.weight, purity: newItem.purity },
+        category: 'gold',
+        subcategory: 'Gold Bar',
         price: newItem.price,
-        inStock: newItem.stock,
         stock: newItem.stock,
-        image: newItem.image || newItem.image_1 || '',
-        image_1: newItem.image_1 || newItem.image || '',
-        image_2: newItem.image_2 || '',
-        image_3: newItem.image_3 || '',
-        image_4: newItem.image_4 || '',
+        weight: newItem.weight ? parseFloat(newItem.weight.toString()) : null,
+        description: `Gold Bar - ${newItem.purity}`,
+        image_url: newItem.image_1 || newItem.image || null,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       };
-      inventoryItems.push(newInventoryItem);
-      await setUserData('inventory_items', inventoryItems);
-      
-      // Insert directly into Supabase
-      await upsertDirect('inventory_items', newInventoryItem);
-      
+
+      // Save to Supabase only
+      await upsertToSupabase('inventory', newInventoryItem);
+
       // Reload gold items to show the new item
       await loadGoldItems();
-      
+
       // Reset form with default values
-      setFormData({ name: "", weight: "", purity: "Gold 18K", price: "", stock: "" });
+      setFormData({ name: "", weight: "", purity: "Gold 18K", price: "", stock: "", image: "" });
       setImages([null, null, null, null]);
       setShowAddDialog(false);
       toast({
@@ -233,9 +229,9 @@ const GoldCollection = () => {
 
     try {
       // Get current user ID
-      const { getCurrentUserId, getUserData, setUserData } = await import('@/lib/userStorage');
+      const { getCurrentUserId } = await import('@/lib/userStorage');
       const userId = await getCurrentUserId();
-      
+
       if (!userId) {
         toast({
           title: "Error",
@@ -261,66 +257,31 @@ const GoldCollection = () => {
 
 
       // Update local state immediately for instant UI update
-      setGoldItems(prev => prev.map(item => 
+      setGoldItems(prev => prev.map(item =>
         item.id === selectedItem.id ? updatedItem : item
       ));
 
-      // Update gold_items
-      const goldData = (await getUserData<any[]>('gold_items')) || [];
-      const goldIndex = goldData.findIndex((item: any) => item.id === selectedItem.id);
-      if (goldIndex >= 0) {
-        goldData[goldIndex] = { ...updatedItem, user_id: userId };
-        await setUserData('gold_items', goldData);
-      }
-      
-      // Update inventory_items
-      const inventoryItems = (await getUserData<any[]>('inventory_items')) || [];
-      const invIndex = inventoryItems.findIndex((item: any) => item.id === selectedItem.id);
-      if (invIndex >= 0) {
-        inventoryItems[invIndex] = {
-          ...inventoryItems[invIndex],
-          user_id: userId,
-          item_type: 'gold',
-          category: 'gold',
-          name: updatedItem.name,
-          attributes: { weight: updatedItem.weight, purity: updatedItem.purity },
-          price: updatedItem.price,
-          inStock: updatedItem.stock,
-          stock: updatedItem.stock,
-          image: updatedItem.image,
-          image_1: updatedItem.image_1,
-          image_2: updatedItem.image_2,
-          image_3: updatedItem.image_3,
-          image_4: updatedItem.image_4,
-          image_url: updatedItem.image, // Also save as image_url for compatibility
-          updated_at: new Date().toISOString(),
-        };
-        await setUserData('inventory_items', inventoryItems);
-      }
-      
-      // Update directly in Supabase
-      await upsertDirect('inventory_items', {
-        id: updatedItem.id,
-        user_id: userId,
-        item_type: 'gold',
+      // Prepare data for Supabase inventory table
+      const updatedInventoryItem = {
+        id: selectedItem.id,
         name: updatedItem.name,
-        attributes: { weight: updatedItem.weight, purity: updatedItem.purity },
+        category: 'gold',
+        subcategory: 'Gold Bar',
         price: updatedItem.price,
-        inStock: updatedItem.stock,
         stock: updatedItem.stock,
-        image: updatedItem.image,
-        image_1: updatedItem.image_1,
-        image_2: updatedItem.image_2,
-        image_3: updatedItem.image_3,
-        image_4: updatedItem.image_4,
-        image_url: updatedItem.image, // Also sync image_url for compatibility
+        weight: updatedItem.weight ? parseFloat(updatedItem.weight.toString()) : null,
+        description: `Gold Bar - ${updatedItem.purity}`,
+        image_url: updatedItem.image_1 || updatedItem.image || null,
         updated_at: new Date().toISOString(),
-      });
-      
+      };
+
+      // Update Supabase only
+      await upsertToSupabase('inventory', updatedInventoryItem);
+
       // Reload gold items to ensure data consistency
       await loadGoldItems();
-      
-      setFormData({ name: "", weight: "", purity: "", price: "", stock: "" });
+
+      setFormData({ name: "", weight: "", purity: "", price: "", stock: "", image: "" });
       setImages([null, null, null, null]);
       setSelectedItem(null);
       setShowEditDialog(false);
@@ -348,11 +309,11 @@ const GoldCollection = () => {
       try {
         const id = itemToDelete.id;
         const item = goldItems.find(i => i.id === id);
-        
+
         // Get current user ID
-        const { getCurrentUserId, getUserData, setUserData } = await import('@/lib/userStorage');
+        const { getCurrentUserId } = await import('@/lib/userStorage');
         const userId = await getCurrentUserId();
-        
+
         if (!userId) {
           toast({
             title: "Error",
@@ -361,23 +322,13 @@ const GoldCollection = () => {
           });
           return;
         }
-        
-        // Remove from gold_items
-        const goldData = (await getUserData<any[]>('gold_items')) || [];
-        const updatedGold = goldData.filter((item: any) => item.id !== id);
-        await setUserData('gold_items', updatedGold);
-        
-        // Remove from inventory_items
-        const inventoryItems = (await getUserData<any[]>('inventory_items')) || [];
-        const updatedInventory = inventoryItems.filter((item: any) => item.id !== id);
-        await setUserData('inventory_items', updatedInventory);
-        
-        // Delete directly from Supabase
-        await deleteDirect('inventory_items', id);
-        
+
+        // Delete from Supabase
+        await deleteFromSupabase('inventory', id);
+
         // Reload gold items to reflect the deletion
         await loadGoldItems();
-        
+
         toast({
           title: "Item Removed",
           description: item ? `${item.name} has been removed from the collection.` : "Item has been removed.",
@@ -408,7 +359,7 @@ const GoldCollection = () => {
 
     // Check if item already exists in cart
     const existingItem = posCart.find(cartItem => cartItem.id === item.id);
-    
+
     if (existingItem) {
       // Update quantity if item exists
       setPosCart(prev => prev.map(cartItem =>
@@ -443,7 +394,7 @@ const GoldCollection = () => {
                 <h1 className="text-2xl font-bold text-green-600 mb-2">Gold Collection</h1>
                 <p className="text-green-500">Explore our exquisite gold items.</p>
               </div>
-              <Button 
+              <Button
                 onClick={() => setShowAddDialog(true)}
                 className="bg-green-600 hover:bg-green-700 text-white"
               >
@@ -571,7 +522,7 @@ const GoldCollection = () => {
                 placeholder="e.g., 10"
               />
             </div>
-            <MultiImageUpload 
+            <MultiImageUpload
               images={images}
               onImagesChange={setImages}
               maxImages={4}
@@ -649,7 +600,7 @@ const GoldCollection = () => {
                 placeholder="e.g., 10"
               />
             </div>
-            <MultiImageUpload 
+            <MultiImageUpload
               images={images}
               onImagesChange={setImages}
               maxImages={4}

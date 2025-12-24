@@ -22,9 +22,8 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { useOfflineStorage } from "@/hooks/useOfflineStorage";
-import { upsertToSupabase, deleteFromSupabase } from "@/lib/supabaseDirect";
+import { upsertToSupabase, deleteFromSupabase, getFromSupabase } from "@/lib/supabaseDirect";
 import { useBusinessName } from "@/hooks/useBusinessName";
-import { getUserData, setUserData } from "@/lib/userStorage";
 import { getSupabase } from "@/lib/supabase";
 import heroImage from "@/assets/hero-jewelry.jpg";
 
@@ -72,59 +71,62 @@ const Index = () => {
   // Use standardized key for craftsmen - data will be auto-populated by seedWebData
   const { data: craftsmen, updateData: setCraftsmen } = useOfflineStorage<Craftsman[]>('craftsmen', []);
 
-  // Load all inventory from unified inventory_items table (Single Source of Truth)
+  // Load all inventory from Supabase (Single Source of Truth)
   const loadAllInventory = useCallback(async (forceReload = false) => {
     // Prevent multiple simultaneous loads (unless forced)
     if (itemsLoaded && !forceReload) return;
 
     try {
-      // Load from unified inventory_items table
-      const inventoryData = await getUserData<any[]>("inventory_items") || [];
+      // Fetch directly from Supabase
+      const inventoryData = await getFromSupabase<any[]>('inventory', {});
 
       const allItems: JewelryItem[] = inventoryData.map((item: any) => {
-        // Determine item type - check item_type first, then category, then type field
-        const itemType = item.item_type ||
-          (item.category === 'gold' ? 'gold' :
-            item.category === 'stones' ? 'stone' :
-              item.category === 'stone' ? 'stone' :
-                item.type === 'Gold Bar' ? 'gold' :
-                  item.type === 'Gemstone' ? 'stone' : 'jewelry');
+        // Determine item type from category/subcategory
+        const itemType = item.category === 'gold' ? 'gold'
+          : item.category === 'stones' ? 'stone'
+          : item.category === 'stone' ? 'stone'
+          : item.subcategory === 'Gold Bar' ? 'gold'
+          : item.subcategory === 'Gemstone' ? 'stone'
+          : 'jewelry';
 
         // Transform to JewelryItem format
-        const stockValue = item.inStock ?? item.stock ?? item.in_stock ?? 10;
+        const stockValue = item.stock ?? 0;
+
+        // Extract metal/purity from description
+        let metal = 'Gold 18K';
+        if (item.description) {
+          if (item.description.includes('Gold 24K')) metal = 'Gold 24K';
+          else if (item.description.includes('Gold 22K')) metal = 'Gold 22K';
+          else if (item.description.includes('Gold 18K')) metal = 'Gold 18K';
+          else if (item.description.includes('Gold 14K')) metal = 'Gold 14K';
+          else if (item.description.includes('Gold 10K')) metal = 'Gold 10K';
+          else if (itemType === 'stone') metal = ''; // Empty for stones
+        }
 
         return {
           id: item.id,
           name: item.name || 'Unknown Item',
           type: itemType === 'gold' ? 'Gold Bar'
             : itemType === 'stone' ? 'Gemstone'
-              : (item.type || 'Ring'),
-          gemstone: itemType === 'stone'
-            ? (item.name || 'Stone')
-            : (item.gemstone || item.attributes?.gemstone || 'None'),
-          carat: itemType === 'stone'
-            ? (parseFloat(item.attributes?.carat || item.carat) || 0)
-            : (parseFloat(item.carat) || 0),
-          metal: itemType === 'gold'
-            ? (item.attributes?.purity || item.purity || item.metal || 'Gold 18K')
-            : itemType === 'stone'
-              ? 'Platinum'
-              : (item.metal || 'Gold 18K'),
+              : (item.subcategory || 'Ring'),
+          gemstone: itemType === 'stone' ? (item.name || 'Stone') : 'None',
+          carat: item.weight ? parseFloat(item.weight.toString()) : 0,
+          metal: metal,
           price: item.price || 0,
           inStock: stockValue,
-          isArtificial: item.isArtificial || false,
-          image: item.image || item.image_1 || '',
-          image_1: item.image_1 || item.image || '',
-          image_2: item.image_2 || '',
-          image_3: item.image_3 || '',
-          image_4: item.image_4 || '',
+          isArtificial: item.category === 'artificial',
+          image: item.image_url || '',
+          image_1: item.image_url || '',
+          image_2: '',
+          image_3: '',
+          image_4: '',
         };
       });
 
       setItems(allItems);
       setItemsLoaded(true);
     } catch (error) {
-      console.error('❌ Error loading inventory:', error);
+      console.error('❌ Error loading inventory from Supabase:', error);
       setItems([]);
       setItemsLoaded(true);
     }
@@ -223,7 +225,6 @@ const Index = () => {
 
   const handleAddItem = async (newItem: Omit<JewelryItem, 'id'>) => {
     try {
-      // Get current user ID
       const { getCurrentUserId } = await import('@/lib/userStorage');
       const userId = await getCurrentUserId();
 
@@ -241,9 +242,6 @@ const Index = () => {
         id: Date.now().toString()
       };
 
-      // Save to appropriate user-scoped IndexedDB key based on item type
-      // Save to unified inventory_items table (Single Source of Truth)
-      const inventoryItems = (await getUserData<any[]>('inventory_items')) || [];
       const category = (item.category || '').toLowerCase();
       const itemType = category === 'gold' ? 'gold'
         : (category === 'stones' || category === 'stone' || category === 'precious') ? 'stone'
@@ -267,29 +265,11 @@ const Index = () => {
         updated_at: new Date().toISOString(),
       };
 
-      // Save to Supabase directly
+      // Save to Supabase only
       await upsertToSupabase('inventory', newInventoryItem);
 
-      // Also save to local IndexedDB for fast loading
-      inventoryItems.push({
-        ...newInventoryItem,
-        item_type: itemType,
-        type: item.type,
-        gemstone: item.gemstone,
-        carat: item.carat,
-        metal: item.metal,
-        inStock: item.inStock,
-        image: item.image || item.image_1 || '',
-        image_1: item.image_1 || item.image || '',
-        image_2: item.image_2 || '',
-        image_3: item.image_3 || '',
-        image_4: item.image_4 || '',
-        isArtificial: item.isArtificial || false,
-      });
-      await setUserData('inventory_items', inventoryItems);
-
-      // Reload inventory to get latest from IndexedDB
-      await loadAllInventory();
+      // Reload from Supabase
+      await loadAllInventory(true);
 
       toast({
         title: "Item Added",
@@ -315,15 +295,6 @@ const Index = () => {
 
   const handleSaveEditedItem = async (updatedItem: JewelryItem) => {
     try {
-      // Determine item type
-      const itemType = updatedItem.type === 'Gold Bar' ? 'gold'
-        : updatedItem.type === 'Gemstone' ? 'stone'
-          : 'jewelry';
-
-      // Update inventory_items directly (Single Source of Truth)
-      const inventoryItems = await getUserData<any[]>('inventory_items') || [];
-      const itemIndex = inventoryItems.findIndex((item: any) => item.id === updatedItem.id);
-
       // Prepare data for Supabase inventory table
       const category = (updatedItem.category || '').toLowerCase();
       const updatedInventoryItem = {
@@ -339,54 +310,15 @@ const Index = () => {
         updated_at: new Date().toISOString(),
       };
 
-      // Update Supabase directly
+      // Update Supabase only
       await upsertToSupabase('inventory', updatedInventoryItem);
 
-      // Also update local IndexedDB
-      if (itemIndex >= 0) {
-        inventoryItems[itemIndex] = {
-          ...updatedInventoryItem,
-          item_type: itemType,
-          type: updatedItem.type,
-          gemstone: updatedItem.gemstone,
-          carat: updatedItem.carat,
-          metal: updatedItem.metal,
-          inStock: updatedItem.inStock,
-          image: updatedItem.image || updatedItem.image_1 || "",
-          image_1: updatedItem.image_1 || updatedItem.image || "",
-          image_2: updatedItem.image_2 || "",
-          image_3: updatedItem.image_3 || "",
-          image_4: updatedItem.image_4 || "",
-          isArtificial: updatedItem.isArtificial || false,
-          created_at: inventoryItems[itemIndex]?.created_at || new Date().toISOString(),
-        };
-      } else {
-        inventoryItems.push({
-          ...updatedInventoryItem,
-          item_type: itemType,
-          type: updatedItem.type,
-          gemstone: updatedItem.gemstone,
-          carat: updatedItem.carat,
-          metal: updatedItem.metal,
-          inStock: updatedItem.inStock,
-          image: updatedItem.image || updatedItem.image_1 || "",
-          image_1: updatedItem.image_1 || updatedItem.image || "",
-          image_2: updatedItem.image_2 || "",
-          image_3: updatedItem.image_3 || "",
-          image_4: updatedItem.image_4 || "",
-          isArtificial: updatedItem.isArtificial || false,
-          created_at: new Date().toISOString(),
-        });
-      }
-
-      await setUserData('inventory_items', inventoryItems);
-
-      // Update UI state
+      // Update UI state immediately
       setItems(prev => prev.map(item =>
         item.id === updatedItem.id ? updatedItem : item
       ));
 
-      // Reload inventory to ensure consistency
+      // Reload from Supabase to ensure consistency
       await loadAllInventory(true);
 
       toast({
@@ -405,17 +337,30 @@ const Index = () => {
     }
   };
 
-  const handleDeleteItem = (id: string) => {
-    setItems(prev => prev.filter(item => item.id !== id));
-
-    // Reload inventory to get latest from IndexedDB
-    loadAllInventory();
-
-    toast({
-      title: "Item Deleted",
-      description: "Item has been removed from inventory.",
-      variant: "destructive"
-    });
+  const handleDeleteItem = async (id: string) => {
+    try {
+      // Delete from Supabase
+      await deleteFromSupabase('inventory', id);
+      
+      // Update local state immediately
+      setItems(prev => prev.filter(item => item.id !== id));
+      
+      // Reload from Supabase to ensure consistency
+      await loadAllInventory(true);
+      
+      toast({
+        title: "Item Deleted",
+        description: "Item has been removed from inventory.",
+        variant: "destructive"
+      });
+    } catch (error) {
+      console.error('Error deleting item:', error);
+      toast({
+        title: "Error",
+        description: "Failed to delete item. Please try again.",
+        variant: "destructive"
+      });
+    }
   };
 
   const handleViewItem = (item: JewelryItem) => {

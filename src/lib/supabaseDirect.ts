@@ -46,14 +46,16 @@ export async function upsertToSupabase(
   if (!cleanedRecord.id && actualTable !== 'settings') {
     cleanedRecord.id = data.id || `${actualTable}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
   }
-console.log("cleanedRecord", cleanedRecord);
-
+  
   const { error } = await supabase
     .from(actualTable)
     .upsert(cleanedRecord, { onConflict: 'id' });
 
   if (error) {
-    console.error(`Error upserting to ${actualTable}:`, error);
+    // Suppress console errors for schema mismatches - only throw for actual errors
+    if (error.code !== 'PGRST204') {
+      console.error(`Error upserting to ${actualTable}:`, error);
+    }
     throw error;
   }
 
@@ -319,6 +321,15 @@ function cleanRecordForTable(table: string, record: any): any {
     delete cleaned.subtotal;
     delete cleaned.amount_paid;
     delete cleaned.balance_due;
+  }
+
+  if (table === 'sale_items') {
+    // Remove fields that don't exist in actual schema
+    delete cleaned.item_id;
+    delete cleaned.item_name;
+    delete cleaned.item_type;
+    delete cleaned.discount_percentage;
+    delete cleaned.discount_amount;
   }
 
   if (table === 'settings' || table === 'businessSettings') {

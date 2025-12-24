@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef } from 'react';
-import { fetchAll } from '@/lib/supabaseDirect';
+import { fetchAll, upsertToSupabase } from '@/lib/supabaseDirect';
 import { getSupabase } from '@/lib/supabase';
+import { getCurrentUserId } from '@/lib/userStorage';
 
 const fetchingPromises: Record<string, Promise<any>> = {};
 
@@ -42,6 +43,15 @@ export function useUserStorage<T>(key: string, initialValue: T) {
             return;
           }
           
+          if (isMounted) {
+            setStoredValue(initialValueRef.current);
+            setLoaded(true);
+          }
+          return;
+        }
+
+        // For pos_cart and pos_customerName, keep in React state only (no persistence)
+        if (key === 'pos_cart' || key === 'pos_customerName') {
           if (isMounted) {
             setStoredValue(initialValueRef.current);
             setLoaded(true);
@@ -117,6 +127,56 @@ export function useUserStorage<T>(key: string, initialValue: T) {
     const currentValue = storedValue !== undefined ? storedValue : initialValueRef.current;
     const valueToStore = value instanceof Function ? value(currentValue) : value;
     setStoredValue(valueToStore);
+    
+    // For pos_cart and pos_customerName, no persistence needed (React state only)
+    if (key === 'pos_cart' || key === 'pos_customerName') {
+      window.dispatchEvent(new CustomEvent(`user-storage-updated:${key}`, {
+        detail: { key, value: valueToStore }
+      }));
+      return;
+    }
+
+    // Don't persist transformed inventory data (gold_items, jewelry_items, etc.)
+    // These are read-only transformed views of the inventory table
+    // They contain UI-specific fields (image, image_1, etc.) that don't exist in Supabase schema
+    const readOnlyKeys = ['gold_items', 'jewelry_items', 'stone_items', 'stones_items', 'artificial_items'];
+    if (readOnlyKeys.includes(key)) {
+      window.dispatchEvent(new CustomEvent(`user-storage-updated:${key}`, {
+        detail: { key, value: valueToStore }
+      }));
+      return;
+    }
+
+    // For arrays, upsert each item to Supabase
+    if (Array.isArray(valueToStore)) {
+      const tableMap: { [key: string]: string } = {
+        'inventory_items': 'inventory',
+        'craftsmen': 'craftsmen',
+        'customers': 'customers',
+        'staff': 'staff',
+        'vendors': 'vendors',
+        'reservations': 'reservations',
+        'customer_transactions': 'payment_transactions',
+        'attendance': 'attendance',
+      };
+      
+      const table = tableMap[key];
+      if (table) {
+        try {
+          // Upsert all items to Supabase
+          for (const item of valueToStore) {
+            await upsertToSupabase(table, item);
+          }
+        } catch (error) {
+          console.error(`Error persisting ${key} to Supabase:`, error);
+        }
+      }
+    } else if (typeof valueToStore === 'object' && valueToStore !== null) {
+      // For settings objects, settings are handled by fetchAll which calls fetchSettings/fetchPaymentSettings
+      // The actual persistence happens through BusinessSettings component using upsertToSupabase
+      // We don't need to persist here as useUserStorage is primarily for reading
+      // Settings updates should go through the BusinessSettings component
+    }
     
     window.dispatchEvent(new CustomEvent(`user-storage-updated:${key}`, {
       detail: { key, value: valueToStore }

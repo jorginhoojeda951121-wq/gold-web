@@ -995,7 +995,7 @@ export const Subscription = () => {
               </div>
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Renewal:</span>
-                <span className="font-semibold">₹3,000 annually after free trial</span>
+                <span className="font-semibold">₹{Number(subscriptionStatus?.renewalAmount ?? 0).toLocaleString()} annually after free trial</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Payment:</span>
@@ -1005,22 +1005,22 @@ export const Subscription = () => {
           </Card>
         )}
 
-        {/* Test Payment Button - Always Visible for Testing */}
+        {/* Renewal Payment Section */}
         {subscriptionStatus && (
           <Card className="border-2 border-blue-200 bg-blue-50/50">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-blue-700">
                 <CreditCard className="h-5 w-5" />
-                Test Payment (For Testing Only)
+                Renewal
               </CardTitle>
               <CardDescription>
-                This button is always visible for testing the PayU payment integration
+                Renew your subscription to continue using all features
               </CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
                 <div className="bg-white p-4 rounded-lg border border-blue-200">
-                  <p className="text-sm text-muted-foreground mb-2">Test payment amount:</p>
+                  <p className="text-sm text-muted-foreground mb-2">Renewal amount:</p>
                   <p className="text-2xl font-bold flex items-center gap-2 text-blue-700">
                     <IndianRupee className="h-6 w-6" />
                     {Number(subscriptionStatus?.renewalAmount ?? 0).toLocaleString()}
@@ -1040,12 +1040,12 @@ export const Subscription = () => {
                   ) : (
                     <>
                       <Smartphone className="h-4 w-4 mr-2" />
-                      Test PayU Payment
+                      Renew Subscription
                     </>
                   )}
                 </Button>
                 <p className="text-xs text-muted-foreground text-center">
-                  Click to test the PayU payment integration. You'll be redirected to PayU test payment page.
+                  Click to renew your subscription. You'll be redirected to PayU payment gateway to complete your payment securely.
                 </p>
               </div>
             </CardContent>

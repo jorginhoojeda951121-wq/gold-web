@@ -16,7 +16,7 @@ export interface SubscriptionStatus {
 }
 
 const FREE_TRIAL_MONTHS = 11;
-const ANNUAL_RENEWAL_AMOUNT = 3000; // INR
+const ANNUAL_RENEWAL_AMOUNT = 10; // INR - Changed to 10 for testing, change back to 3000 after testing
 const GRACE_PERIOD_DAYS = 7; // Grace period after expiry before blocking access
 
 /**

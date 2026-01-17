@@ -1,5 +1,32 @@
 # Environment Variables Setup
 
+## Supabase Configuration (Required)
+
+The application requires Supabase for database and authentication. Add the following environment variables to your `.env` file:
+
+```env
+# Supabase Configuration
+# Get these values from your Supabase project dashboard:
+# https://app.supabase.com/project/YOUR_PROJECT/settings/api
+VITE_SUPABASE_URL=https://your-project.supabase.co
+VITE_SUPABASE_ANON_KEY=your-anon-key-here
+# Optional: Custom schema (defaults to 'public')
+# VITE_SUPABASE_SCHEMA=public
+```
+
+### How to Get Supabase Credentials:
+
+1. Go to [Supabase Dashboard](https://app.supabase.com/)
+2. Create a new project or select an existing one
+3. Navigate to **Settings** → **API**
+4. Copy the following values:
+   - **Project URL** → Use as `VITE_SUPABASE_URL`
+   - **anon/public key** → Use as `VITE_SUPABASE_ANON_KEY`
+
+### Database Setup:
+
+After setting up your Supabase project, run the database migrations in order (see `database-migrations/README.md` for details).
+
 ## PayU Integration Configuration
 
 Add the following environment variables to your `.env` file:

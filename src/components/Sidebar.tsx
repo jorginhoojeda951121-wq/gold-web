@@ -99,6 +99,12 @@ const navigationItems = [
     description: "Business reports"
   },
   { 
+    name: "AI Reports", 
+    href: "/reports/ai", 
+    icon: Sparkles,
+    description: "AI-generated reports from orders"
+  },
+  { 
     name: "Customer Ledger", 
     href: "/ledger", 
     icon: CreditCard,

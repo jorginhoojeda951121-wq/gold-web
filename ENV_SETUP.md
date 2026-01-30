@@ -57,6 +57,42 @@ The following keys are already configured for testing:
 - Merchant Salt: `2pinFW12vHgzgIGLHqCvvDI0i08C7tRc`
 - Test Mode: `true`
 
+## Google Actions Center & GenAI (Optional)
+
+If you use the integrated Google Actions Center (orders from Google) and AI Reports:
+
+```env
+# Checkout base URL for Google order links (e.g. https://your-domain.com)
+VITE_CHECKOUT_BASE_URL=https://your-domain.com
+
+# Optional: POS webhook URL for order notifications
+# POS_WEBHOOK_URL=https://your-pos.com/webhook
+
+# Optional: WebSocket URL for real-time POS alerts
+# VITE_POS_WEBSOCKET_URL=ws://localhost:3001
+```
+
+**Supabase Edge Function secrets** (set in Supabase Dashboard → Edge Functions → Secrets):
+
+- `GOOGLE_GENAI_API_KEY` — For AI Reports (generate-ai-report function). Get from [Google AI Studio](https://makersuite.google.com/app/apikey).
+- `GOOGLE_GENAI_ENDPOINT` — Optional override for GenAI API endpoint.
+- `POS_WEBHOOK_URL` — Optional; URL your POS receives order and payment webhooks.
+- **Order confirmation email:** `RESEND_API_KEY` and `RESEND_FROM_EMAIL` (e.g. `orders@yourdomain.com`) for send-order-confirmation. Get API key from [Resend](https://resend.com). If not set, the function skips sending email.
+- **Google Calendar webhook:** `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` for process-google-calendar-webhooks (token refresh). Optional if you don’t use Calendar sync.
+
+**Deploy Edge Functions:**
+
+```bash
+supabase functions deploy process-google-order
+supabase functions deploy google-menu-feed
+supabase functions deploy google-payment-webhook
+supabase functions deploy generate-ai-report
+supabase functions deploy send-order-confirmation
+supabase functions deploy process-google-calendar-webhooks
+```
+
+See `INTEGRATION_GOOGLE_ACTIONS.md` for routes and database requirements.
+
 ## Database Migration
 
 Run the payment transactions table migration:

@@ -27,6 +27,9 @@ import SyncApi from "./pages/SyncApi";
 import { Subscription } from "./pages/Subscription";
 import Reservations from "./pages/Reservations";
 import Vendors from "./pages/Vendors";
+import GoogleOrderCheckout from "./pages/GoogleOrderCheckout";
+import OrderConfirmation from "./pages/OrderConfirmation";
+import GenAIReports from "./pages/GenAIReports";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
 import TermsOfService from "./pages/TermsOfService";
 import RefundPolicy from "./pages/RefundPolicy";
@@ -77,6 +80,9 @@ const App = () => {
           {/* Landing page - no layout wrapper */}
           <Route path="/" element={<Landing />} />
           <Route path="/auth" element={<Auth />} />
+          {/* Google Actions Center - public checkout & confirmation */}
+          <Route path="/order" element={<GoogleOrderCheckout />} />
+          <Route path="/order-confirmation" element={<OrderConfirmation />} />
           <Route path="/public-support" element={<PublicSupport />} />
           <Route path="/policy" element={<PrivacyPolicy />} />
           <Route path="/terms" element={<TermsOfService />} />
@@ -101,6 +107,7 @@ const App = () => {
             <Route path="/pos" element={<RequireAuth><POS /></RequireAuth>} />
             <Route path="/analytics" element={<Analytics />} />
             <Route path="/reports" element={<ReportingDashboard />} />
+            <Route path="/reports/ai" element={<RequireAuth><GenAIReports /></RequireAuth>} />
             <Route path="/ledger" element={<CustomerLedger />} />
             <Route path="/reservations" element={<RequireAuth><Reservations /></RequireAuth>} />
             <Route path="/vendors" element={<RequireAuth><Vendors /></RequireAuth>} />

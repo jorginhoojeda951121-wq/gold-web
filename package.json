@@ -8,7 +8,9 @@
     "build": "vite build",
     "build:dev": "vite build --mode development",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "supabase:login": "supabase login",
+    "supabase:deploy": "supabase functions deploy process-google-order && supabase functions deploy google-menu-feed && supabase functions deploy google-payment-webhook && supabase functions deploy generate-ai-report && supabase functions deploy send-order-confirmation && supabase functions deploy process-google-calendar-webhooks"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",
@@ -81,6 +83,7 @@
     "globals": "^15.15.0",
     "lovable-tagger": "^1.1.9",
     "postcss": "^8.5.6",
+    "supabase": "^2.74.4",
     "tailwindcss": "^3.4.17",
     "typescript": "^5.8.3",
     "typescript-eslint": "^8.38.0",

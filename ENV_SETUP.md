@@ -57,6 +57,32 @@ The following keys are already configured for testing:
 - Merchant Salt: `2pinFW12vHgzgIGLHqCvvDI0i08C7tRc`
 - Test Mode: `true`
 
+## Web3Forms (Contact / Support / Auth forms)
+
+Add to your `.env` so Contact, Public Support, and Auth forms submit correctly:
+
+```env
+# Web3Forms – get key from https://web3forms.com
+VITE_WEB3FORMS_ACCESS_KEY=your-web3forms-access-key
+```
+
+## Resend (order confirmation emails)
+
+Add to your `.env` for reference; **order emails are sent by the Edge Function**, which reads from Supabase secrets:
+
+```env
+# Resend – same value must be set in Supabase as RESEND_API_KEY (see below)
+VITE_RESEND_API_KEY=your-resend-api-key
+```
+
+**Important:** The `send-order-confirmation` Edge Function reads **Supabase secrets**. To use your `.env` Resend key there, run (after `npx supabase login` and `npx supabase link`):
+
+```bash
+npm run supabase:secrets-sync
+```
+
+This reads `VITE_RESEND_API_KEY` from `.env` and sets `RESEND_API_KEY` and `RESEND_FROM_EMAIL` in Supabase. Alternatively, set them manually in Supabase Dashboard → Edge Functions → Secrets. See `supabase/SECRETS_SETUP.md`.
+
 ## Google Actions Center & GenAI (Optional)
 
 If you use the integrated Google Actions Center (orders from Google) and AI Reports:
@@ -77,7 +103,7 @@ VITE_CHECKOUT_BASE_URL=https://your-domain.com
 - `GOOGLE_GENAI_API_KEY` — For AI Reports (generate-ai-report function). Get from [Google AI Studio](https://makersuite.google.com/app/apikey).
 - `GOOGLE_GENAI_ENDPOINT` — Optional override for GenAI API endpoint.
 - `POS_WEBHOOK_URL` — Optional; URL your POS receives order and payment webhooks.
-- **Order confirmation email:** `RESEND_API_KEY` and `RESEND_FROM_EMAIL` (e.g. `orders@yourdomain.com`) for send-order-confirmation. Get API key from [Resend](https://resend.com). If not set, the function skips sending email.
+- **Order confirmation email:** `RESEND_API_KEY` and `RESEND_FROM_EMAIL` (default in code: `no-reply@retailmarketingpro.in`) for send-order-confirmation. See `supabase/SECRETS_SETUP.md` for how to set. If not set, the function skips sending email.
 - **Google Calendar webhook:** `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` for process-google-calendar-webhooks (token refresh). Optional if you don’t use Calendar sync.
 
 **Deploy Edge Functions:**

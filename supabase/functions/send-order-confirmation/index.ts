@@ -8,7 +8,7 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 
 const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY') || '';
-const RESEND_FROM_EMAIL = Deno.env.get('RESEND_FROM_EMAIL') || 'orders@yourdomain.com';
+const RESEND_FROM_EMAIL = Deno.env.get('RESEND_FROM_EMAIL') || 'no-reply@retailmarketingpro.in';
 
 interface OrderConfirmationPayload {
   email: string;

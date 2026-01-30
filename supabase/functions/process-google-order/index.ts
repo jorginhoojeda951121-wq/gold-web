@@ -38,10 +38,21 @@ interface OrderItem {
   modifiers?: unknown[];
 }
 
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+};
+
 serve(async (req: Request) => {
+  if (req.method === 'OPTIONS') {
+    return new Response(null, { status: 204, headers: corsHeaders });
+  }
+
   if (req.method !== 'POST') {
     return new Response(JSON.stringify({ error: 'Method not allowed' }), {
       status: 405,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   }
 
@@ -51,6 +62,7 @@ serve(async (req: Request) => {
     if (!orderRequest.customerEmail || !orderRequest.items?.length) {
       return new Response(JSON.stringify({ error: 'Missing required fields' }), {
         status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
@@ -119,6 +131,7 @@ serve(async (req: Request) => {
           items: orderRequest.items,
           total: orderRequest.total,
           orderType: orderRequest.orderType,
+          estimatedReadyTime: '30 minutes',
         },
       });
     } catch {
@@ -132,13 +145,13 @@ serve(async (req: Request) => {
         orderNumber: order.order_number,
         status: 'pending',
       }),
-      { status: 200, headers: { 'Content-Type': 'application/json' } }
+      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
     return new Response(
       JSON.stringify({ error: 'Failed to process order', details: message }),
-      { status: 500, headers: { 'Content-Type': 'application/json' } }
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
 });

@@ -84,6 +84,10 @@ For **Google Actions Center** to work end-to-end:
    ```
    This creates `calendar_tokens`, `appointments`, and `appointment_notifications`. The Edge Function `process-google-calendar-webhooks` syncs Calendar event deletions/cancellations to `appointments`. OAuth and event creation (e.g. `calendarEventManager`, booking UI) are separate; see `google-actions-center-with-calendar/README_CALENDAR.md` for full Calendar setup.
 
+## Integration checklist
+
+For all integrations (Web3Forms, Resend emails, Google Actions, AI Reports) to work, follow **`INTEGRATION_CHECKLIST.md`**: set `.env` (including `VITE_WEB3FORMS_ACCESS_KEY`, `VITE_RESEND_API_KEY`), set Supabase secrets (`RESEND_API_KEY`, `RESEND_FROM_EMAIL`), then run `npm run supabase:deploy`.
+
 ## Quick Links
 
 - **Checkout (test):** `https://your-domain.com/order?source=google&item=ITEM_ID&name=Item%20Name&price=10.99`

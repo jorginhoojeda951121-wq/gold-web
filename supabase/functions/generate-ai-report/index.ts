@@ -10,10 +10,22 @@ const GOOGLE_GENAI_URL =
   'https://generative.googleapis.com/v1beta2/models/text-bison-001:generateText';
 const GOOGLE_GENAI_KEY = Deno.env.get('GOOGLE_GENAI_API_KEY') || '';
 
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+};
+
 serve(async (req: Request) => {
   try {
+    if (req.method === 'OPTIONS') {
+      return new Response(null, { status: 204, headers: corsHeaders });
+    }
     if (req.method !== 'POST') {
-      return new Response('Method not allowed', { status: 405 });
+      return new Response(JSON.stringify({ error: 'Method not allowed' }), {
+        status: 405,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
     }
     const payload = await req.json();
     const orders = (payload as { orders?: unknown[] }).orders || [];
@@ -22,7 +34,7 @@ serve(async (req: Request) => {
       const summary = fallbackSummary(orders as Record<string, unknown>[]);
       return new Response(JSON.stringify({ report: summary }), {
         status: 200,
-        headers: { 'Content-Type': 'application/json' },
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
@@ -44,7 +56,7 @@ serve(async (req: Request) => {
       const txt = await aiRes.text();
       return new Response(JSON.stringify({ error: txt }), {
         status: 500,
-        headers: { 'Content-Type': 'application/json' },
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
@@ -55,13 +67,13 @@ serve(async (req: Request) => {
       JSON.stringify(json);
     return new Response(JSON.stringify({ report }), {
       status: 200,
-      headers: { 'Content-Type': 'application/json' },
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
     return new Response(JSON.stringify({ error: message }), {
       status: 500,
-      headers: { 'Content-Type': 'application/json' },
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   }
 });

@@ -10,6 +10,7 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "supabase:login": "supabase login",
+    "supabase:secrets-sync": "node scripts/sync-resend-secrets-to-supabase.mjs",
     "supabase:deploy": "supabase functions deploy process-google-order && supabase functions deploy google-menu-feed && supabase functions deploy google-payment-webhook && supabase functions deploy generate-ai-report && supabase functions deploy send-order-confirmation && supabase functions deploy process-google-calendar-webhooks"
   },
   "dependencies": {

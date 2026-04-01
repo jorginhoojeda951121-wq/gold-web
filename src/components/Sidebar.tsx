@@ -24,6 +24,8 @@ import {
   Calendar,
   Building2,
   Sparkles,
+  ArrowLeftRight,
+  TrendingUp,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -39,106 +41,88 @@ interface SidebarProps {
 
 const navigationItems = [
   { 
-    name: "Home", 
+    name: "Dashboard", 
     href: "/dashboard", 
     icon: Home,
-    description: "Main dashboard"
+    description: "Main business overview"
   },
   { 
-    name: "Gold Collection", 
-    href: "/gold-collection", 
-    icon: Gem,
-    description: "Gold items"
-  },
-  { 
-    name: "Precious Stones", 
-    href: "/precious-stones", 
-    icon: Gem,
-    description: "Rare stones"
-  },
-  { 
-    name: "Artificial Stones", 
-    href: "/artificial-stones", 
-    icon: Sparkles,
-    description: "Synthetic stones"
-  },
-  { 
-    name: "Jewelry Collection", 
-    href: "/jewelry-collection", 
-    icon: ShoppingCart,
-    description: "Jewelry items"
-  },
-  { 
-    name: "Point of Sale", 
+    name: "Sales (POS)", 
     href: "/pos", 
     icon: Receipt,
-    description: "Process sales & invoices"
+    description: "Billing & GST Invoices"
   },
   { 
-    name: "Craftsmen", 
+    name: "Purchase", 
+    href: "/vendors", 
+    icon: ShoppingCart,
+    description: "Metal & Jewelry Purchase"
+  },
+  { 
+    name: "Inventory", 
+    href: "/inventory", 
+    icon: Package,
+    description: "Stock & Metal Balance"
+  },
+  { 
+    name: "Stock Transfer", 
+    href: "/stock-transfer", 
+    icon: ArrowLeftRight,
+    description: "Move items between branches"
+  },
+  { 
+    name: "Gold Rate Tracker", 
+    href: "/gold-rates", 
+    icon: TrendingUp,
+    description: "Live & manual rate management"
+  },
+  { 
+    name: "Karigar / Artisans", 
     href: "/craftsmen", 
     icon: Hammer,
-    description: "Track craftsmen"
+    description: "Job work & Gold issuance"
   },
   { 
-    name: "Payroll", 
-    href: "/payroll", 
-    icon: DollarSign,
-    description: "Employee & salary management"
-  },
-  { 
-    name: "Analytics", 
-    href: "/analytics", 
-    icon: BarChart3,
-    description: "AI insights"
-  },
-  { 
-    name: "Reports", 
-    href: "/reports", 
-    icon: FileText,
-    description: "Business reports"
-  },
-  { 
-    name: "AI Reports", 
-    href: "/reports/ai", 
-    icon: Sparkles,
-    description: "AI-generated reports from orders"
-  },
-  { 
-    name: "Customer Ledger", 
+    name: "Accounts", 
     href: "/ledger", 
-    icon: CreditCard,
-    description: "Customer credit management"
+    icon: DollarSign,
+    description: "Ledger & Double-entry"
   },
   { 
-    name: "Reservations", 
-    href: "/reservations", 
-    icon: Calendar,
-    description: "Event reservations & bookings"
+    name: "GST Reports", 
+    href: "/gst-reports", 
+    icon: FileText,
+    description: "GSTR-1, 3B & HSN summaries"
   },
   { 
-    name: "Vendors", 
-    href: "/vendors", 
+    name: "Analytics & Reports", 
+    href: "/insights", 
+    icon: BarChart3,
+    description: "Business Health & Reports"
+  },
+  { 
+    name: "Masters", 
+    href: "/masters", 
     icon: Building2,
-    description: "Vendor & supplier management"
+    description: "ERP Setup & Catalogs"
   },
   { 
-    name: "Support", 
-    href: "/support", 
-    icon: Phone,
-    description: "Contact support team"
-  },
-  { 
-    name: "Subscription", 
-    href: "/subscription", 
-    icon: Crown,
-    description: "Manage subscription & payment"
+    name: "Users & Staff", 
+    href: "/staff", 
+    icon: Users,
+    description: "Roles, Payroll & Attendance"
   },
   { 
     name: "Settings", 
     href: "/settings", 
     icon: Settings,
-    description: "Business settings"
+    description: "App & GST configuration"
+  },
+  { 
+    name: "Backup", 
+    href: "/backup", 
+    icon: Download,
+    description: "Cloud & Local Data Sync"
   }
 ];
 

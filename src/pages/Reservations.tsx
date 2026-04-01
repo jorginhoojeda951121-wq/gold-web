@@ -51,11 +51,36 @@ const eventTypeConfig = {
   other: { label: 'Other', color: 'bg-gray-100 text-gray-800', icon: '📦' },
 };
 
+import { getCalendarEventManager } from '@/lib/calendarEventManager';
+import { getGoogleCalendarClient } from '@/lib/googleCalendarClient';
+
 export default function Reservations() {
   const { toast } = useToast();
+  const [isGoogleConnected, setIsGoogleConnected] = useState(false);
+  const [checkingGoogle, setCheckingGoogle] = useState(true);
 
-  // CRITICAL: Use IndexedDB first for instant loading (no loading screen!)
+  // CRITICAL: Use IndexedDB first for instant loading
   const { data: reservationsRaw, updateData: setReservations, loaded } = useUserStorage<Reservation[]>('reservations', []);
+
+  useEffect(() => {
+    const checkGoogle = async () => {
+      try {
+        const client = getGoogleCalendarClient();
+        const authed = await client.isAuthenticated();
+        setIsGoogleConnected(authed);
+      } catch (error) {
+        console.error('Error checking Google status:', error);
+      } finally {
+        setCheckingGoogle(false);
+      }
+    };
+    checkGoogle();
+  }, []);
+
+  const handleConnectGoogle = () => {
+    const client = getGoogleCalendarClient();
+    window.location.href = client.getAuthorizationUrl();
+  };
 
   // Parse JSON fields and compute derived fields - useMemo to prevent infinite loops
   const reservations = useMemo(() => {

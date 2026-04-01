@@ -36,6 +36,13 @@ export interface JewelryItem {
   // Barcode/SKU
   barcode?: string;           // Barcode or SKU for quick lookup
   sku?: string;               // Stock Keeping Unit (alternative to barcode)
+  // New ERP Fields
+  grossWeight?: number;
+  stoneWeight?: number;
+  netWeight?: number;
+  makingCharges?: number;
+  wastagePercent?: number;
+  hsnCode?: string;
 }
 
 interface JewelryCardProps {

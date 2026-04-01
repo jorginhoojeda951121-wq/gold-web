@@ -15,6 +15,8 @@ import { useToast } from "@/hooks/use-toast";
 import { useOfflineStorage } from "@/hooks/useOfflineStorage";
 import { useUserStorage } from "@/hooks/useUserStorage";
 import { upsertToSupabase, fetchAll } from "@/lib/supabaseDirect";
+import { JobReturnDialog, JobReturnDetails } from "@/components/JobReturnDialog";
+import { useSearchParams } from "react-router-dom";
 
 const CraftsmenTracking = () => {
   const { toast } = useToast();
@@ -24,8 +26,10 @@ const CraftsmenTracking = () => {
   const [showDetailsDialog, setShowDetailsDialog] = useState(false);
   const [showPaymentDialog, setShowPaymentDialog] = useState(false);
   const [showCompletionPaymentDialog, setShowCompletionPaymentDialog] = useState(false);
+  const [showJobReturnDialog, setShowJobReturnDialog] = useState(false);
   const [selectedCraftsman, setSelectedCraftsman] = useState<Craftsman | null>(null);
   const [selectedMaterialForCompletion, setSelectedMaterialForCompletion] = useState<RawMaterial | null>(null);
+  const [searchParams] = useSearchParams();
 
   // CRITICAL: Use useUserStorage for user-scoped data isolation
   const { data: craftsmen, updateData: setCraftsmen, loaded } = useUserStorage<Craftsman[]>("craftsmen", [
@@ -402,14 +406,85 @@ const CraftsmenTracking = () => {
   };
 
   const handleCompleteTask = (materialId: string) => {
-    const material = craftsmen
-      .flatMap(c => Array.isArray(c.assignedMaterials) ? c.assignedMaterials : [])
-      .find(m => m.id === materialId);
+    const craftsman = craftsmen.find(c => 
+      Array.isArray(c.assignedMaterials) && c.assignedMaterials.some(m => m.id === materialId)
+    );
+    const material = craftsman?.assignedMaterials.find(m => m.id === materialId);
     
-    if (material) {
+    if (material && craftsman) {
+      setSelectedCraftsman(craftsman);
       setSelectedMaterialForCompletion(material);
-      setShowCompletionPaymentDialog(true);
+      
+      // If it's a weight-based material (Gold/Silver), use the JobReturnDialog
+      if (material.unit === 'grams' || ['Gold 24K', 'Gold 22K', 'Gold 18K', 'Silver'].includes(material.type)) {
+        setShowJobReturnDialog(true);
+      } else {
+        setShowCompletionPaymentDialog(true);
+      }
     }
+  };
+
+  const handleJobReturnComplete = async (details: JobReturnDetails) => {
+    if (!selectedMaterialForCompletion || !selectedCraftsman) return;
+
+    const materialId = selectedMaterialForCompletion.id;
+    const updatedCraftsmen = craftsmen.map(craftsman => {
+      if (craftsman.id !== selectedCraftsman.id) return craftsman;
+
+      const materials = Array.isArray(craftsman.assignedMaterials)
+        ? craftsman.assignedMaterials
+        : [];
+
+      return {
+        ...craftsman,
+        assignedMaterials: materials.map(material => {
+          if (material.id === materialId) {
+            const paymentStatus: 'unpaid' | 'partial' | 'paid' = 
+              details.paymentMethod === 'Ledger' ? 'unpaid' : 'paid';
+
+            return {
+              ...material,
+              completed: true,
+              completedDate: new Date().toISOString().split('T')[0],
+              amountPaid: details.paymentMethod === 'Ledger' ? 0 : details.makingCharge,
+              paymentStatus,
+              completionNotes: `Received: ${details.receivedWeight}g. Wastage: ${details.wastageGrams}g. Notes: ${details.notes}`,
+              recoveryDetails: details,
+              status: 'completed' as const,
+            };
+          }
+          return material;
+        }),
+        // Update craftsman-level totals if needed
+        totalAmountDue: (craftsman.totalAmountDue || 0) + details.makingCharge,
+        pendingAmount: (craftsman.pendingAmount || 0) + (details.paymentMethod === 'Ledger' ? details.makingCharge : 0),
+      };
+    });
+
+    await setCraftsmen(updatedCraftsmen);
+    
+    // Sync to Supabase
+    try {
+      await upsertToSupabase('materials_assigned', {
+        id: materialId,
+        status: 'completed',
+        completion_date: new Date().toISOString(),
+        notes: `Received Weight: ${details.receivedWeight}g, Wastage: ${details.wastageGrams}g. ${details.notes}`,
+        amount_paid: details.paymentMethod === 'Ledger' ? 0 : details.makingCharge,
+        payment_status: details.paymentMethod === 'Ledger' ? 'unpaid' : 'paid',
+        recovery_weight: details.receivedWeight,
+        fine_weight: details.fineWeight,
+        wastage_grams: details.wastageGrams,
+        scrap_weight: details.scrapWeight
+      });
+    } catch (e) {
+      console.warn("Failed to sync job return to Supabase", e);
+    }
+
+    toast({
+      title: "Task Completed",
+      description: `Job from ${selectedCraftsman.name} has been marked as returned and accounted.`,
+    });
   };
 
   const handleCompleteTaskWithPayment = async (
@@ -1268,6 +1343,16 @@ const CraftsmenTracking = () => {
             }
             setShowCompletionPaymentDialog(false);
           }}
+        />
+      )}
+
+      {selectedMaterialForCompletion && selectedCraftsman && (
+        <JobReturnDialog 
+          open={showJobReturnDialog}
+          onOpenChange={setShowJobReturnDialog}
+          material={selectedMaterialForCompletion}
+          craftsmanName={selectedCraftsman.name}
+          onComplete={handleJobReturnComplete}
         />
       )}
     </div>

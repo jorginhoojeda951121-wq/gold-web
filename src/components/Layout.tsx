@@ -1,7 +1,14 @@
 import { useState, useEffect, useRef } from "react";
 import { Sidebar, MobileSidebar } from "@/components/Sidebar";
 import { Button } from "@/components/ui/button";
-import { Menu, ChevronLeft, ChevronRight, LogOut, Clock, RefreshCw } from "lucide-react";
+import { Menu, ChevronLeft, ChevronRight, LogOut, Clock, RefreshCw, MapPin } from "lucide-react";
+import { 
+  Select, 
+  SelectContent, 
+  SelectItem, 
+  SelectTrigger, 
+  SelectValue 
+} from "@/components/ui/select";
 import { Outlet } from "react-router-dom";
 import { useLocation } from "react-router-dom";
 import { getSupabase } from "@/lib/supabase";
@@ -17,6 +24,7 @@ export const Layout = () => {
   const supabase = getSupabase();
   const { toast } = useToast();
   const businessName = useBusinessName();
+  const [selectedBranch, setSelectedBranch] = useState("main");
 
   // Cache user ID immediately on mount to ensure data loading works
   useEffect(() => {
@@ -142,6 +150,24 @@ export const Layout = () => {
                 <h1 className="text-lg font-semibold text-gray-900">
                   {businessName}
                 </h1>
+              </div>
+
+              {/* Multi-branch Selector */}
+              <div className="hidden md:block ml-4">
+                <Select value={selectedBranch} onValueChange={setSelectedBranch}>
+                  <SelectTrigger className="w-[200px] h-10 bg-white/50 border-gray-200 rounded-xl hover:bg-white transition-all">
+                    <div className="flex items-center gap-2">
+                      <MapPin className="h-4 w-4 text-blue-500" />
+                      <SelectValue placeholder="Select Branch" />
+                    </div>
+                  </SelectTrigger>
+                  <SelectContent className="rounded-xl border-gray-200 shadow-xl">
+                    <SelectItem value="main" className="focus:bg-blue-50 focus:text-blue-700">Main Showroom (Zaveri Bazar)</SelectItem>
+                    <SelectItem value="ghatkopar" className="focus:bg-blue-50 focus:text-blue-700">Ghatkopar East Branch</SelectItem>
+                    <SelectItem value="borivali" className="focus:bg-blue-50 focus:text-blue-700">Borivali West Outlet</SelectItem>
+                    <SelectItem value="online" className="focus:bg-blue-50 focus:text-blue-700">E-commerce Store</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
             </div>
             

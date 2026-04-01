@@ -12,6 +12,10 @@ app.use(express.static(path.join(__dirname, 'dist')));
 
 // Import sync handlers
 const { handleUpload, handleDownload } = require('./src/api/sync-server.js');
+const { handleReportQuery } = require('./src/api/ai-report-server.js');
+
+// AI API routes
+app.post('/api/ai/report-query', handleReportQuery);
 
 // Sync API routes
 app.post('/api/sync/upload', async (req, res) => {

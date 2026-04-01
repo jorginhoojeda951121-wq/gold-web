@@ -33,7 +33,11 @@ interface Employee {
   salary: number;
   hireDate: string;
   status: "Active" | "Inactive";
+  location_id?: string;
+  company_id?: string;
 }
+
+import { LocationSelector } from "@/components/LocationSelector";
 
 const Staff = () => {
   const { toast } = useToast();
@@ -41,6 +45,7 @@ const Staff = () => {
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [selectedLocation, setSelectedLocation] = useState<string | 'all'>('all');
   
   // Use user-scoped storage for all state (including search/filters for consistency)
   const { data: searchQuery, updateData: setSearchQuery } = useUserStorage<string>("staff_search", "");
@@ -403,8 +408,9 @@ const Staff = () => {
                          employee.role.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesDepartment = departmentFilter === "all" || employee.department === departmentFilter;
     const matchesStatus = statusFilter === "all" || employee.status === statusFilter;
+    const matchesLocation = selectedLocation === "all" || employee.location_id === selectedLocation;
     
-    return matchesSearch && matchesDepartment && matchesStatus;
+    return matchesSearch && matchesDepartment && matchesStatus && matchesLocation;
   });
 
   const activeEmployees = employees.filter(emp => emp.status === "Active").length;
@@ -420,13 +426,19 @@ const Staff = () => {
               <h1 className="text-2xl font-bold text-primary-foreground">Staff Management</h1>
               <p className="text-primary-foreground/70 text-sm">Manage your team members</p>
             </div>
-            <Button 
-              onClick={() => setShowAddDialog(true)}
-              className="bg-accent hover:bg-accent/90 text-accent-foreground shadow-gold transition-smooth"
-            >
-              <Plus className="h-4 w-4 mr-2" />
-              Add Employee
-            </Button>
+            <div className="flex items-center gap-3">
+              <LocationSelector 
+                onLocationChange={setSelectedLocation}
+                className="bg-primary-foreground/10 text-primary-foreground border-primary-foreground/20"
+              />
+              <Button 
+                onClick={() => setShowAddDialog(true)}
+                className="bg-accent hover:bg-accent/90 text-accent-foreground shadow-gold transition-smooth"
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                Add Employee
+              </Button>
+            </div>
           </div>
         </div>
       </header>

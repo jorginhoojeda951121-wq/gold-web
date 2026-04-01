@@ -71,6 +71,12 @@ export const AddItemDialog = ({ open, onOpenChange, onAdd }: AddItemDialogProps)
     taxCategory: "jewelry" as 'jewelry' | 'artificial' | 'gemstones' | 'other',
     barcode: "",
     sku: "",
+    grossWeight: "",
+    stoneWeight: "0",
+    netWeight: "0",
+    makingCharges: "0",
+    wastagePercent: "0",
+    hsnCode: "7113",
   });
 
   // Auto-calculate price when metal or weight changes for gold items
@@ -159,6 +165,12 @@ export const AddItemDialog = ({ open, onOpenChange, onAdd }: AddItemDialogProps)
         taxCategory: formData.taxCategory,
         barcode: formData.barcode || undefined,
         sku: formData.sku || undefined,
+        grossWeight: parseFloat(formData.grossWeight) || parseFloat(weight) || 0,
+        stoneWeight: parseFloat(formData.stoneWeight) || 0,
+        netWeight: parseFloat(formData.netWeight) || (parseFloat(formData.grossWeight) - parseFloat(formData.stoneWeight)) || 0,
+        makingCharges: parseFloat(formData.makingCharges) || 0,
+        wastagePercent: parseFloat(formData.wastagePercent) || 0,
+        hsnCode: formData.hsnCode || "7113",
       });
     } catch (error) {
       console.error("Error adding item:", error);
@@ -186,6 +198,12 @@ export const AddItemDialog = ({ open, onOpenChange, onAdd }: AddItemDialogProps)
       taxCategory: "jewelry",
       barcode: "",
       sku: "",
+      grossWeight: "",
+      stoneWeight: "0",
+      netWeight: "0",
+      makingCharges: "0",
+      wastagePercent: "0",
+      hsnCode: "7113",
     });
     setImages([null, null, null, null]);
     setWeight("");
@@ -280,13 +298,81 @@ export const AddItemDialog = ({ open, onOpenChange, onAdd }: AddItemDialogProps)
             </div>
             
             <div className="space-y-2">
-              <Label htmlFor="carat">Carat Weight</Label>
+              <Label htmlFor="grossWeight">Gross Weight (g) *</Label>
               <Input
-                id="carat"
+                id="grossWeight"
+                type="number"
+                step="0.001"
+                value={formData.grossWeight}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setFormData(prev => ({
+                    ...prev, 
+                    grossWeight: val,
+                    netWeight: (parseFloat(val) - parseFloat(prev.stoneWeight || "0")).toFixed(3)
+                  }));
+                  setWeight(val);
+                }}
+                placeholder="e.g., 10.500"
+                required
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="stoneWeight">Stone Weight (g)</Label>
+              <Input
+                id="stoneWeight"
+                type="number"
+                step="0.001"
+                value={formData.stoneWeight}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setFormData(prev => ({
+                    ...prev, 
+                    stoneWeight: val,
+                    netWeight: (parseFloat(prev.grossWeight || "0") - parseFloat(val)).toFixed(3)
+                  }));
+                }}
+                placeholder="e.g., 0.200"
+              />
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="netWeight">Net Weight (g)</Label>
+              <Input
+                id="netWeight"
+                type="number"
+                step="0.001"
+                value={formData.netWeight}
+                readOnly
+                className="bg-gray-50"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="makingCharges">Making Charges (₹/g)</Label>
+              <Input
+                id="makingCharges"
                 type="number"
                 step="0.1"
-                value={formData.carat}
-                onChange={(e) => setFormData(prev => ({...prev, carat: e.target.value}))}
+                value={formData.makingCharges}
+                onChange={(e) => setFormData(prev => ({...prev, makingCharges: e.target.value}))}
+                placeholder="e.g., 450"
+              />
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="wastagePercent">Wastage (%)</Label>
+              <Input
+                id="wastagePercent"
+                type="number"
+                step="0.1"
+                value={formData.wastagePercent}
+                onChange={(e) => setFormData(prev => ({...prev, wastagePercent: e.target.value}))}
                 placeholder="e.g., 2.5"
               />
             </div>

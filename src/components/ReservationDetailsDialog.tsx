@@ -12,6 +12,8 @@ import { useToast } from '@/hooks/use-toast';
 import { getSupabase } from '@/lib/supabase';
 import { Calendar, Phone, Mail, DollarSign, Save, Plus, Trash2, Package, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
+import { getCalendarEventManager } from '@/lib/calendarEventManager';
+import { getGoogleCalendarClient } from '@/lib/googleCalendarClient';
 
 interface Reservation {
   id: string;
@@ -103,9 +105,38 @@ export function ReservationDetailsDialog({ open, onOpenChange, reservation, onSu
 
       if (error) throw error;
 
+      // Google Calendar Sync
+      try {
+        const calendarClient = getGoogleCalendarClient();
+        const isAuthed = await calendarClient.isAuthenticated();
+        
+        if (isAuthed) {
+          const eventManager = getCalendarEventManager();
+          const syncData = await eventManager.getSyncData(reservation.id);
+          
+          if (syncData && syncData.googleEventId) {
+            if (editData.status === 'cancelled') {
+              await eventManager.deleteCalendarEvent(syncData.calendarId, syncData.googleEventId, reservation.id);
+            } else {
+              await eventManager.updateCalendarEvent(
+                syncData.calendarId,
+                syncData.googleEventId,
+                reservation.id,
+                {
+                  status: editData.status,
+                  notes: editData.notes,
+                } as any
+              );
+            }
+          }
+        }
+      } catch (calendarError) {
+        console.warn('Google Calendar sync error:', calendarError);
+      }
+
       toast({
         title: 'Success',
-        description: 'Reservation updated successfully.',
+        description: 'Reservation updated successfully and synced.',
       });
 
       onSuccess();

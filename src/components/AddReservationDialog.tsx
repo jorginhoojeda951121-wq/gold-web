@@ -12,6 +12,8 @@ import { Calendar as CalendarIcon, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { getCalendarEventManager } from '@/lib/calendarEventManager';
+import { getGoogleCalendarClient } from '@/lib/googleCalendarClient';
 
 interface AddReservationDialogProps {
   open: boolean;
@@ -120,9 +122,35 @@ export function AddReservationDialog({ open, onOpenChange, onSuccess }: AddReser
         // Don't fail the operation if sync fails - data is saved locally
       }
 
+      // 3. Attempt Google Calendar Sync if authenticated
+      try {
+        const calendarClient = getGoogleCalendarClient();
+        const isAuthed = await calendarClient.isAuthenticated();
+        
+        if (isAuthed) {
+          const eventManager = getCalendarEventManager();
+          const startTime = `${newReservation.event_date}T10:00:00`; // Default to 10 AM
+          const endTime = `${newReservation.event_date}T11:00:00`;   // Default to 11 AM
+          
+          await eventManager.createCalendarEvent('primary', {
+            id: newReservation.id,
+            clientName: newReservation.customer_name,
+            clientEmail: newReservation.customer_email || '',
+            serviceName: `Gold Reservation: ${newReservation.event_type}`,
+            startTime,
+            endTime,
+            notes: newReservation.notes || '',
+          });
+          console.log('✅ Google Calendar event created successfully');
+        }
+      } catch (calendarError) {
+        console.warn('⚠️ Google Calendar sync failed:', calendarError);
+        // We don't toast error here because local save succeeded - it's a non-critical failure
+      }
+
       toast({
         title: 'Success',
-        description: 'Reservation created successfully.',
+        description: 'Reservation created successfully and synced.',
       });
 
       onSuccess();

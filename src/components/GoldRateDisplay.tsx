@@ -1,4 +1,5 @@
-import { TrendingUp } from "lucide-react";
+import { useState, useEffect } from "react";
+import { TrendingUp, RefreshCw } from "lucide-react";
 import { useGoldRates } from "./GoldRateSettings";
 import { Card, CardContent } from "@/components/ui/card";
 
@@ -14,34 +15,29 @@ export const GoldRateDisplay = () => {
           <h3 className="font-bold text-yellow-900">Today's Gold Rates</h3>
         </div>
         
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          <div className="bg-white/80 p-2 rounded border border-yellow-300">
-            <div className="text-xs text-yellow-700 font-semibold">24K Pure</div>
-            <div className="text-lg font-bold text-yellow-900">₹{rates.rate24K}</div>
-            <div className="text-xs text-gray-600">/gram</div>
-          </div>
-          
-          <div className="bg-white/80 p-2 rounded border border-yellow-300">
-            <div className="text-xs text-yellow-700 font-semibold">22K Standard</div>
-            <div className="text-lg font-bold text-yellow-900">₹{rates.rate22K}</div>
-            <div className="text-xs text-gray-600">/gram</div>
-          </div>
-          
-          <div className="bg-white/80 p-2 rounded border border-yellow-300">
-            <div className="text-xs text-yellow-700 font-semibold">18K Gold</div>
-            <div className="text-lg font-bold text-yellow-900">₹{rates.rate18K}</div>
-            <div className="text-xs text-gray-600">/gram</div>
-          </div>
-          
-          <div className="bg-white/80 p-2 rounded border border-yellow-300">
-            <div className="text-xs text-yellow-700 font-semibold">14K Gold</div>
-            <div className="text-lg font-bold text-yellow-900">₹{rates.rate14K}</div>
-            <div className="text-xs text-gray-600">/gram</div>
-          </div>
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
+          {[
+            { key: "rate24K", label: "24K Pure" },
+            { key: "rate22K", label: "22K Standard" },
+            { key: "rate20K", label: "20K Gold" },
+            { key: "rate18K", label: "18K Gold" },
+            { key: "rate14K", label: "14K Gold" },
+          ].map(({ key, label }) => (
+            <div key={key} className="bg-white/80 p-2 rounded border border-yellow-300">
+              <div className="text-xs text-yellow-700 font-semibold">{label}</div>
+              <div className="text-base font-bold text-yellow-900">₹{(rates as any)[key]?.toLocaleString("en-IN")}</div>
+              <div className="text-xs text-gray-600">/gram</div>
+            </div>
+          ))}
         </div>
         
-        <div className="text-xs text-yellow-700 mt-2 text-center">
-          Updated: {new Date(rates.lastUpdated).toLocaleString()}
+        <div className="flex items-center justify-between mt-2">
+          <div className="text-xs text-yellow-700">
+            Updated: {new Date(rates.lastUpdated).toLocaleString("en-IN")}
+          </div>
+          <div className="text-xs text-yellow-600 font-medium">
+            {rates.source === "api" ? "🟢 Live API" : "✏️ Manual"}
+          </div>
         </div>
       </CardContent>
     </Card>
@@ -57,12 +53,11 @@ export const GoldRateCompact = () => {
       <TrendingUp className="h-4 w-4 text-yellow-700" />
       <div className="flex items-center gap-3 text-sm">
         <span className="font-semibold text-yellow-900">24K:</span>
-        <span className="font-bold text-yellow-900">₹{rates.rate24K}/g</span>
+        <span className="font-bold text-yellow-900">₹{rates.rate24K?.toLocaleString("en-IN")}/g</span>
         <span className="text-yellow-700">|</span>
         <span className="font-semibold text-yellow-900">22K:</span>
-        <span className="font-bold text-yellow-900">₹{rates.rate22K}/g</span>
+        <span className="font-bold text-yellow-900">₹{rates.rate22K?.toLocaleString("en-IN")}/g</span>
       </div>
     </div>
   );
 };
-

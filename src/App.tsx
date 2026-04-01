@@ -8,6 +8,7 @@ import { CustomerLedger } from "@/components/CustomerLedger";
 import { BusinessSettings } from "@/components/BusinessSettings";
 import Auth from "@/components/Auth";
 import RequireAuth from "@/components/RequireAuth";
+import Dashboard from "./pages/Dashboard";
 import Index from "./pages/Index";
 import Landing from "./pages/Landing";
 import Payroll from "./pages/Payroll";
@@ -26,15 +27,22 @@ import NotFound from "./pages/NotFound";
 import SyncApi from "./pages/SyncApi";
 import { Subscription } from "./pages/Subscription";
 import Reservations from "./pages/Reservations";
+import GoogleAuthCallback from "./pages/GoogleAuthCallback";
 import Vendors from "./pages/Vendors";
 import GoogleOrderCheckout from "./pages/GoogleOrderCheckout";
 import OrderConfirmation from "./pages/OrderConfirmation";
 import GenAIReports from "./pages/GenAIReports";
+import JewelerModules from "./pages/JewelerModules";
+import Insights from "./pages/Insights";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
 import TermsOfService from "./pages/TermsOfService";
 import RefundPolicy from "./pages/RefundPolicy";
 import Disclaimer from "./pages/Disclaimer";
 import CookieNotice from "./pages/CookieNotice";
+import Accounting from "./pages/Accounting";
+import GSTReports from "./pages/GSTReports";
+import StockTransfer from "./pages/StockTransfer";
+import GoldRates from "./pages/GoldRates";
 import { restoreUserIdFromSession } from "./lib/userStorage";
 import { migrateToSingleSource, isMigrationComplete } from "./lib/dataMigration";
 import { useEffect } from "react";
@@ -83,6 +91,7 @@ const App = () => {
           {/* Google Actions Center - public checkout & confirmation */}
           <Route path="/order" element={<GoogleOrderCheckout />} />
           <Route path="/order-confirmation" element={<OrderConfirmation />} />
+          <Route path="/google-auth-callback" element={<GoogleAuthCallback />} />
           <Route path="/public-support" element={<PublicSupport />} />
           <Route path="/policy" element={<PrivacyPolicy />} />
           <Route path="/terms" element={<TermsOfService />} />
@@ -92,28 +101,30 @@ const App = () => {
           
           {/* Protected routes with layout */}
           <Route element={<Layout />}>
-            {/* Subscription page - accessible when subscription check redirects here */}
-            <Route path="/subscription" element={<Subscription />} />
-            <Route path="/dashboard" element={<RequireAuth><Index /></RequireAuth>} />
-            <Route path="/gold-collection" element={<GoldCollection />} />
-            <Route path="/precious-stones" element={<PreciousStones />} />
-            <Route path="/artificial-stones" element={<ArtificialStones />} />
-            <Route path="/jewelry-collection" element={<JewelryCollection />} />
-            <Route path="/inventory" element={<Index />} />
-            <Route path="/craftsmen" element={<CraftsmenTracking />} />
-            {/* Staff route now redirects to Payroll (unified system) */}
+            {/* Dashboard only at /dashboard — do not use index here or "/" competes with <Landing /> and unauthenticated users get sent to /auth */}
+            <Route path="/dashboard" element={<RequireAuth><Dashboard /></RequireAuth>} />
+            <Route path="/pos" element={<RequireAuth><POS /></RequireAuth>} />
+            <Route path="/vendors" element={<RequireAuth><Vendors /></RequireAuth>} />
+            <Route path="/purchase" element={<RequireAuth><Vendors /></RequireAuth>} />
+            <Route path="/inventory" element={<RequireAuth><Index /></RequireAuth>} />
+            <Route path="/stock-transfer" element={<RequireAuth><StockTransfer /></RequireAuth>} />
+            <Route path="/gold-rates" element={<RequireAuth><GoldRates /></RequireAuth>} />
+            <Route path="/craftsmen" element={<RequireAuth><CraftsmenTracking /></RequireAuth>} />
+            <Route path="/ledger" element={<RequireAuth><Accounting /></RequireAuth>} />
+            <Route path="/accounts" element={<RequireAuth><Accounting /></RequireAuth>} />
+            <Route path="/accounting" element={<RequireAuth><Accounting /></RequireAuth>} />
+            <Route path="/gst-reports" element={<RequireAuth><GSTReports /></RequireAuth>} />
+            <Route path="/insights" element={<RequireAuth><Insights /></RequireAuth>} />
+            <Route path="/analytics" element={<RequireAuth><Insights defaultTab="analytics" /></RequireAuth>} />
+            <Route path="/masters" element={<RequireAuth><JewelerModules /></RequireAuth>} />
             <Route path="/staff" element={<RequireAuth><Payroll /></RequireAuth>} />
             <Route path="/payroll" element={<RequireAuth><Payroll /></RequireAuth>} />
-            <Route path="/pos" element={<RequireAuth><POS /></RequireAuth>} />
-            <Route path="/analytics" element={<Analytics />} />
-            <Route path="/reports" element={<ReportingDashboard />} />
-            <Route path="/reports/ai" element={<RequireAuth><GenAIReports /></RequireAuth>} />
-            <Route path="/ledger" element={<CustomerLedger />} />
-            <Route path="/reservations" element={<RequireAuth><Reservations /></RequireAuth>} />
-            <Route path="/vendors" element={<RequireAuth><Vendors /></RequireAuth>} />
+            <Route path="/settings" element={<RequireAuth><BusinessSettings /></RequireAuth>} />
+            <Route path="/backup" element={<RequireAuth><SyncApi /></RequireAuth>} />
+            <Route path="/subscription" element={<Subscription />} />
             <Route path="/contact" element={<Contact />} />
             <Route path="/support" element={<RequireAuth><Support /></RequireAuth>} />
-            <Route path="/settings" element={<BusinessSettings />} />
+            <Route path="/jeweler-modules" element={<JewelerModules />} />
             <Route path="/api/sync/download" element={<SyncApi />} />
             <Route path="/api/sync/upload" element={<SyncApi />} />
             <Route path="*" element={<NotFound />} />

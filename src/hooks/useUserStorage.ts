@@ -29,10 +29,10 @@ export function useUserStorage<T>(key: string, initialValue: T) {
 
     const loadData = async (): Promise<void> => {
       try {
-        const supabase = getSupabase();
-        const { data: { session } } = await supabase.auth.getSession();
+        const { getUserData, setUserData, getCurrentUserId } = await import('@/lib/userStorage');
+        const userId = await getCurrentUserId();
         
-        if (!session) {
+        if (!userId) {
           if (retryCount < maxRetries) {
             retryCount++;
             setTimeout(() => {
@@ -50,32 +50,33 @@ export function useUserStorage<T>(key: string, initialValue: T) {
           return;
         }
 
-        // For pos_cart and pos_customerName, keep in React state only (no persistence)
-        if (key === 'pos_cart' || key === 'pos_customerName') {
-          if (isMounted) {
-            setStoredValue(initialValueRef.current);
-            setLoaded(true);
-          }
-          return;
+        // Step 1: Try to load from IndexedDB first for instant UI response
+        if (key !== 'pos_cart' && key !== 'pos_customerName') {
+           try {
+             const cachedData = await getUserData<T>(key);
+             if (cachedData !== undefined && isMounted) {
+               // If it's an array and empty, don't use it yet (prefer fresh fetch)
+               if (!Array.isArray(cachedData) || cachedData.length > 0) {
+                 setStoredValue(cachedData);
+                 setLoaded(true);
+                 // Check if it's recently updated (within 1 minute)
+                 const lastUpdated = localStorage.getItem(`cache_updated_${key}`);
+                 if (lastUpdated && (Date.now() - parseInt(lastUpdated) < 60000)) {
+                   return; // Skip background fetch if recently updated
+                 }
+               }
+             }
+           } catch (cacheError) {
+             console.warn(`[useUserStorage] Cache read error for ${key}:`, cacheError);
+           }
         }
 
+        // Step 2: Fetch fresh data from Supabase in background
         if (fetchingPromises[key]) {
           try {
             const data = await fetchingPromises[key];
-            
             if (isMounted) {
-              const currentInitialValue = initialValueRef.current;
-              let processedData: T;
-              if (Array.isArray(currentInitialValue) && Array.isArray(data)) {
-                processedData = (data.length > 0 ? data : currentInitialValue) as T;
-              } else if (Array.isArray(currentInitialValue)) {
-                processedData = currentInitialValue;
-              } else {
-                processedData = (data && Object.keys(data).length > 0 ? data : currentInitialValue) as T;
-              }
-              
-              setStoredValue(processedData);
-              setLoaded(true);
+              updateStateWithFreshData(data);
             }
             return;
           } catch (error) {
@@ -83,6 +84,7 @@ export function useUserStorage<T>(key: string, initialValue: T) {
           }
         }
 
+        console.log(`[useUserStorage] Fetching fresh data for ${key}...`);
         const fetchPromise = fetchAll<T>(key);
         fetchingPromises[key] = fetchPromise;
         
@@ -94,30 +96,43 @@ export function useUserStorage<T>(key: string, initialValue: T) {
         }
         
         if (isMounted) {
-          const currentInitialValue = initialValueRef.current;
-          let processedData: T;
-          if (Array.isArray(currentInitialValue) && Array.isArray(data)) {
-            processedData = (data.length > 0 ? data : currentInitialValue) as T;
-          } else if (Array.isArray(currentInitialValue)) {
-            processedData = currentInitialValue;
-          } else {
-            processedData = (data && Object.keys(data).length > 0 ? data : currentInitialValue) as T;
-          }
-          
-          setStoredValue(processedData);
-          setLoaded(true);
+          await updateStateWithFreshData(data);
         }
       } catch (error) {
         console.error(`Error loading data for key ${key}:`, error);
-        if (isMounted) {
+        if (isMounted && storedValue === undefined) {
           setStoredValue(initialValueRef.current);
           setLoaded(true);
         }
       }
     };
 
+    const updateStateWithFreshData = async (data: any) => {
+      const currentInitialValue = initialValueRef.current;
+      let processedData: T;
+      
+      if (Array.isArray(currentInitialValue) && Array.isArray(data)) {
+        processedData = (data.length > 0 ? data : currentInitialValue) as T;
+      } else if (Array.isArray(currentInitialValue)) {
+        processedData = currentInitialValue;
+      } else {
+        processedData = (data && Object.keys(data).length > 0 ? data : currentInitialValue) as T;
+      }
+      
+      setStoredValue(processedData);
+      setLoaded(true);
+      
+      // Persist to IndexedDB cache
+      const readOnlyKeys = ['gold_items', 'jewelry_items', 'stone_items', 'stones_items', 'artificial_items'];
+      if (!readOnlyKeys.includes(key) && key !== 'pos_cart' && key !== 'pos_customerName') {
+        const { setUserData } = await import('@/lib/userStorage');
+        await setUserData(key, processedData);
+        localStorage.setItem(`cache_updated_${key}`, Date.now().toString());
+      }
+    };
+
     loadData();
-    
+
     return () => {
       isMounted = false;
     };
@@ -163,10 +178,8 @@ export function useUserStorage<T>(key: string, initialValue: T) {
       const table = tableMap[key];
       if (table) {
         try {
-          // Upsert all items to Supabase
-          for (const item of valueToStore) {
-            await upsertToSupabase(table, item);
-          }
+          // Bulk upsert to Supabase
+          await upsertToSupabase(table, valueToStore);
         } catch (error) {
           console.error(`Error persisting ${key} to Supabase:`, error);
         }

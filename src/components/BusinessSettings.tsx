@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
-import { Settings, CreditCard, Bell, AlertCircle } from "lucide-react";
+import { Settings, CreditCard, Bell, AlertCircle, Landmark, Crown } from "lucide-react";
+import { BranchManagement } from "./BranchManagement";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -218,6 +219,19 @@ export const BusinessSettings = () => {
         </p>
       </div>
 
+      {/* Subscription Status Alert */}
+      <Alert className="bg-blue-50 border-blue-200 mb-6 flex justify-between items-center">
+        <div className="flex items-center gap-2">
+           <Crown className="h-4 w-4 text-blue-600" />
+           <AlertDescription className="text-blue-800 font-medium">
+             Current Plan: Gold POS Annual (₹9,000/yr) — Setup & Mobile App Included.
+           </AlertDescription>
+        </div>
+        <Button variant="link" size="sm" className="text-blue-700" onClick={() => window.location.href='/subscription'}>
+          Manage Plan
+        </Button>
+      </Alert>
+
       {/* Permission Warning */}
       {!canEditBusiness && (
         <Alert className="bg-yellow-50 border-yellow-200">
@@ -233,6 +247,7 @@ export const BusinessSettings = () => {
           <TabsTrigger value="general">General</TabsTrigger>
           <TabsTrigger value="payment">Payment</TabsTrigger>
           <TabsTrigger value="notifications">Notifications</TabsTrigger>
+          <TabsTrigger value="branches">Branches</TabsTrigger>
         </TabsList>
 
         <TabsContent value="general">
@@ -451,6 +466,9 @@ export const BusinessSettings = () => {
               ))}
             </CardContent>
           </Card>
+        </TabsContent>
+        <TabsContent value="branches">
+          <BranchManagement />
         </TabsContent>
       </Tabs>
     </div>

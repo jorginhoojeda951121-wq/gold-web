@@ -8,7 +8,11 @@ import { getSupabase } from '@/lib/supabase';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 
-export default function GenAIReports() {
+interface GenAIReportsProps {
+  standalone?: boolean;
+}
+
+export default function GenAIReports({ standalone = true }: GenAIReportsProps) {
   const [ordersJson, setOrdersJson] = useState<string>('[]');
   const [report, setReport] = useState<string>('');
   const [loading, setLoading] = useState(false);
@@ -50,8 +54,8 @@ export default function GenAIReports() {
   }
 
   return (
-    <div className="p-4 max-w-4xl mx-auto">
-      <h1 className="text-2xl font-bold mb-2">AI Reports</h1>
+    <div className={standalone ? "p-4 max-w-4xl mx-auto" : ""}>
+      {standalone && <h1 className="text-2xl font-bold mb-2">AI Reports</h1>}
       <p className="text-muted-foreground mb-4">
         Paste orders JSON and click Generate to get a professional report (via Google GenAI).
       </p>

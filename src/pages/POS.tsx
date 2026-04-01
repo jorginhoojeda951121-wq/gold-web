@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
+import { useSearchParams } from "react-router-dom";
 import { JewelryCard, JewelryItem } from "@/components/JewelryCard";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
@@ -15,7 +16,6 @@ import {
   ShoppingCart,
   Plus,
   Minus,
-  Trash2,
   CreditCard,
   DollarSign,
   Printer,
@@ -25,17 +25,32 @@ import {
   Wallet,
   CheckCircle,
   Eye,
-  Pencil
+  Pencil,
+  Recycle,
+  Scale,
+  Trash2,
+  Grid,
+  Clock
 } from "lucide-react";
+import { OldGoldExchange } from "@/jeweler/OldGoldExchange";
 import { useToast } from "@/hooks/use-toast";
 import { useUserStorage } from "@/hooks/useUserStorage";
 import { generateReceiptPDF, ReceiptData } from "@/lib/pdfGenerator";
 import { getFromSupabase } from "@/lib/supabaseDirect";
 import ItemDetailsDialog from "@/components/ItemDetailsDialog";
-// Removed idbGet, idbSet - now using getUserData, setUserData from userStorage
 import { upsertToSupabase, deleteFromSupabase } from "@/lib/supabaseDirect";
+import { 
+  roundToNearestRupee, 
+  roundToTwoDecimals, 
+  calculateGstAmount, 
+  extractBaseAmount,
+  calculateJewelleryBill,
+  formatInr
+} from "@/lib/calculations";
+import { useGoldRates } from "@/components/GoldRateSettings";
 
 const POS = () => {
+  const goldRates = useGoldRates();
   const { toast } = useToast();
   const { data: cart, updateData: setCart } = useUserStorage<CartItem[]>("pos_cart", []);
   const { data: customerName, updateData: setCustomerName } = useUserStorage<string>("pos_customerName", "");
@@ -79,21 +94,80 @@ const POS = () => {
     ifscCode: "HDFC0001234"
   });
 
-  const formatInr = (value: number) =>
-    new Intl.NumberFormat('en-IN', {
-      style: 'currency',
-      currency: 'INR',
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    }).format(value || 0);
-
   // Load inventory directly from IndexedDB (bypass cache issues)
   const [availableItems, setAvailableItems] = useState<JewelryItem[]>([]);
   const [itemsLoaded, setItemsLoaded] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const isLoadingRef = useRef(false);
+  const [showOldGoldDialog, setShowOldGoldDialog] = useState(false);
+  const [oldGoldCredit, setOldGoldCredit] = useState(0);
+  const [isFastBilling, setIsFastBilling] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchParams] = useSearchParams();
 
-  // Function to load all inventory from Supabase
+  useEffect(() => {
+    if (searchParams.get("action") === "old-gold") {
+      setShowOldGoldDialog(true);
+    }
+    if (searchParams.get("mode") === "fast") {
+      setIsFastBilling(true);
+    }
+  }, [searchParams]);
+
+  // Helper to transform raw inventory to JewelryItem format
+  const transformInventoryData = (inventoryData: any[]): JewelryItem[] => {
+    return inventoryData.map((item: any) => {
+      // Determine item type from category/subcategory
+      const itemType = item.category === 'gold' ? 'gold'
+        : item.category === 'stones' ? 'stone'
+        : item.category === 'stone' ? 'stone'
+        : item.subcategory === 'Gold Bar' ? 'gold'
+        : item.subcategory === 'Gemstone' ? 'stone'
+        : 'jewelry';
+
+      // Transform to JewelryItem format
+      const stockValue = item.stock ?? 0;
+
+      // Extract metal/purity from description
+      let metal = 'Gold 18K';
+      if (item.description) {
+        if (item.description.includes('Gold 24K')) metal = 'Gold 24K';
+        else if (item.description.includes('Gold 22K')) metal = 'Gold 22K';
+        else if (item.description.includes('Gold 18K')) metal = 'Gold 18K';
+        else if (item.description.includes('Gold 14K')) metal = 'Gold 14K';
+        else if (item.description.includes('Gold 10K')) metal = 'Gold 10K';
+        else if (itemType === 'stone') metal = ''; // Empty for stones
+      }
+
+      return {
+        id: item.id,
+        name: item.name || 'Unknown Item',
+        type: itemType === 'gold' ? 'Gold Bar'
+          : itemType === 'stone' ? 'Gemstone'
+            : (item.subcategory || 'Ring'),
+        gemstone: itemType === 'stone' ? (item.name || 'Stone') : 'None',
+        carat: item.weight ? parseFloat(item.weight.toString()) : 0,
+        metal: metal,
+        price: item.price || 0,
+        inStock: stockValue,
+        isArtificial: item.category === 'artificial',
+        image: item.image_url || '',
+        image_1: item.image_url || '',
+        image_2: '',
+        image_3: '',
+        image_4: '',
+        // New ERP fields
+        grossWeight: item.gross_weight || (item.weight ? parseFloat(item.weight.toString()) : 0),
+        stoneWeight: item.stone_weight || 0,
+        netWeight: item.net_weight || (item.gross_weight ? (item.gross_weight - (item.stone_weight || 0)) : (item.weight ? parseFloat(item.weight.toString()) : 0)),
+        makingCharges: item.making_charges || 0,
+        wastagePercent: item.wastage_percent || 0,
+        barcode: item.barcode || undefined,
+        hsnCode: item.hsn_code || "7113",
+      };
+    });
+  };
+
   const loadAllInventory = useCallback(async (forceReload = false) => {
     // Prevent multiple simultaneous loads (unless forced)
     if (isLoadingRef.current && !forceReload) return;
@@ -101,6 +175,24 @@ const POS = () => {
 
     try {
       setIsRefreshing(true);
+
+      // Try to load from IndexedDB first for instant UI response
+      if (!forceReload) {
+        const { getUserData } = await import('@/lib/userStorage');
+        const cachedData = await getUserData<any[]>("inventory_items");
+        if (cachedData && Array.isArray(cachedData) && cachedData.length > 0) {
+          const items = transformInventoryData(cachedData);
+          setAvailableItems(items);
+          setItemsLoaded(true);
+          
+          const lastUpdated = localStorage.getItem('inventory_last_updated');
+          if (lastUpdated && (Date.now() - parseInt(lastUpdated) < 30000)) {
+            setIsRefreshing(false);
+            isLoadingRef.current = false;
+            return;
+          }
+        }
+      }
 
       // Fetch directly from Supabase
       const inventoryData = await getFromSupabase<any[]>('inventory', {});
@@ -145,20 +237,37 @@ const POS = () => {
           image_2: '',
           image_3: '',
           image_4: '',
+          // New ERP fields
+          grossWeight: item.gross_weight || (item.weight ? parseFloat(item.weight.toString()) : 0),
+          stoneWeight: item.stone_weight || 0,
+          netWeight: item.net_weight || (item.gross_weight ? (item.gross_weight - (item.stone_weight || 0)) : (item.weight ? parseFloat(item.weight.toString()) : 0)),
+          makingCharges: item.making_charges || 0,
+          wastagePercent: item.wastage_percent || 0,
+          barcode: item.barcode || undefined,
+          hsnCode: item.hsn_code || "7113",
         };
       });
 
       setAvailableItems(items);
       setItemsLoaded(true);
+
+      // Update IndexedDB cache
+      const { setUserData } = await import('@/lib/userStorage');
+      await setUserData('inventory_items', inventoryData);
+      localStorage.setItem('inventory_last_updated', Date.now().toString());
     } catch (error) {
       console.error('❌ Error loading inventory from Supabase:', error);
-      setAvailableItems([]);
-      setItemsLoaded(true);
+      if (!itemsLoaded) {
+        setAvailableItems([]);
+        setItemsLoaded(true);
+      }
     } finally {
       setIsRefreshing(false);
       isLoadingRef.current = false;
     }
-  }, []);
+  }, [itemsLoaded]);
+
+
 
   // Load inventory on mount only
   useEffect(() => {
@@ -226,10 +335,14 @@ const POS = () => {
   const [itemToAdd, setItemToAdd] = useState<JewelryItem | null>(null);
   const [editingCartId, setEditingCartId] = useState<string | null>(null);
   const [itemDetails, setItemDetails] = useState({
-    weight: "",
+    grossWeight: "",
+    stoneWeight: "0",
+    netWeight: "0",
+    ratePerGram: "",
+    wastagePercentage: "0",
+    makingChargeValue: "0",
+    isMakingPercentage: false,
     purity: "",
-    customRate: "",
-    taxRate: "3",
     details: ""
   });
 
@@ -261,33 +374,38 @@ const POS = () => {
   };
 
   const handleAddToCartClick = async (item: JewelryItem) => {
-    // Load full item data from inventory to get weight and other attributes
     try {
       const inventoryData = await getFromSupabase<any[]>('inventory', {});
       const fullItem: any = inventoryData.find((inv: any) => inv.id === item.id) || null;
 
-      // Set item to add and pre-fill details from item
       setItemToAdd(item);
-      const itemWeight = fullItem?.weight ? fullItem.weight.toString() : "";
-      const itemPurity = item.metal || (fullItem?.description ? (fullItem.description.match(/Gold \d+K/)?.[0] || "") : "") || "";
+      const grossWeight = fullItem?.weight ? fullItem.weight.toString() : "";
+      
       setItemDetails({
-        weight: itemWeight,
-        purity: itemPurity,
-        customRate: "",
-        taxRate: (item.taxRate ?? 3).toString(),
+        grossWeight,
+        stoneWeight: "0",
+        netWeight: grossWeight,
+        ratePerGram: item.price.toString() || "",
+        wastagePercentage: "0",
+        makingChargeValue: "0",
+        isMakingPercentage: false,
+        purity: item.metal || (fullItem?.description ? (fullItem.description.match(/Gold \d+K/)?.[0] || "") : "") || "",
         details: ""
       });
       setEditingCartId(null);
       setShowItemDetailsDialog(true);
     } catch (error) {
       console.error('Error loading item details:', error);
-      // Fallback to basic data
       setItemToAdd(item);
       setItemDetails({
-        weight: "",
+        grossWeight: "",
+        stoneWeight: "0",
+        netWeight: "0",
+        ratePerGram: item.price.toString() || "",
+        wastagePercentage: "0",
+        makingChargeValue: "0",
+        isMakingPercentage: false,
         purity: item.metal || "",
-        customRate: "",
-        taxRate: (item.taxRate ?? 3).toString(),
         details: ""
       });
       setEditingCartId(null);
@@ -300,7 +418,7 @@ const POS = () => {
       id: cartItem.id,
       name: cartItem.name,
       type: cartItem.type,
-      price: cartItem.customRate ?? cartItem.price,
+      price: cartItem.ratePerGram ?? cartItem.price,
       metal: cartItem.purity,
       gemstone: "None",
       carat: 0,
@@ -309,10 +427,14 @@ const POS = () => {
 
     setItemToAdd(baseItem);
     setItemDetails({
-      weight: cartItem.weight || "",
+      grossWeight: cartItem.grossWeight?.toString() || "",
+      stoneWeight: cartItem.stoneWeight?.toString() || "0",
+      netWeight: cartItem.netWeight?.toString() || "0",
+      ratePerGram: cartItem.ratePerGram?.toString() || baseItem.price.toString(),
+      wastagePercentage: cartItem.wastagePercentage?.toString() || "0",
+      makingChargeValue: cartItem.makingChargeValue?.toString() || "0",
+      isMakingPercentage: cartItem.isMakingPercentage || false,
       purity: cartItem.purity || "",
-      customRate: cartItem.customRate?.toString() || "",
-      taxRate: (cartItem.taxRate ?? 3).toString(),
       details: cartItem.details || "",
     });
     setEditingCartId(cartItem.id);
@@ -324,28 +446,47 @@ const POS = () => {
 
     const existingCartItem = cart.find(c => c.id === (editingCartId || itemToAdd.id));
     const quantity = editingCartId ? (existingCartItem?.quantity ?? 1) : 1;
-    const resolvedPrice = itemDetails.customRate ? parseFloat(itemDetails.customRate) : itemToAdd.price;
+
+    // Use jewelry specific calculation
+    const calc = calculateJewelleryBill(
+      parseFloat(itemDetails.grossWeight) || 0,
+      parseFloat(itemDetails.stoneWeight) || 0,
+      parseFloat(itemDetails.ratePerGram) || itemToAdd.price,
+      parseFloat(itemDetails.wastagePercentage) || 0,
+      parseFloat(itemDetails.makingChargeValue) || 0,
+      itemDetails.isMakingPercentage
+    );
 
     const cartItem: CartItem = {
       id: itemToAdd.id,
       name: itemToAdd.name,
-      price: resolvedPrice,
+      price: calc.grandTotal / quantity, // Per unit price with tax approx
       quantity,
       type: itemToAdd.type,
-      taxRate: parseFloat(itemDetails.taxRate) || 3,
-      taxIncluded: itemToAdd.taxIncluded ?? existingCartItem?.taxIncluded ?? false,
-      taxCategory: itemToAdd.taxCategory ?? existingCartItem?.taxCategory ?? 'jewelry',
-      weight: itemDetails.weight || undefined,
+      // Jewelry Specifics
+      grossWeight: parseFloat(itemDetails.grossWeight) || 0,
+      stoneWeight: parseFloat(itemDetails.stoneWeight) || 0,
+      netWeight: calc.netWeight,
+      ratePerGram: parseFloat(itemDetails.ratePerGram) || itemToAdd.price,
+      wastagePercentage: parseFloat(itemDetails.wastagePercentage) || 0,
+      wastageAmount: calc.wastageAmount,
+      makingChargeValue: parseFloat(itemDetails.makingChargeValue) || 0,
+      makingCharges: calc.makingCharges,
+      isMakingPercentage: itemDetails.isMakingPercentage,
+      gstOnGold: calc.gstOnGold,
+      gstOnMaking: calc.gstOnMaking,
+      totalGst: calc.totalGst,
       purity: itemDetails.purity || undefined,
-      customRate: itemDetails.customRate ? parseFloat(itemDetails.customRate) : undefined,
-      details: itemDetails.details || undefined
+      details: itemDetails.details || undefined,
+      taxIncluded: false, // In jewelry, tax is usually on top 
+      taxCategory: 'jewelry'
     };
 
     if (editingCartId) {
       setCart(prev => prev.map(c => c.id === editingCartId ? { ...cartItem } : c));
     } else {
       setCart(prev => {
-        const existing = prev.find(cartItem => cartItem.id === itemToAdd.id);
+        const existing = prev.find(item => item.id === itemToAdd.id);
         if (existing) {
           return prev.map(c =>
             c.id === itemToAdd.id
@@ -362,16 +503,20 @@ const POS = () => {
     setItemToAdd(null);
     setEditingCartId(null);
     setItemDetails({
-      weight: "",
+      grossWeight: "",
+      stoneWeight: "0",
+      netWeight: "0",
+      ratePerGram: "",
+      wastagePercentage: "0",
+      makingChargeValue: "0",
+      isMakingPercentage: false,
       purity: "",
-      customRate: "",
-      taxRate: "3",
       details: ""
     });
 
     toast({
-      title: "Item Added",
-      description: `${itemToAdd.name} has been added to cart.`
+      title: editingCartId ? "Item Updated" : "Item Added",
+      description: `${itemToAdd.name} has been processed.`
     });
   };
 
@@ -423,42 +568,91 @@ const POS = () => {
     const taxBreakdownMap = new Map<number, { amount: number; count: number }>();
 
     cart.forEach(item => {
-      const itemTaxRate = (item.taxRate ?? 3) / 100; // Default 3% if not specified
-      const itemTotal = item.price * item.quantity;
+      // If it has specialized jewelry fields, use them
+      if (item.gstOnGold !== undefined || item.gstOnMaking !== undefined) {
+        const itemGoldGst = item.gstOnGold || 0;
+        const itemMakingGst = item.gstOnMaking || 0;
+        const itemTotalTax = (item.totalGst || (itemGoldGst + itemMakingGst)) * item.quantity;
+        
+        // Base amount is total value - tax if we want to show it that way,
+        // but usually in jewelry, base is taxableGoldValue + makingCharges.
+        const itemBaseAmount = ((item.netWeight || 0) * (item.ratePerGram || 0) + (item.wastageAmount || 0) + (item.makingCharges || 0)) * item.quantity;
 
-      if (item.taxIncluded) {
-        // If tax is included, extract the base price and tax
-        const basePrice = itemTotal / (1 + itemTaxRate);
-        const taxAmount = itemTotal - basePrice;
-        subTotal += basePrice;
-        totalTax += taxAmount;
+        subTotal += itemBaseAmount;
+        totalTax += itemTotalTax;
 
-        const rateKey = item.taxRate ?? 3;
-        const existing = taxBreakdownMap.get(rateKey) || { amount: 0, count: 0 };
-        taxBreakdownMap.set(rateKey, { amount: existing.amount + taxAmount, count: existing.count + 1 });
+        // Add to breakdown
+        if (itemGoldGst > 0) {
+          const goldRate = 3;
+          const existing = taxBreakdownMap.get(goldRate) || { amount: 0, count: 0 };
+          taxBreakdownMap.set(goldRate, { 
+            amount: roundToTwoDecimals(existing.amount + itemGoldGst * item.quantity), 
+            count: existing.count + 1 
+          });
+        }
+        if (itemMakingGst > 0) {
+          const makingRate = 5;
+          const existing = taxBreakdownMap.get(makingRate) || { amount: 0, count: 0 };
+          taxBreakdownMap.set(makingRate, { 
+            amount: roundToTwoDecimals(existing.amount + itemMakingGst * item.quantity), 
+            count: existing.count + 1 
+          });
+        }
       } else {
-        // If tax is not included, calculate tax on top
-        const taxAmount = itemTotal * itemTaxRate;
-        subTotal += itemTotal;
-        totalTax += taxAmount;
+        // Legacy calculation
+        const taxRate = item.taxRate ?? 3;
+        const itemPriceTotal = item.price * item.quantity;
+        
+        let itemBaseAmount = 0;
+        let itemTaxAmount = 0;
 
-        const rateKey = item.taxRate ?? 3;
-        const existing = taxBreakdownMap.get(rateKey) || { amount: 0, count: 0 };
-        taxBreakdownMap.set(rateKey, { amount: existing.amount + taxAmount, count: existing.count + 1 });
+        if (item.taxIncluded) {
+          itemBaseAmount = extractBaseAmount(itemPriceTotal, taxRate);
+          itemTaxAmount = roundToTwoDecimals(itemPriceTotal - itemBaseAmount);
+        } else {
+          itemBaseAmount = roundToTwoDecimals(itemPriceTotal);
+          itemTaxAmount = calculateGstAmount(itemBaseAmount, taxRate);
+        }
+
+        subTotal += itemBaseAmount;
+        totalTax += itemTaxAmount;
+
+        const existing = taxBreakdownMap.get(taxRate) || { amount: 0, count: 0 };
+        taxBreakdownMap.set(taxRate, { 
+          amount: roundToTwoDecimals(existing.amount + itemTaxAmount), 
+          count: existing.count + 1 
+        });
       }
     });
 
+    const finalSubtotal = roundToTwoDecimals(subTotal);
+    const finalTax = roundToTwoDecimals(totalTax);
+    const finalTotal = roundToNearestRupee(Math.max(0, finalSubtotal + finalTax - oldGoldCredit));
+
     return {
-      subtotal: subTotal,
-      tax: totalTax,
-      total: subTotal + totalTax,
+      subtotal: finalSubtotal,
+      tax: finalTax,
+      total: finalTotal,
       taxBreakdown: Array.from(taxBreakdownMap.entries()).map(([rate, data]) => ({
         rate,
         amount: data.amount,
         count: data.count
-      }))
+      })),
+      oldGoldCredit
     };
-  }, [cart]);
+  }, [cart, oldGoldCredit]);
+
+  // Filter inventory by search query
+  const filteredItems = useMemo(() => {
+    if (!searchQuery) return availableItems;
+    const query = searchQuery.toLowerCase();
+    return availableItems.filter(item => 
+      item.name.toLowerCase().includes(query) || 
+      item.type.toLowerCase().includes(query) ||
+      (item.barcode && item.barcode.toLowerCase().includes(query)) ||
+      (item.metal && item.metal.toLowerCase().includes(query))
+    );
+  }, [availableItems, searchQuery]);
 
   // Filter customers by search query
   const filteredCustomers = useMemo(() => {
@@ -535,6 +729,43 @@ const POS = () => {
     setShowRepaymentDialog(false);
   };
 
+  const handleFastAdd = (purity: string) => {
+    // Determine default rate for the selected purity
+    let defaultRate = 0;
+    const rates = goldRates.currentRates;
+    if (purity.includes('24K')) defaultRate = rates.rate24K;
+    else if (purity.includes('22K')) defaultRate = rates.rate22K;
+    else if (purity.includes('18K')) defaultRate = rates.rate18K;
+    else if (purity.includes('14K')) defaultRate = rates.rate14K;
+    else if (purity.includes('Silver')) defaultRate = rates.rateSilver;
+
+    setItemToAdd({
+      id: `fast-${Date.now()}`,
+      name: `${purity} (Quick Bill)`,
+      category: purity.includes('Gold') ? 'gold' : 'silver',
+      type: purity,
+      metal: purity,
+      price: 0,
+      stock: 999,
+      image: "",
+      description: `Fast bill for ${purity}`
+    } as any);
+    
+    setItemDetails({
+      grossWeight: "",
+      stoneWeight: "0",
+      netWeight: "0",
+      ratePerGram: defaultRate.toString(),
+      wastagePercentage: "0",
+      makingChargeValue: "0",
+      isMakingPercentage: false,
+      purity: purity,
+      details: ""
+    });
+    
+    setShowItemDetailsDialog(true);
+  };
+
   const processPayment = async (paymentMethod: string) => {
     if (cart.length === 0) {
       toast({
@@ -569,48 +800,60 @@ const POS = () => {
         customer_email: selectedCustomer?.email || null,
         total_amount: invoice.total,
         tax_amount: invoice.tax || 0,
+        gst_gold: cart.reduce((sum, item) => sum + (item.gstOnGold || 0) * item.quantity, 0),
+        gst_making: cart.reduce((sum, item) => sum + (item.gstOnMaking || 0) * item.quantity, 0),
+        making_total: cart.reduce((sum, item) => sum + (item.makingCharges || 0) * item.quantity, 0),
+        gold_total: cart.reduce((sum, item) => sum + (item.netWeight || 0) * (item.ratePerGram || 0) * item.quantity, 0),
+        grand_total: invoice.total,
         discount_amount: 0,
         payment_method: invoice.paymentMethod,
         payment_status: invoice.paymentMethod === 'Credit' ? 'pending' : 'paid',
-        transaction_id: null, // Can be set if UPI/Card transaction ID is available
-        notes: null, // Can be used for additional notes
-        created_at: invoice.date, // Use invoice date as created_at
+        transaction_id: null,
+        notes: null,
+        created_at: invoice.date,
       };
 
       // Save sale record to database
       await upsertToSupabase('sales', saleRecord);
 
       // Save sale items (line items) to database
-      // for (let i = 0; i < invoice.items.length; i++) {
-      //   const item = invoice.items[i];
-      //   const itemTaxRate = (item.taxRate ?? 3) / 100; // Default 3% if not specified
-      //   const itemTotal = item.price * item.quantity;
+      for (let i = 0; i < invoice.items.length; i++) {
+        const item = invoice.items[i];
+        const taxRate = item.taxRate ?? 3;
+        const itemTotal = item.price * item.quantity;
         
-      //   // Calculate tax amount based on whether tax is included or not
-      //   let taxAmount = 0;
-      //   if (item.taxIncluded) {
-      //     // If tax is included, extract the tax from total
-      //     const basePrice = itemTotal / (1 + itemTaxRate);
-      //     taxAmount = itemTotal - basePrice;
-      //   } else {
-      //     // If tax is not included, calculate tax on top
-      //     taxAmount = itemTotal * itemTaxRate;
-      //   }
+        let subtotal = 0;
+        let taxAmount = 0;
+
+        if (item.taxIncluded) {
+          subtotal = extractBaseAmount(itemTotal, taxRate);
+          taxAmount = roundToTwoDecimals(itemTotal - subtotal);
+        } else {
+          subtotal = roundToTwoDecimals(itemTotal);
+          taxAmount = calculateGstAmount(subtotal, taxRate);
+        }
         
-      //   const saleItem = {
-      //     id: `${invoice.id}_item_${i}_${item.id}`,
-      //     sale_id: invoice.id,
-      //     product_id: item.id,
-      //     product_name: item.name,
-      //     quantity: item.quantity,
-      //     unit_price: item.price,
-      //     total_price: itemTotal,
-      //     tax_rate: item.taxRate ?? 3,
-      //     tax_amount: taxAmount,
-      //     tax_category: item.taxCategory || 'jewelry',
-      //   };
-      //   await upsertToSupabase('sale_items', saleItem);
-      // }
+        const saleItem = {
+          id: `${invoice.id}_item_${i}_${item.id}`,
+          sale_id: invoice.id,
+          item_id: item.id,
+          item_name: item.name,
+          item_type: item.type || 'jewelry',
+          quantity: item.quantity,
+          unit_price: item.price,
+          total_price: roundToTwoDecimals(subtotal + taxAmount),
+          gross_weight: item.grossWeight || 0,
+          stone_weight: item.stoneWeight || 0,
+          net_weight: item.netWeight || 0,
+          rate: item.ratePerGram || 0,
+          making_charges: item.makingCharges || 0,
+          wastage: item.wastageAmount || 0,
+          gst: (item.gstOnGold || 0) + (item.gstOnMaking || 0),
+          total: item.item_total || (roundToTwoDecimals(subtotal + taxAmount)),
+          discount_amount: 0,
+        };
+        await upsertToSupabase('sale_items', saleItem);
+      }
 
       console.log('✅ Invoice saved to database:', invoice.id);
     } catch (error) {
@@ -947,6 +1190,98 @@ const POS = () => {
             </Card>
           </div>
 
+          {/* Unified Tool Header */}
+          <div className="flex items-center justify-between mb-6 bg-white/60 backdrop-blur-md p-4 rounded-2xl border border-white/20 shadow-sm">
+            <div className="flex items-center gap-4">
+              <Button 
+                variant={!isFastBilling ? "default" : "outline"}
+                onClick={() => setIsFastBilling(false)}
+                className="rounded-xl h-11 px-6 font-bold gap-2"
+              >
+                <Grid className="h-4 w-4" />
+                Catalog Mode
+              </Button>
+              <Button 
+                variant={isFastBilling ? "default" : "outline"}
+                onClick={() => setIsFastBilling(true)}
+                className="rounded-xl h-11 px-6 font-bold gap-2"
+              >
+                <Scale className="h-4 w-4" />
+                Fast Mode (Direct Weight)
+              </Button>
+            </div>
+          </div>
+
+          {!isFastBilling ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+              <div className="col-span-1 md:col-span-2 lg:col-span-3 xl:col-span-4 mb-2">
+                <div className="relative group">
+                  <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground group-focus-within:text-primary transition-colors" />
+                  <Input
+                    placeholder="Search by name, category, or barcode (Scan here)..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="pl-12 h-14 bg-white/80 border-white/40 shadow-xl rounded-2xl text-lg focus:ring-2 focus:ring-primary/20 transition-all font-medium"
+                  />
+                </div>
+              </div>
+              
+              {filteredItems.map(item => (
+                <div key={item.id} className="hover-lift smooth-fade">
+                  <JewelryCard
+                    item={item}
+                    onEdit={handleEditCartItem as any}
+                    onDelete={() => {}}
+                    onView={(item) => handleAddToCartClick(item)}
+                    onAddToCart={(item) => handleAddToCartClick(item)}
+                    showAddToCart={true}
+                    showActions={false}
+                  />
+                </div>
+              ))}
+            </div>
+          ) : (
+            // FAST BILLING MODE: Pure Weight Selection
+            <div className="space-y-8 animate-in fade-in slide-in-from-top-4 duration-500">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                {[
+                  { label: 'Gold 24K', value: '24K', type: 'gold' },
+                  { label: 'Gold 22K', value: '22K', type: 'gold' },
+                  { label: 'Gold 18K', value: '18K', type: 'gold' },
+                  { label: 'Silver', value: 'Silver', type: 'silver' }
+                ].map((purity) => (
+                  <Card key={purity.label} className="hover:shadow-2xl transition-all border-2 border-transparent hover:border-gold cursor-pointer group bg-white/90 overflow-hidden" 
+                    onClick={() => handleFastAdd(purity.label)}>
+                    <CardContent className="p-6">
+                      <div className="flex flex-col items-center text-center gap-4">
+                        <div className={`p-4 rounded-2xl ${purity.type === 'gold' ? 'bg-amber-50 text-amber-600' : 'bg-slate-50 text-slate-600'} group-hover:scale-110 transition-transform`}>
+                          <Scale className="h-10 w-10" />
+                        </div>
+                        <div>
+                          <h3 className="text-xl font-bold text-gray-900">{purity.label}</h3>
+                          <p className="text-sm text-gray-500">Enter weight directly</p>
+                        </div>
+                         <Button className="w-full mt-4 bg-gradient-gold text-primary font-black rounded-xl">
+                          <Plus className="h-4 w-4 mr-2" />
+                          Add Items
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+              
+              <Card className="bg-blue-50/50 border-blue-100 shadow-inner">
+                <CardContent className="p-6">
+                  <div className="flex items-center gap-3 text-blue-800 font-bold">
+                    <Clock className="h-5 w-5" />
+                    Today's Rate: 24K @ ₹{goldRates.currentRates.rate24K.toLocaleString()} | 22K @ ₹{goldRates.currentRates.rate22K.toLocaleString()}
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          )}
+
           {/* Cart and Checkout */}
           <div className="space-y-6">
             {/* Customer Info */}
@@ -1079,17 +1414,39 @@ const POS = () => {
                   <ScrollArea className="h-64">
                     <div className="space-y-4 pr-4">
                       {cart.map(item => (
-                        <div key={item.id} className="flex items-start justify-between p-2 rounded-lg hover:bg-secondary/50">
+                        <div key={item.id} className="flex items-start justify-between p-3 rounded-lg bg-secondary/30 border border-secondary hover:bg-secondary/50 transition-colors">
                           <div className="flex-1 min-w-0">
-                            <h4 className="font-medium text-foreground">{item.name}</h4>
-                            <p className="text-sm text-muted-foreground">₹{item.price.toLocaleString()} each × {item.quantity}</p>
-                            {(item.weight || item.purity || item.customRate || item.taxRate || item.details) && (
-                              <div className="mt-1 space-y-0.5 text-xs text-muted-foreground">
-                                {item.weight && <p>Weight: {item.weight}g</p>}
-                                {item.purity && <p>Purity: {item.purity}</p>}
-                                {item.customRate && <p>Custom Rate: ₹{item.customRate.toLocaleString('en-IN')}</p>}
-                                {item.taxRate && <p>Tax: {item.taxRate}%</p>}
-                                {item.details && <p className="italic">Note: {item.details}</p>}
+                            <h4 className="font-bold text-foreground truncate">{item.name}</h4>
+                            <p className="text-sm font-semibold text-primary">₹{(item.price * item.quantity).toLocaleString()} ({item.quantity} units)</p>
+                            
+                            {(item.grossWeight !== undefined || item.purity || item.details) && (
+                              <div className="mt-2 space-y-1 text-xs text-muted-foreground bg-white/50 p-2 rounded border border-secondary/50">
+                                {item.grossWeight !== undefined && (
+                                  <div className="flex justify-between">
+                                    <span>Weight:</span>
+                                    <span className="font-medium text-foreground">{item.grossWeight}g (Net: {item.netWeight}g)</span>
+                                  </div>
+                                )}
+                                {item.ratePerGram && (
+                                  <div className="flex justify-between">
+                                    <span>Rate:</span>
+                                    <span className="font-medium">₹{item.ratePerGram}/g</span>
+                                  </div>
+                                )}
+                                {item.makingCharges !== undefined && item.makingCharges > 0 && (
+                                  <div className="flex justify-between">
+                                    <span>Making:</span>
+                                    <span className="font-medium">₹{item.makingCharges}</span>
+                                  </div>
+                                )}
+                                {(item.gstOnGold !== undefined || item.gstOnMaking !== undefined) && (
+                                  <div className="flex justify-between border-t border-dashed border-secondary pt-1 mt-1">
+                                    <span>GST:</span>
+                                    <span className="font-medium text-blue-600">₹{(item.totalGst || 0).toFixed(2)} (Split 3/5)</span>
+                                  </div>
+                                )}
+                                {item.purity && <p className="pt-1">Purity: <span className="text-foreground">{item.purity}</span></p>}
+                                {item.details && <p className="italic pt-1">Note: {item.details}</p>}
                               </div>
                             )}
                           </div>
@@ -1167,11 +1524,39 @@ const POS = () => {
                       </div>
                     )}
 
+                    {oldGoldCredit > 0 && (
+                      <div className="flex justify-between text-emerald-600 font-medium">
+                        <span className="flex items-center gap-1"><Recycle className="h-3 w-3" /> Old Gold Credit:</span>
+                        <span>- ₹{oldGoldCredit.toLocaleString()}</span>
+                      </div>
+                    )}
+
                     <Separator />
-                    <div className="flex justify-between text-lg font-bold">
-                      <span>Total:</span>
-                      <span>₹{total.toFixed(2)}</span>
+                    <div className="flex justify-between text-xl font-bold">
+                      <span>Total Payable:</span>
+                      <span>₹{total.toLocaleString()}</span>
                     </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                    <Button
+                      variant="outline"
+                      className="w-full border-2 border-emerald-200 text-emerald-700 hover:bg-emerald-50 gap-2 font-bold"
+                      onClick={() => setShowOldGoldDialog(true)}
+                    >
+                      <Recycle className="h-4 w-4" />
+                      Old Gold {oldGoldCredit > 0 && "✔"}
+                    </Button>
+                    {oldGoldCredit > 0 && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-xs text-red-500 hover:text-red-700 h-10"
+                        onClick={() => setOldGoldCredit(0)}
+                      >
+                        Clear Credit
+                      </Button>
+                    )}
                   </div>
 
                   <div className="space-y-2">
@@ -1696,71 +2081,145 @@ const POS = () => {
 
       {/* Item Details Dialog for Adding to Cart */}
       <Dialog open={showItemDetailsDialog} onOpenChange={setShowItemDetailsDialog}>
-        <DialogContent className="sm:max-w-[500px]">
+        <DialogContent className="sm:max-w-[550px]">
           <DialogHeader>
-            <DialogTitle>Add Item to Cart</DialogTitle>
+            <DialogTitle>{editingCartId ? "Edit Item" : "Add Jewelry Item"}</DialogTitle>
           </DialogHeader>
           {itemToAdd && (
             <div className="space-y-4">
-              <div className="p-3 bg-gray-50 rounded-lg">
-                <p className="font-semibold text-lg">{itemToAdd.name}</p>
-                <p className="text-sm text-gray-600">Type: {itemToAdd.type}</p>
-                <p className="text-sm text-gray-600">Base Price: ₹{itemToAdd.price.toLocaleString('en-IN')}</p>
+              <div className="p-3 bg-gradient-to-r from-amber-50 to-orange-50 rounded-lg border border-amber-100">
+                <p className="font-bold text-lg text-amber-900">{itemToAdd.name}</p>
+                <div className="flex gap-4 text-xs text-amber-700 font-medium">
+                  {itemToAdd.type && <span>Type: {itemToAdd.type}</span>}
+                  {itemToAdd.metal && <span>Metal: {itemToAdd.metal}</span>}
+                </div>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="item-weight">Weight (grams)</Label>
+                <div className="space-y-1">
+                  <Label htmlFor="item-gross-weight">Gross Weight (g) *</Label>
                   <Input
-                    id="item-weight"
-                    value={itemDetails.weight}
-                    onChange={(e) => setItemDetails(prev => ({ ...prev, weight: e.target.value }))}
-                    placeholder="e.g., 10.5"
+                    id="item-gross-weight"
+                    type="number"
+                    value={itemDetails.grossWeight}
+                    onChange={(e) => setItemDetails(prev => ({ ...prev, grossWeight: e.target.value }))}
+                    placeholder="0.00"
                   />
                 </div>
-                <div>
-                  <Label htmlFor="item-purity">Purity/Metal</Label>
+                <div className="space-y-1">
+                  <Label htmlFor="item-stone-weight">Stone Weight (g)</Label>
+                  <Input
+                    id="item-stone-weight"
+                    type="number"
+                    value={itemDetails.stoneWeight}
+                    onChange={(e) => setItemDetails(prev => ({ ...prev, stoneWeight: e.target.value }))}
+                    placeholder="0.00"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <Label htmlFor="item-rate">Gold Rate (₹/g) *</Label>
+                  <Input
+                    id="item-rate"
+                    type="number"
+                    value={itemDetails.ratePerGram}
+                    onChange={(e) => setItemDetails(prev => ({ ...prev, ratePerGram: e.target.value }))}
+                    placeholder="Current rate"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="item-wastage">Wastage (%)</Label>
+                  <Input
+                    id="item-wastage"
+                    type="number"
+                    value={itemDetails.wastagePercentage}
+                    onChange={(e) => setItemDetails(prev => ({ ...prev, wastagePercentage: e.target.value }))}
+                    placeholder="0"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <Label htmlFor="item-making-value">Making Charges</Label>
+                  <div className="flex gap-2">
+                    <Input
+                      id="item-making-value"
+                      type="number"
+                      className="flex-1"
+                      value={itemDetails.makingChargeValue}
+                      onChange={(e) => setItemDetails(prev => ({ ...prev, makingChargeValue: e.target.value }))}
+                      placeholder="Value"
+                    />
+                    <Button 
+                      variant={itemDetails.isMakingPercentage ? "default" : "outline"} 
+                      size="sm" 
+                      className="px-2"
+                      onClick={() => setItemDetails(prev => ({ ...prev, isMakingPercentage: true }))}
+                    >%</Button>
+                    <Button 
+                      variant={!itemDetails.isMakingPercentage ? "default" : "outline"} 
+                      size="sm" 
+                      className="px-2"
+                      onClick={() => setItemDetails(prev => ({ ...prev, isMakingPercentage: false }))}
+                    >₹</Button>
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="item-purity">Description/Purity</Label>
                   <Input
                     id="item-purity"
                     value={itemDetails.purity}
                     onChange={(e) => setItemDetails(prev => ({ ...prev, purity: e.target.value }))}
-                    placeholder="e.g., Gold 18K"
+                    placeholder="e.g., 22K Hallmarked"
                   />
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="item-custom-rate">Custom Rate (₹) - Optional</Label>
-                  <Input
-                    id="item-custom-rate"
-                    type="number"
-                    value={itemDetails.customRate}
-                    onChange={(e) => setItemDetails(prev => ({ ...prev, customRate: e.target.value }))}
-                    placeholder="Override base price"
-                  />
-                  <p className="text-xs text-gray-500 mt-1">Leave empty to use base price</p>
+              {/* Live Calculation Summary */}
+              {(parseFloat(itemDetails.grossWeight) > 0 && parseFloat(itemDetails.ratePerGram) > 0) && (
+                <div className="p-4 bg-secondary/50 rounded-lg border border-border space-y-2">
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-2">Calculation Summary</h4>
+                  <div className="grid grid-cols-2 text-sm gap-x-8 gap-y-1">
+                    <span className="text-muted-foreground">Net Weight:</span>
+                    <span className="text-right font-medium">{(parseFloat(itemDetails.grossWeight) - parseFloat(itemDetails.stoneWeight || "0")).toFixed(3)} g</span>
+                    
+                    <span className="text-muted-foreground">GST split:</span>
+                    <div className="text-right flex flex-col">
+                      <span className="text-xs text-blue-600">3% Gold GST</span>
+                      <span className="text-xs text-orange-600">5% Making GST</span>
+                    </div>
+
+                    <Separator className="col-span-2 my-1" />
+                    
+                    <span className="text-base font-bold">Estimated Total:</span>
+                    <span className="text-right text-base font-bold text-primary">
+                      {(() => {
+                        const res = calculateJewelleryBill(
+                          parseFloat(itemDetails.grossWeight) || 0,
+                          parseFloat(itemDetails.stoneWeight) || 0,
+                          parseFloat(itemDetails.ratePerGram) || 0,
+                          parseFloat(itemDetails.wastagePercentage) || 0,
+                          parseFloat(itemDetails.makingChargeValue) || 0,
+                          itemDetails.isMakingPercentage
+                        );
+                        return formatInr(res.grandTotal);
+                      })()}
+                    </span>
+                  </div>
                 </div>
-                <div>
-                  <Label htmlFor="item-tax-rate">Tax Rate (%)</Label>
-                  <Input
-                    id="item-tax-rate"
-                    type="number"
-                    value={itemDetails.taxRate}
-                    onChange={(e) => setItemDetails(prev => ({ ...prev, taxRate: e.target.value }))}
-                    placeholder="3"
-                  />
-                </div>
-              </div>
+              )}
 
               <div>
-                <Label htmlFor="item-details">Additional Details/Notes</Label>
+                <Label htmlFor="item-details">Notes</Label>
                 <Textarea
                   id="item-details"
                   value={itemDetails.details}
                   onChange={(e) => setItemDetails(prev => ({ ...prev, details: e.target.value }))}
-                  placeholder="Any additional notes or details about this item..."
-                  rows={3}
+                  placeholder="Additional hallmarks or details..."
+                  rows={2}
                 />
               </div>
 
@@ -1769,19 +2228,22 @@ const POS = () => {
                   setShowItemDetailsDialog(false);
                   setItemToAdd(null);
                   setEditingCartId(null);
-                  setEditingCartId(null);
                   setItemDetails({
-                    weight: "",
+                    grossWeight: "",
+                    stoneWeight: "0",
+                    netWeight: "0",
+                    ratePerGram: "",
+                    wastagePercentage: "0",
+                    makingChargeValue: "0",
+                    isMakingPercentage: false,
                     purity: "",
-                    customRate: "",
-                    taxRate: "3",
                     details: ""
                   });
                 }}>
                   Cancel
                 </Button>
-                <Button onClick={confirmAddToCart} className="bg-green-600 hover:bg-green-700">
-                  Add to Cart
+                <Button onClick={confirmAddToCart} className="bg-gradient-gold text-primary font-bold hover:opacity-90">
+                  {editingCartId ? "Update Item" : "Add to Cart"}
                 </Button>
               </DialogFooter>
             </div>
@@ -1833,6 +2295,16 @@ const POS = () => {
               Payment Received
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Old Gold Exchange Dialog */}
+      <Dialog open={showOldGoldDialog} onOpenChange={setShowOldGoldDialog}>
+        <DialogContent className="sm:max-w-[750px] bg-emerald-50/10 backdrop-blur-md border-2 border-emerald-200 shadow-2xl overflow-hidden p-0">
+          <OldGoldExchange onApplyCredit={(credit) => {
+            setOldGoldCredit(credit);
+            setShowOldGoldDialog(false);
+          }} />
         </DialogContent>
       </Dialog>
     </div>

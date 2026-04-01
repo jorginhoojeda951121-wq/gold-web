@@ -324,13 +324,14 @@ export const generateReceiptPDF = async (receiptData: ReceiptData): Promise<void
   totalsY += 9;
   
   // Tax
-  addText('Tax (8%)', totalsBoxX + 8, totalsY, {
+  const taxRate = receiptData.items[0]?.taxRate || 3;
+  addText(`Tax (${taxRate}%)`, totalsBoxX + 8, totalsY, {
     fontSize: 10,
     isBold: false,
     color: colors.textSecondary,
     align: 'left'
   });
-  addText(`₹${receiptData.tax.toLocaleString('en-IN')}`, totalsRightX, totalsY, {
+  addText(`₹${Math.round(receiptData.tax).toLocaleString('en-IN')}`, totalsRightX, totalsY, {
     fontSize: 10,
     isBold: false,
     color: colors.textPrimary,

@@ -11,6 +11,7 @@ export interface UserPermissions {
   canManageInventory: boolean;
   canProcessSales: boolean;
   canDeleteData: boolean;
+  canManageBranches: boolean;
 }
 
 const rolePermissions: Record<UserRole, UserPermissions> = {
@@ -22,6 +23,7 @@ const rolePermissions: Record<UserRole, UserPermissions> = {
     canManageInventory: true,
     canProcessSales: true,
     canDeleteData: true,
+    canManageBranches: true,
   },
   admin: {
     canEditBusinessSettings: true,
@@ -31,6 +33,7 @@ const rolePermissions: Record<UserRole, UserPermissions> = {
     canManageInventory: true,
     canProcessSales: true,
     canDeleteData: true,
+    canManageBranches: true,
   },
   manager: {
     canEditBusinessSettings: false,
@@ -40,6 +43,7 @@ const rolePermissions: Record<UserRole, UserPermissions> = {
     canManageInventory: true,
     canProcessSales: true,
     canDeleteData: false,
+    canManageBranches: false,
   },
   staff: {
     canEditBusinessSettings: false,
@@ -49,6 +53,7 @@ const rolePermissions: Record<UserRole, UserPermissions> = {
     canManageInventory: true,
     canProcessSales: true,
     canDeleteData: false,
+    canManageBranches: false,
   },
 };
 

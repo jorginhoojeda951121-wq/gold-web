@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { Gem, Package, TrendingUp, DollarSign, Search, Plus, Share2 } from "lucide-react";
 import { StatsCard } from "@/components/StatsCard";
 import { JewelryCard, JewelryItem } from "@/components/JewelryCard";
@@ -74,63 +74,110 @@ const Index = () => {
   // Load all inventory from Supabase (Single Source of Truth)
   const loadAllInventory = useCallback(async (forceReload = false) => {
     // Prevent multiple simultaneous loads (unless forced)
-    if (itemsLoaded && !forceReload) return;
+    if (isLoadingRef.current && !forceReload) return;
+    isLoadingRef.current = true;
 
     try {
-      // Fetch directly from Supabase
+      // Step 1: Try to load from IndexedDB first for instant UI response
+      if (!forceReload) {
+        const { getUserData } = await import('@/lib/userStorage');
+        const cachedData = await getUserData<any[]>("inventory_items");
+        if (cachedData && Array.isArray(cachedData) && cachedData.length > 0) {
+          console.log('[Index] Using cached inventory from IndexedDB');
+          const lastUpdated = await localStorage.getItem('inventory_last_updated');
+          const isRecentlyUpdated = lastUpdated && (Date.now() - parseInt(lastUpdated) < 30000); // 30 seconds
+
+          const allItems = transformInventoryData(cachedData);
+          setItems(allItems);
+          setItemsLoaded(true);
+
+          if (isRecentlyUpdated) {
+            isLoadingRef.current = false;
+            return; // Skip Supabase fetch if recently updated
+          }
+        }
+      }
+
+      // Step 2: Fetch fresh data from Supabase in background
+      console.log('[Index] Fetching fresh inventory from Supabase...');
       const inventoryData = await getFromSupabase<any[]>('inventory', {});
 
-      const allItems: JewelryItem[] = inventoryData.map((item: any) => {
-        // Determine item type from category/subcategory
-        const itemType = item.category === 'gold' ? 'gold'
-          : item.category === 'stones' ? 'stone'
-          : item.category === 'stone' ? 'stone'
-          : item.subcategory === 'Gold Bar' ? 'gold'
-          : item.subcategory === 'Gemstone' ? 'stone'
-          : 'jewelry';
+      if (inventoryData && Array.isArray(inventoryData)) {
+        const allItems = transformInventoryData(inventoryData);
+        setItems(allItems);
+        setItemsLoaded(true);
 
-        // Transform to JewelryItem format
-        const stockValue = item.stock ?? 0;
-
-        // Extract metal/purity from description
-        let metal = 'Gold 18K';
-        if (item.description) {
-          if (item.description.includes('Gold 24K')) metal = 'Gold 24K';
-          else if (item.description.includes('Gold 22K')) metal = 'Gold 22K';
-          else if (item.description.includes('Gold 18K')) metal = 'Gold 18K';
-          else if (item.description.includes('Gold 14K')) metal = 'Gold 14K';
-          else if (item.description.includes('Gold 10K')) metal = 'Gold 10K';
-          else if (itemType === 'stone') metal = ''; // Empty for stones
-        }
-
-        return {
-          id: item.id,
-          name: item.name || 'Unknown Item',
-          type: itemType === 'gold' ? 'Gold Bar'
-            : itemType === 'stone' ? 'Gemstone'
-              : (item.subcategory || 'Ring'),
-          gemstone: itemType === 'stone' ? (item.name || 'Stone') : 'None',
-          carat: item.weight ? parseFloat(item.weight.toString()) : 0,
-          metal: metal,
-          price: item.price || 0,
-          inStock: stockValue,
-          isArtificial: item.category === 'artificial',
-          image: item.image_url || '',
-          image_1: item.image_url || '',
-          image_2: '',
-          image_3: '',
-          image_4: '',
-        };
-      });
-
-      setItems(allItems);
-      setItemsLoaded(true);
+        // Update IndexedDB cache
+        const { setUserData } = await import('@/lib/userStorage');
+        await setUserData('inventory_items', inventoryData);
+        localStorage.setItem('inventory_last_updated', Date.now().toString());
+      }
     } catch (error) {
-      console.error('❌ Error loading inventory from Supabase:', error);
-      setItems([]);
-      setItemsLoaded(true);
+      console.error('❌ Error loading inventory:', error);
+      if (!itemsLoaded) {
+        setItems([]);
+        setItemsLoaded(true);
+      }
+    } finally {
+      isLoadingRef.current = false;
     }
   }, [itemsLoaded]);
+
+  // Helper to transform raw inventory to JewelryItem format
+  const transformInventoryData = (inventoryData: any[]): JewelryItem[] => {
+    return inventoryData.map((item: any) => {
+      // Determine item type from category/subcategory
+      const itemType = item.category === 'gold' ? 'gold'
+        : item.category === 'stones' ? 'stone'
+        : item.category === 'stone' ? 'stone'
+        : item.subcategory === 'Gold Bar' ? 'gold'
+        : item.subcategory === 'Gemstone' ? 'stone'
+        : 'jewelry';
+
+      // Transform to JewelryItem format
+      const stockValue = item.stock ?? 0;
+
+      // Extract metal/purity from description
+      let metal = 'Gold 18K';
+      if (item.description) {
+        if (item.description.includes('Gold 24K')) metal = 'Gold 24K';
+        else if (item.description.includes('Gold 22K')) metal = 'Gold 22K';
+        else if (item.description.includes('Gold 18K')) metal = 'Gold 18K';
+        else if (item.description.includes('Gold 14K')) metal = 'Gold 14K';
+        else if (item.description.includes('Gold 10K')) metal = 'Gold 10K';
+        else if (itemType === 'stone') metal = ''; // Empty for stones
+      }
+
+      return {
+        id: item.id,
+        name: item.name || 'Unknown Item',
+        type: itemType === 'gold' ? 'Gold Bar'
+          : itemType === 'stone' ? 'Gemstone'
+            : (item.subcategory || 'Ring'),
+        gemstone: itemType === 'stone' ? (item.name || 'Stone') : 'None',
+        carat: item.weight ? parseFloat(item.weight.toString()) : 0,
+        metal: metal,
+        price: item.price || 0,
+        inStock: stockValue,
+        isArtificial: item.category === 'artificial',
+        image: item.image_url || '',
+        image_1: item.image_url || '',
+        image_2: '',
+        image_3: '',
+        image_4: '',
+        // New ERP fields
+        grossWeight: item.gross_weight || (item.weight ? parseFloat(item.weight.toString()) : 0),
+        stoneWeight: item.stone_weight || 0,
+        netWeight: item.net_weight || (item.gross_weight ? (item.gross_weight - (item.stone_weight || 0)) : (item.weight ? parseFloat(item.weight.toString()) : 0)),
+        makingCharges: item.making_charges || 0,
+        wastagePercent: item.wastage_percent || 0,
+        barcode: item.barcode || undefined,
+        hsnCode: item.hsn_code || "7113",
+      };
+    });
+  };
+
+  const isLoadingRef = useRef(false);
 
   // Load inventory on mount only - prevent excessive reloads
   useEffect(() => {
@@ -259,7 +306,14 @@ const Index = () => {
         price: item.price,
         stock: item.inStock,
         weight: item.carat ? parseFloat(item.carat.toString()) : null,
-        description: `${item.type}${item.gemstone && item.gemstone !== 'None' ? ` with ${item.gemstone}` : ''}${item.metal ? ` - ${item.metal}` : ''}`,
+        gross_weight: item.grossWeight || null,
+        stone_weight: item.stoneWeight || null,
+        net_weight: item.netWeight || null,
+        making_charges: item.makingCharges || null,
+        wastage_percent: item.wastagePercent || null,
+        barcode: item.barcode || null,
+        hsn_code: item.hsnCode || "7113",
+        description: `${item.type}${item.gemstone && item.gemstone !== 'None' ? ` with ${item.gemstone}` : ''}${item.metal ? ` - ${item.metal}` : ''}${item.barcode ? ` [${item.barcode}]` : ''}`,
         image_url: item.image_1 || item.image || null,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
@@ -305,7 +359,14 @@ const Index = () => {
         price: updatedItem.price,
         stock: updatedItem.inStock,
         weight: updatedItem.carat ? parseFloat(updatedItem.carat.toString()) : null,
-        description: `${updatedItem.type}${updatedItem.gemstone && updatedItem.gemstone !== 'None' ? ` with ${updatedItem.gemstone}` : ''}${updatedItem.metal ? ` - ${updatedItem.metal}` : ''}`,
+        gross_weight: updatedItem.grossWeight || null,
+        stone_weight: updatedItem.stoneWeight || null,
+        net_weight: updatedItem.netWeight || null,
+        making_charges: updatedItem.makingCharges || null,
+        wastage_percent: updatedItem.wastagePercent || null,
+        barcode: updatedItem.barcode || null,
+        hsn_code: updatedItem.hsnCode || "7113",
+        description: `${updatedItem.type}${updatedItem.gemstone && updatedItem.gemstone !== 'None' ? ` with ${updatedItem.gemstone}` : ''}${updatedItem.metal ? ` - ${updatedItem.metal}` : ''}${updatedItem.barcode ? ` [${updatedItem.barcode}]` : ''}`,
         image_url: updatedItem.image_1 || updatedItem.image || null,
         updated_at: new Date().toISOString(),
       };

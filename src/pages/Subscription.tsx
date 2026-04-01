@@ -982,28 +982,93 @@ export const Subscription = () => {
           </Card>
         )}
 
-        {/* Active Subscription Info */}
-        {isActive && subscriptionStatus && (
-          <Card>
-            <CardHeader>
-              <CardTitle>Subscription Information</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3 text-sm">
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Free Trial:</span>
-                <span className="font-semibold">11 months from account creation</span>
+        {/* Gold POS Pricing Table */}
+        <Card className="border-2 border-primary/20 shadow-lg overflow-hidden">
+          <CardHeader className="bg-primary/5 border-b">
+            <CardTitle className="flex items-center gap-2">
+              <Crown className="h-5 w-5 text-primary" />
+              Gold POS Pricing Plans
+            </CardTitle>
+            <CardDescription>
+              Flexible pricing that scales with your business growth
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="p-0">
+            <div className="grid grid-cols-1 md:grid-cols-2">
+              {/* Pricing breakdown */}
+              <div className="p-6 border-b md:border-b-0 md:border-r space-y-4 bg-white">
+                <div className="flex justify-between items-center p-4 rounded-xl border-2 border-primary/10 bg-primary/5 shadow-sm">
+                  <div>
+                    <p className="font-bold text-lg">First Location</p>
+                    <p className="text-xs text-muted-foreground">Main Showroom / Office</p>
+                  </div>
+                  <p className="text-2xl font-black text-primary">₹9,000<span className="text-sm font-normal text-muted-foreground">/yr</span></p>
+                </div>
+                
+                <div className="flex justify-between items-center p-4 rounded-xl border border-dashed border-primary/30 hover:border-primary/50 transition-colors">
+                  <div>
+                    <p className="font-bold text-lg">Additional Location</p>
+                    <p className="text-xs text-muted-foreground">Per additional branch</p>
+                  </div>
+                  <p className="text-2xl font-black text-primary">₹6,000<span className="text-sm font-normal text-muted-foreground">/yr</span></p>
+                </div>
+
+                <div className="pt-4">
+                  <p className="text-sm font-bold text-muted-foreground uppercase tracking-widest mb-4">What's Included</p>
+                  <div className="grid grid-cols-1 gap-2">
+                     <div className="flex items-center gap-2 text-sm font-medium">
+                        <CheckCircle className="h-4 w-4 text-green-500" />
+                        <span>Setup & Training — <span className="text-green-600 font-bold uppercase">Free</span></span>
+                     </div>
+                     <div className="flex items-center gap-2 text-sm font-medium">
+                        <CheckCircle className="h-4 w-4 text-green-500" />
+                        <span>Mobile App Access — <span className="text-primary font-bold">Included</span></span>
+                     </div>
+                     <div className="flex items-center gap-2 text-sm font-medium">
+                        <CheckCircle className="h-4 w-4 text-green-500" />
+                        <span>Web Dashboard — <span className="text-primary font-bold">Included</span></span>
+                     </div>
+                     <div className="flex items-center gap-2 text-sm font-medium">
+                        <CheckCircle className="h-4 w-4 text-green-500" />
+                        <span>24/7 Priority Support — <span className="text-primary font-bold">Included</span></span>
+                     </div>
+                     <div className="flex items-center gap-2 text-sm font-medium">
+                        <CheckCircle className="h-4 w-4 text-green-500" />
+                        <span>Feature Updates — <span className="text-primary font-bold">Included</span></span>
+                     </div>
+                  </div>
+                </div>
               </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Renewal:</span>
-                <span className="font-semibold">₹{Number(subscriptionStatus?.renewalAmount ?? 0).toLocaleString()} annually after free trial</span>
+
+              {/* Current Status / Calculation */}
+              <div className="p-6 bg-slate-50 flex flex-col justify-center items-center text-center space-y-4">
+                 <Building2 className="h-12 w-12 text-primary opacity-20" />
+                 <div>
+                    <p className="text-sm font-bold text-muted-foreground">YOUR MULTI-BRANCH PLAN</p>
+                    <p className="text-3xl font-black mt-1">1 Location Active</p>
+                 </div>
+                 <div className="w-full h-px bg-slate-200 my-2" />
+                 <div className="w-full">
+                    <div className="flex justify-between text-sm py-1">
+                       <span>Base Plan (1st Location)</span>
+                       <span className="font-bold">₹9,000.00</span>
+                    </div>
+                    <div className="flex justify-between text-sm py-1">
+                       <span>Additional Locations (0)</span>
+                       <span className="font-bold">₹0.00</span>
+                    </div>
+                    <div className="flex justify-between text-lg font-black pt-4 border-t mt-2">
+                       <span>Annual Total</span>
+                       <span className="text-primary font-black">₹9,000.00</span>
+                    </div>
+                 </div>
+                 <p className="text-[10px] text-muted-foreground italic px-4">
+                    * Final amount may vary based on specific GST requirements or branch additions mid-cycle.
+                 </p>
               </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Payment:</span>
-                <span className="font-semibold">Contact support to complete payment</span>
-              </div>
-            </CardContent>
-          </Card>
-        )}
+            </div>
+          </CardContent>
+        </Card>
 
         {/* Renewal Payment Section */}
         {subscriptionStatus && (

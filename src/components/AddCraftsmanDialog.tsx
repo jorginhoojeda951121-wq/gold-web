@@ -51,6 +51,7 @@ export interface RawMaterial {
   // Delivery tracking
   estimatedDelivery?: string;      // Estimated delivery date (YYYY-MM-DD format)
   status?: 'pending' | 'in-progress' | 'completed' | 'delayed'; // Task status
+  recoveryDetails?: any;           // Details from job return
 }
 
 export interface PaymentRecord {

@@ -35,21 +35,29 @@ export async function upsertToSupabase(
     return upsertPaymentSettings(data, userId);
   }
 
-  const record = {
-    ...data,
-    user_id: userId,
-    updated_at: new Date().toISOString(),
-  };
-
-  const cleanedRecord = cleanRecordForTable(actualTable, record);
-
-  if (!cleanedRecord.id && actualTable !== 'settings') {
-    cleanedRecord.id = data.id || `${actualTable}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-  }
+  const isArray = Array.isArray(data);
+  const dataArray = isArray ? data : [data];
   
+  const { data: { session } } = await supabase.auth.getSession();
+  const records = dataArray.map(item => {
+    const record = {
+      ...item,
+      user_id: userId,
+      company_id: session?.user?.user_metadata?.company_id || item.company_id,
+      location_id: session?.user?.user_metadata?.location_id || item.location_id,
+      updated_at: new Date().toISOString(),
+    };
+    
+    const cleaned = cleanRecordForTable(actualTable, record);
+    if (!cleaned.id) {
+      cleaned.id = item.id || `${actualTable}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    }
+    return cleaned;
+  });
+
   const { error } = await supabase
     .from(actualTable)
-    .upsert(cleanedRecord, { onConflict: 'id' });
+    .upsert(records, { onConflict: 'id' });
 
   if (error) {
     // Suppress console errors for schema mismatches - only throw for actual errors
@@ -316,20 +324,24 @@ function cleanRecordForTable(table: string, record: any): any {
   }
 
   if (table === 'sales') {
-    delete cleaned.invoice_number;
-    delete cleaned.sale_date;
-    delete cleaned.subtotal;
-    delete cleaned.amount_paid;
-    delete cleaned.balance_due;
+    // Map fields if needed, but don't delete essential data
+    if (cleaned.sale_date && !cleaned.created_at) {
+      cleaned.created_at = cleaned.sale_date;
+    }
   }
 
   if (table === 'sale_items') {
-    // Remove fields that don't exist in actual schema
+    // Map fields that don't exist in actual schema but have equivalents
+    if (cleaned.item_id && !cleaned.product_id) {
+      cleaned.product_id = cleaned.item_id;
+    }
+    if (cleaned.item_name && !cleaned.product_name) {
+      cleaned.product_name = cleaned.item_name;
+    }
+    
+    // Clean up temporary fields but keep ones that might be in schema
     delete cleaned.item_id;
     delete cleaned.item_name;
-    delete cleaned.item_type;
-    delete cleaned.discount_percentage;
-    delete cleaned.discount_amount;
   }
 
   if (table === 'settings' || table === 'businessSettings') {
@@ -342,7 +354,8 @@ function cleanRecordForTable(table: string, record: any): any {
 export async function getFromSupabase<T>(
   table: string,
   filters?: { [key: string]: any },
-  columns?: string
+  columns?: string,
+  options?: { ignoreLocation?: boolean }
 ): Promise<T[]> {
 
   const supabase = getSupabase();
@@ -352,13 +365,29 @@ export async function getFromSupabase<T>(
     throw new Error('User must be authenticated');
   }
 
+  const { data: { session } } = await supabase.auth.getSession();
   let query = supabase
     .from(table)
     .select(columns || '*')
     .eq('user_id', userId);
 
+  // Apply multi-location filters if present in session metadata
+  // This ensures data isolation at the read level
+  if (session?.user?.user_metadata?.company_id) {
+    query = query.eq('company_id', session.user.user_metadata.company_id);
+  }
+  
+  // Skip location filter for certain tables or if explicitly requested (for corporate views)
+  // stock_transfers: rows are tied to from/to branches; creator's location_id must not hide inbound/outbound for other branches
+  const tablesExemptFromLocationFilter = ['companies', 'locations', 'customers', 'stock_transfers'];
+  if (!tablesExemptFromLocationFilter.includes(table) && !options?.ignoreLocation && session?.user?.user_metadata?.location_id) {
+    query = query.eq('location_id', session.user.user_metadata.location_id);
+  }
+
   if (filters) {
     Object.entries(filters).forEach(([key, value]) => {
+      // Don't duplicate filters already applied above
+      if (key === 'company_id' || key === 'location_id' || key === 'user_id') return;
       query = query.eq(key, value);
     });
   }
@@ -421,10 +450,20 @@ async function fetchRecentInvoices<T>(): Promise<T> {
     throw new Error('User must be authenticated');
   }
 
-  const { data, error } = await supabase
+  const { data: { session } } = await supabase.auth.getSession();
+  let query = supabase
     .from('sales')
     .select('*')
-    .eq('user_id', userId)
+    .eq('user_id', userId);
+
+  if (session?.user?.user_metadata?.company_id) {
+    query = query.eq('company_id', session.user.user_metadata.company_id);
+  }
+  if (session?.user?.user_metadata?.location_id) {
+    query = query.eq('location_id', session.user.user_metadata.location_id);
+  }
+
+  const { data, error } = await query
     .order('created_at', { ascending: false })
     .limit(5);
 
@@ -455,10 +494,20 @@ async function fetchSettings<T>(tableName: string): Promise<T> {
     throw new Error('User must be authenticated');
   }
 
-  const { data, error } = await supabase
+  const { data: { session } } = await supabase.auth.getSession();
+  let query = supabase
     .from('settings')
     .select('*')
-    .eq('user_id', userId)
+    .eq('user_id', userId);
+
+  if (session?.user?.user_metadata?.company_id) {
+    query = query.eq('company_id', session.user.user_metadata.company_id);
+  }
+  if (session?.user?.user_metadata?.location_id) {
+    query = query.eq('location_id', session.user.user_metadata.location_id);
+  }
+
+  const { data, error } = await query
     .order('updated_at', { ascending: false })
     .limit(1)
     .maybeSingle();

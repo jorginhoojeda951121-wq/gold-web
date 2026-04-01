@@ -23,9 +23,12 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { useOfflineStorage } from "@/hooks/useOfflineStorage";
 import { getUserData } from "@/lib/userStorage";
+import { AIChatAssistant } from "@/components/AIChatAssistant";
+import { Button } from "@/components/ui/button";
 
 interface AnalyticsData {
   monthlyRevenue: number;
+  monthlyProfit: number;
   itemsSold: number;
   activeCustomers: number;
   averageOrder: number;
@@ -40,12 +43,20 @@ interface AnalyticsData {
   aiSuggestions: Array<{ type: string; priority: 'high' | 'medium' | 'low'; message: string; impact: string }>;
 }
 
-const Analytics = () => {
+interface AnalyticsProps {
+  standalone?: boolean;
+}
+
+import { LocationSelector } from "@/components/LocationSelector";
+
+const Analytics = ({ standalone = true }: AnalyticsProps) => {
   const { data: dateRange, updateData: setDateRange} = useOfflineStorage<string>("analytics_dateRange", "month");
   const { data: searchQuery, updateData: setSearchQuery } = useOfflineStorage<string>("analytics_search", "");
+  const [selectedLocation, setSelectedLocation] = useState<string | 'all'>('all');
   
   const [analyticsData, setAnalyticsData] = useState<AnalyticsData>({
     monthlyRevenue: 0,
+    monthlyProfit: 0,
     itemsSold: 0,
     activeCustomers: 0,
     averageOrder: 0,
@@ -60,6 +71,7 @@ const Analytics = () => {
     aiSuggestions: []
   });
   const [loading, setLoading] = useState(true);
+  const [showChat, setShowChat] = useState(false);
   
   // Load real user-scoped data for analytics
   const loadAnalyticsData = useCallback(async () => {
@@ -67,16 +79,25 @@ const Analytics = () => {
       setLoading(true);
       
       // Load all user-scoped data with proper defaults
-      const [invoicesData, inventoryData, customersData] = await Promise.all([
+      const [invoicesData, inventoryData, customersData, expensesData] = await Promise.all([
         getUserData<any[]>('pos_recentInvoices'),
         getUserData<any[]>('inventory_items'),
         getUserData<any[]>('customers'),
+        getUserData<any[]>('expenses') || [],
       ]);
 
       // Ensure arrays are defined
-      const invoices = Array.isArray(invoicesData) ? invoicesData : [];
-      const inventoryItems = Array.isArray(inventoryData) ? inventoryData : [];
-      const customers = Array.isArray(customersData) ? customersData : [];
+      let invoices = Array.isArray(invoicesData) ? invoicesData : [];
+      let inventoryItems = Array.isArray(inventoryData) ? inventoryData : [];
+      let customers = Array.isArray(customersData) ? customersData : [];
+      let expenses = Array.isArray(expensesData) ? expensesData : [];
+
+      // Filter by location if not 'all'
+      if (selectedLocation !== 'all') {
+        invoices = invoices.filter((inv: any) => inv.location_id === selectedLocation);
+        inventoryItems = inventoryItems.filter((item: any) => item.location_id === selectedLocation);
+        customers = customers.filter((cust: any) => cust.location_id === selectedLocation);
+      }
 
       // Calculate monthly revenue and items sold from invoices
       const now = new Date();
@@ -90,8 +111,17 @@ const Analytics = () => {
         return invDate.getMonth() === currentMonth && invDate.getFullYear() === currentYear;
       });
 
-      // Calculate monthly revenue
-      const monthlyRevenue = currentMonthInvoices.reduce((sum: number, inv: any) => sum + (inv.total || 0), 0);
+      // Calculate monthly revenue and profit
+      const monthlyRevenue = currentMonthInvoices.reduce((sum: number, inv: any) => sum + (inv.total || inv.total_amount || 0), 0);
+      const grossMonthlyProfit = currentMonthInvoices.reduce((sum: number, inv: any) => sum + (inv.profit || (inv.total || inv.total_amount || 0) * 0.15), 0);
+      
+      const currentMonthExpenses = expenses.filter((exp: any) => {
+        if (!exp.date) return false;
+        const expDate = new Date(exp.date);
+        return expDate.getMonth() === currentMonth && expDate.getFullYear() === currentYear;
+      });
+      const monthlyExpensesTotal = currentMonthExpenses.reduce((sum: number, exp: any) => sum + (exp.amount || 0), 0);
+      const monthlyProfit = grossMonthlyProfit - monthlyExpensesTotal;
       
       // Calculate items sold
       const itemsSold = currentMonthInvoices.reduce((sum: number, inv: any) => {
@@ -356,6 +386,7 @@ const Analytics = () => {
 
       setAnalyticsData({
         monthlyRevenue,
+        monthlyProfit,
         itemsSold,
         activeCustomers,
         averageOrder,
@@ -374,7 +405,7 @@ const Analytics = () => {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [selectedLocation]);
 
   useEffect(() => {
     loadAnalyticsData();
@@ -383,32 +414,38 @@ const Analytics = () => {
   // Removed data-synced listener - no longer using sync queue
 
   return (
-    <div className="min-h-screen bg-gradient-elegant">
-      <header className="bg-gradient-primary shadow-elegant border-b border-border/50">
-        <div className="container mx-auto px-6 py-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-2xl font-bold text-primary-foreground">Business Analytics</h1>
-              <p className="text-primary-foreground/70 text-sm">Track your jewelry business performance</p>
-            </div>
-            <div className="flex items-center gap-4">
-              <Select value={dateRange} onValueChange={setDateRange}>
-                <SelectTrigger className="w-40 bg-primary-foreground/10 text-primary-foreground border-primary-foreground/20">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="week">This Week</SelectItem>
-                  <SelectItem value="month">This Month</SelectItem>
-                  <SelectItem value="quarter">This Quarter</SelectItem>
-                  <SelectItem value="year">This Year</SelectItem>
-                </SelectContent>
-              </Select>
+    <div className={standalone ? "min-h-screen bg-gradient-elegant" : ""}>
+      {standalone && (
+        <header className="bg-gradient-primary shadow-elegant border-b border-border/50">
+          <div className="container mx-auto px-6 py-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <h1 className="text-2xl font-bold text-primary-foreground">Business Analytics</h1>
+                <p className="text-primary-foreground/70 text-sm">Track your jewelry business performance</p>
+              </div>
+              <div className="flex items-center gap-4">
+                <LocationSelector 
+                  onLocationChange={setSelectedLocation}
+                  className="bg-primary-foreground/10 text-primary-foreground border-primary-foreground/20"
+                />
+                <Select value={dateRange} onValueChange={setDateRange}>
+                  <SelectTrigger className="w-40 bg-primary-foreground/10 text-primary-foreground border-primary-foreground/20">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="week">This Week</SelectItem>
+                    <SelectItem value="month">This Month</SelectItem>
+                    <SelectItem value="quarter">This Quarter</SelectItem>
+                    <SelectItem value="year">This Year</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
           </div>
-        </div>
-      </header>
+        </header>
+      )}
 
-      <main className="container mx-auto px-6 py-8">
+      <main className={standalone ? "container mx-auto px-6 py-8" : "py-4"}>
         {/* Overview Stats */}
         <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
           <StatsCard
@@ -416,6 +453,13 @@ const Analytics = () => {
             value={loading ? "Loading..." : `₹${analyticsData.monthlyRevenue.toLocaleString()}`}
             icon={DollarSign}
             trend={analyticsData.monthlyRevenue > 0 ? "Current month" : "No sales this month"}
+          />
+          <StatsCard
+            title="Monthly Profit"
+            value={loading ? "Loading..." : `₹${analyticsData.monthlyProfit.toLocaleString()}`}
+            icon={TrendingUp}
+            trend={analyticsData.monthlyProfit > 0 ? "Actual (SP - CP)" : "Cumulative profit"}
+            variant="purple"
           />
           <StatsCard
             title="Items Sold"
@@ -771,6 +815,22 @@ const Analytics = () => {
           </Card>
         </div>
       </main>
+
+      {/* AI Assistant Floating Button */}
+      <div className="fixed bottom-6 right-6 z-40">
+        {!showChat && (
+          <Button 
+            onClick={() => setShowChat(true)}
+            className="rounded-full shadow-lg hover:shadow-xl transition-all p-4 h-14 w-40 flex gap-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white border-0"
+          >
+            <Sparkles className="h-5 w-5" />
+            <span className="font-semibold">Ask AI</span>
+          </Button>
+        )}
+      </div>
+
+      {/* AI Assistant Chat Modal */}
+      <AIChatAssistant visible={showChat} onClose={() => setShowChat(false)} />
     </div>
   );
 };

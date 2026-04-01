@@ -16,8 +16,9 @@ export interface SubscriptionStatus {
 }
 
 const FREE_TRIAL_MONTHS = 11;
-const ANNUAL_RENEWAL_AMOUNT = 10; // INR - Changed to 10 for testing, change back to 3000 after testing
-const GRACE_PERIOD_DAYS = 7; // Grace period after expiry before blocking access
+const FIRST_LOCATION_PRICE = 9000;
+const ADDITIONAL_LOCATION_PRICE = 6000;
+const GRACE_PERIOD_DAYS = 7;
 
 /**
  * Calculate subscription expiry date based on start date
@@ -73,7 +74,7 @@ export async function getSubscriptionStatus(userId: string): Promise<Subscriptio
         expiryDate: null,
         subscriptionStartDate: null,
         requiresPayment: true,
-        renewalAmount: ANNUAL_RENEWAL_AMOUNT,
+        renewalAmount: FIRST_LOCATION_PRICE,
         gracePeriodEndDate: null,
         isFreeTrial: false,
         hoursRemaining: 0,
@@ -137,6 +138,10 @@ export async function getSubscriptionStatus(userId: string): Promise<Subscriptio
     const isActive = !requiresPayment;
     const isFreeTrial = !lastPaymentDate;
 
+    // Calculate renewal amount based on locations (Gold POS Pricing model)
+    const locationCount = 1; // Default to 1 location
+    const renewalAmount = FIRST_LOCATION_PRICE + (Math.max(0, locationCount - 1) * ADDITIONAL_LOCATION_PRICE);
+
     return {
       isActive,
       isExpired: isExpired && now > gracePeriodEnd,
@@ -144,7 +149,7 @@ export async function getSubscriptionStatus(userId: string): Promise<Subscriptio
       expiryDate,
       subscriptionStartDate: startDate,
       requiresPayment,
-      renewalAmount: ANNUAL_RENEWAL_AMOUNT,
+      renewalAmount,
       gracePeriodEndDate: gracePeriodEnd,
       isFreeTrial,
       hoursRemaining: Math.max(0, hoursRemaining),
@@ -161,7 +166,7 @@ export async function getSubscriptionStatus(userId: string): Promise<Subscriptio
       expiryDate: null,
       subscriptionStartDate: null,
       requiresPayment: true,
-      renewalAmount: ANNUAL_RENEWAL_AMOUNT,
+      renewalAmount: FIRST_LOCATION_PRICE,
       gracePeriodEndDate: null,
       isFreeTrial: false,
       hoursRemaining: 0,
